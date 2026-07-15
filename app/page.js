@@ -1197,43 +1197,52 @@ function Reveal({ children, delay=0, style }) {
 
 function Hero({ brand, products, hasMisty, hasWbs }) {
   const go = id => document.getElementById(id)?.scrollIntoView({ behavior:"smooth" });
-  const [vidOk,setVidOk] = useState(true);
+  const heroVid = brand.heroVideo || "";   // set in admin/config to enable TVC background
+  const [vidOk,setVidOk] = useState(!!heroVid);
   return (
-    <section style={{ position:"relative", minHeight:"calc(100svh - 64px)", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", background:NAVY }}>
-      {vidOk&&(
-        <video autoPlay muted loop playsInline preload="metadata" poster=""
-          onError={()=>setVidOk(false)}
-          style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", filter:"blur(3px) brightness(0.9)", transform:"scale(1.04)" }}>
-          <source src="/hero.mp4" type="video/mp4" />
-        </video>
-      )}
-      {/* navy tint so white text always reads */}
-      <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(13,20,46,0.55), rgba(13,20,46,0.35) 45%, rgba(13,20,46,0.65))" }} />
-      {!vidOk&&<>
-        <img src="/products/misty-spray.png" alt="" style={{ position:"absolute", bottom:0, right:"16%", height:"52%", opacity:0.9, filter:"drop-shadow(0 24px 40px rgba(0,0,0,0.35))", animation:"hpFloat 7s ease-in-out infinite" }} />
-        <img src="/products/wbs-lavender.png" alt="" style={{ position:"absolute", bottom:0, right:"6%", height:"42%", opacity:0.9, animation:"hpFloat 7s ease-in-out 1.2s infinite" }} />
-      </>}
+    <section style={{ position:"relative", overflow:"hidden", background:NAVY }}>
       <style>{`
         @keyframes hpFloat{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-12px) } }
-        @keyframes hpRise{ from{ opacity:0; transform:translateY(30px) } to{ opacity:1; transform:none } }
+        @keyframes hpRise{ from{ opacity:0; transform:translateY(28px) } to{ opacity:1; transform:none } }
+        .hp-hero{ max-width:1200px; margin:0 auto; padding:64px 24px 72px; display:grid; grid-template-columns:1.05fr 0.95fr; gap:32px; align-items:center; min-height:calc(88svh - 64px) }
         .hp-hero-btn{ transition:transform .25s cubic-bezier(0.34,1.56,0.64,1), box-shadow .25s ease }
         .hp-hero-btn:hover{ transform:translateY(-4px) scale(1.03); box-shadow:0 16px 36px rgba(0,0,0,0.35) }
+        .hp-hero-stage{ position:relative; height:clamp(300px,42vw,460px) }
+        .hp-hero-stage img{ position:absolute; bottom:0; filter:drop-shadow(0 26px 40px rgba(0,0,0,0.4)) }
+        @media (max-width:820px){
+          .hp-hero{ grid-template-columns:1fr; text-align:center; padding:44px 22px 56px; gap:20px; min-height:0 }
+          .hp-hero-copy{ order:1 } .hp-hero-stage{ order:2; height:300px }
+          .hp-hero-btns{ justify-content:center }
+        }
       `}</style>
-      <div style={{ position:"relative", zIndex:2, textAlign:"center", padding:"96px 24px 64px", maxWidth:900 }}>
-        <img src="/logo-white.png" alt="Hanapet" style={{ height:64, objectFit:"contain", marginBottom:26, animation:"hpRise .8s cubic-bezier(0.22,1,0.36,1) both" }} />
-        <h1 style={{ fontFamily:FONT_T, fontWeight:900, fontSize:"clamp(46px,7.5vw,96px)", lineHeight:0.98, letterSpacing:"-0.02em", color:"#fff", margin:"0 0 18px", textShadow:"0 4px 30px rgba(0,0,0,0.35)", animation:"hpRise .8s .12s cubic-bezier(0.22,1,0.36,1) both" }}>
-          For the loved one.
-        </h1>
-        <p style={{ fontFamily:FONT_B, fontSize:"clamp(14px,1.6vw,17px)", lineHeight:1.8, color:"rgba(255,255,255,0.85)", maxWidth:520, margin:"0 auto 34px", animation:"hpRise .8s .22s cubic-bezier(0.22,1,0.36,1) both" }}>
-          Khử mùi an toàn · Tắm gội thơm tho — chăm sóc boss sạch thơm mỗi ngày cùng Hanapet.
-        </p>
-        <div style={{ display:"flex", gap:14, justifyContent:"center", flexWrap:"wrap", animation:"hpRise .8s .32s cubic-bezier(0.22,1,0.36,1) both" }}>
-          {hasMisty&&<button className="hp-hero-btn" onClick={()=>go("sku-misty")} style={{ background:"#fff", color:NAVY, border:"none", borderRadius:999, padding:"16px 30px", fontFamily:FONT_T, fontWeight:800, fontSize:16, cursor:"pointer", boxShadow:"0 10px 28px rgba(0,0,0,0.3)" }}>Misty Fresh →</button>}
-          {hasWbs&&<button className="hp-hero-btn" onClick={()=>go("sku-wbs")} style={{ background:PERI, color:NAVY, border:"none", borderRadius:999, padding:"16px 30px", fontFamily:FONT_T, fontWeight:800, fontSize:16, cursor:"pointer", boxShadow:"0 10px 28px rgba(0,0,0,0.3)" }}>Bubble Shampoo →</button>}
+      {vidOk&&<>
+        <video autoPlay muted loop playsInline onError={()=>setVidOk(false)}
+          style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", filter:"blur(2px) brightness(0.85)", transform:"scale(1.05)" }}>
+          <source src={heroVid} type="video/mp4" />
+        </video>
+        <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(13,20,46,0.62), rgba(13,20,46,0.5))" }} />
+      </>}
+      <div className="hp-hero" style={{ position:"relative", zIndex:2 }}>
+        <div className="hp-hero-copy">
+          <div style={{ fontFamily:FONT_B, fontWeight:700, fontSize:13, letterSpacing:3, textTransform:"uppercase", color:PERI, marginBottom:16, animation:"hpRise .7s both" }}>🐾 Đồ dùng thú cưng cho chó &amp; mèo</div>
+          <h1 style={{ fontFamily:FONT_T, fontWeight:900, fontSize:"clamp(32px,5vw,60px)", lineHeight:1.04, letterSpacing:"-0.02em", color:"#fff", margin:"0 0 16px", textShadow:vidOk?"0 4px 30px rgba(0,0,0,0.4)":"none", animation:"hpRise .7s .1s both" }}>
+            Chăm sóc thú cưng<br/>cao cấp cùng Hanapet
+          </h1>
+          <p style={{ fontFamily:FONT_B, fontSize:"clamp(14px,1.5vw,17px)", lineHeight:1.75, color:"rgba(255,255,255,0.82)", maxWidth:480, margin:"0 0 30px", animation:"hpRise .7s .2s both" }}>
+            Khử mùi an toàn · Tắm gội thơm tho — cho boss sạch thơm mỗi ngày.
+          </p>
+          <div className="hp-hero-btns" style={{ display:"flex", gap:12, flexWrap:"wrap", animation:"hpRise .7s .3s both" }}>
+            {hasMisty&&<button className="hp-hero-btn" onClick={()=>go("sku-misty")} style={{ background:"#fff", color:NAVY, border:"none", borderRadius:999, padding:"15px 28px", fontFamily:FONT_T, fontWeight:800, fontSize:15, cursor:"pointer", boxShadow:"0 10px 28px rgba(0,0,0,0.3)" }}>Xịt khử mùi →</button>}
+            {hasWbs&&<button className="hp-hero-btn" onClick={()=>go("sku-wbs")} style={{ background:PERI, color:NAVY, border:"none", borderRadius:999, padding:"15px 28px", fontFamily:FONT_T, fontWeight:800, fontSize:15, cursor:"pointer", boxShadow:"0 10px 28px rgba(0,0,0,0.3)" }}>Tắm gội thơm tho →</button>}
+          </div>
         </div>
+        {!vidOk&&(
+          <div className="hp-hero-stage">
+            <img src="/products/misty-spray.png" alt="Misty Fresh" style={{ right:"34%", height:"100%", animation:"hpFloat 7s ease-in-out infinite" }} />
+            <img src="/products/wbs-lavender.png" alt="Bubble Shampoo" style={{ right:"4%", height:"82%", animation:"hpFloat 7s ease-in-out 1.2s infinite" }} />
+          </div>
+        )}
       </div>
-      {/* scroll hint */}
-      <div style={{ position:"absolute", bottom:22, left:"50%", transform:"translateX(-50%)", zIndex:2, color:"rgba(255,255,255,0.6)", fontSize:22, animation:"hpFloat 2.4s ease-in-out infinite" }}>↓</div>
     </section>
   );
 }
@@ -1255,8 +1264,8 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
       <Reveal>
       <div style={{ maxWidth:1200,margin:"0 auto",background:bg,borderRadius:36,transition:"background .6s ease",overflow:"hidden" }}>
         <div className="hp-sku" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",alignItems:"center",direction:flip?"rtl":"ltr" }}>
-          <div style={{ direction:"ltr",position:"relative",height:"min(56vw, 560px)",maxHeight:560,display:"flex",alignItems:"flex-end",justifyContent:"center" }}>
-            <img key={img} src={img} alt={p.name} style={{ height:"88%",objectFit:"contain",filter:"drop-shadow(0 22px 34px rgba(24,40,78,0.28))",animation:"hpPop .5s cubic-bezier(0.22,1,0.36,1)" }} />
+          <div style={{ direction:"ltr",position:"relative",minHeight:320,height:"min(48vw, 520px)",maxHeight:520,display:"flex",alignItems:"center",justifyContent:"center",padding:"28px 0" }}>
+            <img key={img} src={img} alt={p.name} style={{ maxHeight:"100%",maxWidth:"70%",objectFit:"contain",filter:"drop-shadow(0 22px 34px rgba(24,40,78,0.28))",animation:"hpPop .5s cubic-bezier(0.22,1,0.36,1)" }} />
           </div>
           <div style={{ direction:"ltr",padding:"clamp(28px,4vw,56px)" }}>
             <div style={{ fontFamily:FONT_B,fontWeight:700,fontSize:12,letterSpacing:3.5,textTransform:"uppercase",color:deep,transition:"color .6s ease",marginBottom:12 }}>
@@ -1458,7 +1467,7 @@ export default function App() {
       <div style={{ paddingBottom:60 }}>
         <style>{`
           @keyframes hpPop{ from{ opacity:0; transform:translateY(16px) scale(0.97) } to{ opacity:1; transform:none } }
-          @media (max-width:760px){ .hp-sku{ grid-template-columns:1fr !important } }
+          @media (max-width:820px){ .hp-sku{ grid-template-columns:1fr !important; direction:ltr !important } .hp-sku>div:first-child{ min-height:260px !important; height:auto !important } }
           @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important } }
         `}</style>
         {page==="shop"&&(()=>{
