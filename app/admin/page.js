@@ -129,39 +129,53 @@ function CustomCursor({ primary }) {
 // ── Freeform crop modal (pure canvas, no external lib) ───────────────────────
 function CropModal({ src, onCancel, onDone }) {
   const imgRef = useRef(null);
-  const boxRef = useRef(null);          // the crop rectangle overlay
-  const wrapRef = useRef(null);
-  const [rect, setRect] = useState(null);   // {x,y,w,h} in displayed px
+  const [dim, setDim]   = useState(null);   // {w,h} rendered image size
+  const [rect, setRect] = useState(null);   // {x,y,w,h} in rendered px, origin = image top-left
   const drag = useRef(null);
 
-  // Initialise crop box to ~80% centered once the image lays out
   const onImgLoad = () => {
     const el = imgRef.current;
     const w = el.clientWidth, h = el.clientHeight;
-    setRect({ x: w*0.1, y: h*0.1, w: w*0.8, h: h*0.8 });
+    setDim({ w, h });
+    setRect({ x: 0, y: 0, w, h });   // start covering the whole image
   };
+  const selectAll = () => { if(dim) setRect({ x:0, y:0, w:dim.w, h:dim.h }); };
+
+  const pointer = e => (e.touches && e.touches[0]) ? e.touches[0] : e;
 
   const startDrag = (mode, e) => {
     e.preventDefault(); e.stopPropagation();
-    const pt = e.touches ? e.touches[0] : e;
+    const pt = pointer(e);
     drag.current = { mode, sx: pt.clientX, sy: pt.clientY, orig: { ...rect } };
   };
   const onMove = (e) => {
-    if (!drag.current) return;
-    const pt = e.touches ? e.touches[0] : e;
+    if (!drag.current || !dim) return;
+    const pt = pointer(e);
     const dx = pt.clientX - drag.current.sx;
     const dy = pt.clientY - drag.current.sy;
     const o = drag.current.orig;
-    const el = imgRef.current;
-    const maxW = el.clientWidth, maxH = el.clientHeight;
+    const M = dim, MIN = 30;
     let { x, y, w, h } = o;
-    if (drag.current.mode === 'move') {
-      x = Math.max(0, Math.min(maxW - w, o.x + dx));
-      y = Math.max(0, Math.min(maxH - h, o.y + dy));
-    } else {
-      // resize from bottom-right corner (freeform)
-      w = Math.max(24, Math.min(maxW - o.x, o.w + dx));
-      h = Math.max(24, Math.min(maxH - o.y, o.h + dy));
+    const mode = drag.current.mode;
+    if (mode === 'move') {
+      x = Math.max(0, Math.min(M.w - w, o.x + dx));
+      y = Math.max(0, Math.min(M.h - h, o.y + dy));
+    } else if (mode === 'se') {
+      w = Math.max(MIN, Math.min(M.w - o.x, o.w + dx));
+      h = Math.max(MIN, Math.min(M.h - o.y, o.h + dy));
+    } else if (mode === 'sw') {
+      const nx = Math.max(0, Math.min(o.x + o.w - MIN, o.x + dx));
+      w = o.w + (o.x - nx); x = nx;
+      h = Math.max(MIN, Math.min(M.h - o.y, o.h + dy));
+    } else if (mode === 'ne') {
+      const ny = Math.max(0, Math.min(o.y + o.h - MIN, o.y + dy));
+      h = o.h + (o.y - ny); y = ny;
+      w = Math.max(MIN, Math.min(M.w - o.x, o.w + dx));
+    } else if (mode === 'nw') {
+      const nx = Math.max(0, Math.min(o.x + o.w - MIN, o.x + dx));
+      const ny = Math.max(0, Math.min(o.y + o.h - MIN, o.y + dy));
+      w = o.w + (o.x - nx); x = nx;
+      h = o.h + (o.y - ny); y = ny;
     }
     setRect({ x, y, w, h });
   };
@@ -171,36 +185,42 @@ function CropModal({ src, onCancel, onDone }) {
     const el = imgRef.current;
     const scaleX = el.naturalWidth / el.clientWidth;
     const scaleY = el.naturalHeight / el.clientHeight;
-    const cx = rect.x * scaleX, cy = rect.y * scaleY;
     const cw = rect.w * scaleX, ch = rect.h * scaleY;
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(cw); canvas.height = Math.round(ch);
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(el, cx, cy, cw, ch, 0, 0, cw, ch);
+    ctx.drawImage(el, rect.x*scaleX, rect.y*scaleY, cw, ch, 0, 0, cw, ch);
     canvas.toBlob((blob) => {
       if (blob) onDone(new File([blob], 'cropped.jpg', { type: 'image/jpeg' }));
     }, 'image/jpeg', 0.92);
   };
 
+  const handle = (mode, pos) => (
+    <div onMouseDown={e=>startDrag(mode,e)} onTouchStart={e=>startDrag(mode,e)}
+      style={{ position:'absolute', ...pos, width:20, height:20, borderRadius:'50%', background:'#18284e', border:'2px solid #fff', boxShadow:'0 2px 6px rgba(0,0,0,0.3)', touchAction:'none' }} />
+  );
+
   return (
-    <div onMouseMove={onMove} onMouseUp={endDrag} onTouchMove={onMove} onTouchEnd={endDrag}
+    <div onMouseMove={onMove} onMouseUp={endDrag} onMouseLeave={endDrag} onTouchMove={onMove} onTouchEnd={endDrag}
       style={{ position:'fixed', inset:0, background:'rgba(10,16,38,0.75)', zIndex:6000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
       <div style={{ background:'#fff', borderRadius:20, padding:20, maxWidth:520, width:'100%' }}>
         <div style={{ fontFamily:FONT_T, fontSize:15, color:'#0d142e', marginBottom:4 }}>✂️ Cắt ảnh (kéo tự do)</div>
-        <div style={{ fontFamily:FONT_B, fontSize:12, color:'#5f6c8f', marginBottom:12 }}>Kéo góc dưới-phải để đổi kích thước, kéo giữa để di chuyển khung.</div>
-        <div ref={wrapRef} style={{ position:'relative', userSelect:'none', touchAction:'none', textAlign:'center', background:'#f4f4f4', borderRadius:10, overflow:'hidden' }}>
-          <img ref={imgRef} src={src} onLoad={onImgLoad} alt="" draggable={false} style={{ maxWidth:'100%', maxHeight:'55vh', display:'inline-block', verticalAlign:'top' }} />
+        <div style={{ fontFamily:FONT_B, fontSize:12, color:'#5f6c8f', marginBottom:12 }}>Kéo 4 góc để đổi kích thước · kéo giữa khung để di chuyển · hoặc bấm "Chọn toàn bộ ảnh".</div>
+        <div style={{ position:'relative', userSelect:'none', touchAction:'none', lineHeight:0, background:'#f4f4f4', borderRadius:10, overflow:'hidden', width:'fit-content', margin:'0 auto' }}>
+          <img ref={imgRef} src={src} onLoad={onImgLoad} alt="" draggable={false} style={{ maxWidth:'100%', maxHeight:'55vh', display:'block' }} />
           {rect && (
-            <div ref={boxRef}
-              onMouseDown={e=>startDrag('move',e)} onTouchStart={e=>startDrag('move',e)}
-              style={{ position:'absolute', left:rect.x, top:rect.y, width:rect.w, height:rect.h, border:'2px solid #1b295b', boxShadow:'0 0 0 9999px rgba(0,0,0,0.4)', cursor:'move', boxSizing:'border-box' }}>
-              <div onMouseDown={e=>startDrag('resize',e)} onTouchStart={e=>startDrag('resize',e)}
-                style={{ position:'absolute', right:-9, bottom:-9, width:18, height:18, borderRadius:'50%', background:'#1b295b', border:'2px solid #fff', cursor:'nwse-resize' }} />
+            <div onMouseDown={e=>startDrag('move',e)} onTouchStart={e=>startDrag('move',e)}
+              style={{ position:'absolute', left:rect.x, top:rect.y, width:rect.w, height:rect.h, border:'2px solid #18284e', boxShadow:'0 0 0 9999px rgba(0,0,0,0.45)', cursor:'move', boxSizing:'border-box', touchAction:'none' }}>
+              {handle('nw', { left:-10, top:-10, cursor:'nwse-resize' })}
+              {handle('ne', { right:-10, top:-10, cursor:'nesw-resize' })}
+              {handle('sw', { left:-10, bottom:-10, cursor:'nesw-resize' })}
+              {handle('se', { right:-10, bottom:-10, cursor:'nwse-resize' })}
             </div>
           )}
         </div>
         <div style={{ display:'flex', gap:10, marginTop:16 }}>
-          <button onClick={apply} style={{ flex:1, background:'#1b295b', color:'#fff', border:'none', borderRadius:12, padding:'12px 0', fontFamily:FONT_T, fontSize:14, cursor:'pointer' }}>✓ Xong</button>
+          <button onClick={apply} style={{ flex:1, background:'#18284e', color:'#fff', border:'none', borderRadius:12, padding:'12px 0', fontFamily:FONT_T, fontSize:14, cursor:'pointer' }}>✓ Xong</button>
+          <button onClick={selectAll} style={{ background:'#f2f5fb', color:'#18284e', border:'2px solid #dbe2f1', borderRadius:12, padding:'12px 16px', fontFamily:FONT_T, fontSize:13, cursor:'pointer', whiteSpace:'nowrap' }}>⤢ Toàn bộ</button>
           <button onClick={onCancel} style={{ background:'#f2f5fb', color:'#5f6c8f', border:'2px solid #dbe2f1', borderRadius:12, padding:'12px 20px', fontFamily:FONT_T, fontSize:14, cursor:'pointer' }}>Huỷ</button>
         </div>
       </div>
@@ -1122,7 +1142,7 @@ function TabOrders({ S }) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}}>
         <div style={{fontFamily:FONT_T,fontSize:16,color:"#0d142e"}}>Quản Lý Đơn Hàng ({orders.length})</div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {["all",...STEPS].map(s=><button key={s} onClick={()=>setFilter(s)} style={{padding:"5px 12px",borderRadius:20,border:"2px solid "+(filter===s?brand.primary:"#dbe2f1"),background:filter===s?brand.primary:"transparent",color:filter===s?"#fff":"#5f6c8f",fontFamily:FONT_T,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>{s==="all"?"Tất cả":(STATUS_LABELS[s]||s)}</button>)}
+          {["all",...STEPS].map(s=>{const on=filter===s;return <button key={s} onClick={()=>setFilter(s)} style={{padding:"6px 13px",borderRadius:20,border:"1.5px solid "+(on?brand.primary:"#dbe2f1"),background:on?brand.primary:"#fff",color:on?"#fff":"#5f6c8f",fontFamily:FONT_T,fontWeight:700,fontSize:11,cursor:"pointer",whiteSpace:"nowrap",transition:"none"}}>{s==="all"?"Tất cả":(STATUS_LABELS[s]||s)}</button>})}
         </div>
       </div>
       {filtered.length===0
@@ -1348,6 +1368,7 @@ export default function AdminPage() {
     ['orders','📋 Đơn hàng', pendingCount],
     ['inventory','📊 Tồn kho', null],
     ['brand','🎨 Thương hiệu', null],
+    ['hero','🏠 Trang chủ', null],
     ['banners','🖼 Banner', null],
     ['products','📦 Sản phẩm', null],
     ['trust','✅ Trust Bar', null],
@@ -1408,6 +1429,38 @@ export default function AdminPage() {
     );
   };
 
+  // ── Tab: Hero / Trang chủ ──
+  const TabHero = () => {
+    const [b,setB] = useState({...S.brand[0]});
+    const set = (k,v)=>setB(x=>({...x,[k]:v}));
+    return (
+      <div style={{ maxWidth:560 }}>
+        <SectionHeader title="🏠 Màn hình đầu trang (Hero)" />
+        <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:16 }}>Chỉnh chữ và nền của khu vực đầu tiên khách nhìn thấy. Để trống ô nào thì dùng mặc định.</div>
+
+        <Field label="Dòng nhỏ phía trên (eyebrow)" value={b.heroEyebrow||""} onChange={v=>set("heroEyebrow",v)} span="full" placeholder="🐾 Đồ dùng thú cưng cho chó & mèo" />
+        <Field label="Tiêu đề lớn" value={b.heroTitle||""} onChange={v=>set("heroTitle",v)} span="full" placeholder="Chăm sóc thú cưng cao cấp cùng Hanapet" />
+        <Field label="Mô tả ngắn dưới tiêu đề" value={b.heroSub||""} onChange={v=>set("heroSub",v)} span="full" placeholder="Khử mùi an toàn · Tắm gội thơm tho" />
+
+        <div style={{ marginTop:20,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
+          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:6 }}>🎬 Video nền (TVC)</div>
+          <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12,lineHeight:1.6 }}>Dán link video .mp4 để làm nền động cho hero (nền sẽ mờ nhẹ + phủ tối cho chữ dễ đọc). Để trống = nền xanh navy tĩnh với ảnh sản phẩm.</div>
+          <Field label="Link video .mp4" value={b.heroVideo||""} onChange={v=>set("heroVideo",v)} span="full" placeholder="https://.../tvc.mp4" />
+          <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:6 }}>Mẹo: upload video lên Supabase Storage (bucket public) hoặc dịch vụ như Cloudinary rồi dán link .mp4 vào đây. Nên nén dưới 10MB để tải nhanh.</div>
+        </div>
+
+        <div style={{ marginTop:16,padding:16,background:"#18284e",borderRadius:14 }}>
+          <div style={{ fontFamily:FONT_T,fontSize:11,color:"#8f9fe8",marginBottom:8 }}>XEM TRƯỚC</div>
+          <div style={{ fontFamily:FONT_B,fontSize:10,letterSpacing:2,color:"#8f9fe8",marginBottom:6 }}>{b.heroEyebrow||"🐾 Đồ dùng thú cưng cho chó & mèo"}</div>
+          <div style={{ fontFamily:FONT_T,fontWeight:900,fontSize:22,color:"#fff",lineHeight:1.1,marginBottom:6 }}>{b.heroTitle||"Chăm sóc thú cưng cao cấp cùng Hanapet"}</div>
+          <div style={{ fontFamily:FONT_B,fontSize:12,color:"rgba(255,255,255,0.8)" }}>{b.heroSub||"Khử mùi an toàn · Tắm gội thơm tho"}</div>
+        </div>
+
+        <SaveBtn onSave={async ()=>{await setSupabaseConfig("brand", b); S.brand[1](b); flash();}} saved={saved} />
+      </div>
+    );
+  };
+
   // ── Tab: Banners ──
   const TabBanners = () => {
     const [list,setList] = useState([...S.banners[0]]);
@@ -1428,8 +1481,9 @@ export default function AdminPage() {
           <div className="hh-admin-grid2" style={{ marginTop:14,display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
             <Field label="Tiêu đề chính" value={b.title} onChange={v=>upd(b.id,"title",v)} span="full" />
             <Field label="Phụ đề"      value={b.sub}   onChange={v=>upd(b.id,"sub",v)} span="full" />
-            <Field label="Nút CTA"     value={b.cta}   onChange={v=>upd(b.id,"cta",v)} />
+            <Field label="Nút CTA (chữ trên nút)"     value={b.cta}   onChange={v=>upd(b.id,"cta",v)} />
             <Field label="Màu nền"     value={b.bg||"#1b295b"} onChange={v=>upd(b.id,"bg",v)} type="color" />
+            <Field label="Link khi bấm nút" value={b.ctaLink||""} onChange={v=>upd(b.id,"ctaLink",v)} span="full" placeholder="#sku-misty · #sku-wbs · https://... · để trống = cuộn tới sản phẩm" />
           </div>
           <div style={{ display:"flex",gap:10,marginTop:16,alignItems:"center" }}>
             <button disabled={saving} onClick={async()=>{
@@ -1646,8 +1700,8 @@ export default function AdminPage() {
             <Field label="Tags (cách nhau bằng dấu phẩy)" value={p.tags||""} onChange={v=>upd(p.id,"tags",v)} span="full" />
             <Field label="Câu chuyện sản phẩm" value={p.story||""} onChange={v=>upd(p.id,"story",v)} rows={4} span="full" />
             <div style={{ gridColumn:"1 / -1" }}>
-              <Field label="🎬 Link video TikTok (không bắt buộc)" value={p.tiktokUrl||""} onChange={v=>upd(p.id,"tiktokUrl",v)} span="full" />
-              <div style={{ fontFamily:FONT_B,fontSize:11,color:"#5f6c8f",marginTop:4 }}>Dán link video TikTok (VD: https://www.tiktok.com/@user/video/123...) — sẽ hiện ở tab "Video" trong trang chi tiết sản phẩm. Ảnh GIF thì cứ upload thẳng vào ô ảnh như ảnh thường, sẽ tự chạy.</div>
+              <Field label="🎬 Link video (YouTube / TikTok / Instagram — không bắt buộc)" value={p.videoUrl||p.tiktokUrl||""} onChange={v=>upd(p.id,"videoUrl",v)} span="full" />
+              <div style={{ fontFamily:FONT_B,fontSize:11,color:"#5f6c8f",marginTop:4 }}>Dán link từ YouTube, TikTok hoặc Instagram (reel/post) — hoặc link .mp4 trực tiếp. Sẽ hiện ở tab "Video" trong trang chi tiết sản phẩm. Ảnh GIF thì upload thẳng vào ô ảnh như thường, sẽ tự chạy.</div>
             </div>
           </div>
 
@@ -2131,6 +2185,7 @@ export default function AdminPage() {
         {tab==='orders'     && <TabOrders S={S} />}
         {tab==='inventory'  && <TabInventory S={S} />}
         {tab==='brand'      && <TabBrand />}
+        {tab==='hero'       && <TabHero />}
         {tab==='banners'    && <TabBanners />}
         {tab==='products'   && <TabProducts />}
         {tab==='trust'      && <TabTrust />}

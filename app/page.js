@@ -361,7 +361,12 @@ function BannerCarousel({ banners, brand }) {
           <div className="hh-banner-pad" style={{ position:"absolute",bottom:0,left:0,right:0,boxSizing:"border-box" }}>
             <div className="hh-banner-title" style={{ fontFamily:FONT_T,fontWeight:700,color:"#fff",lineHeight:1.15,textShadow:"0 2px 12px rgba(0,0,0,0.5)",marginBottom:6,maxWidth:"90%" }}>{b.title}</div>
             <div className="hh-banner-sub" style={{ fontFamily:FONT_B,color:"rgba(255,255,255,0.85)",marginBottom:16,maxWidth:"85%" }}>{b.sub}</div>
-            <button className="hh-banner-cta" style={{ background:brand.primary,color:"#fff",border:"none",borderRadius:12,padding:"11px 26px",fontFamily:FONT_T,fontSize:14,fontWeight:700,cursor:"pointer" }}>{b.cta} →</button>
+            <button className="hh-banner-cta" onClick={()=>{
+              const t=(b.ctaLink||"").trim();
+              if(!t) { document.getElementById("sku-misty")?.scrollIntoView({behavior:"smooth"}); return; }
+              if(t.startsWith("#")) { document.getElementById(t.slice(1))?.scrollIntoView({behavior:"smooth"}); return; }
+              window.open(t, t.startsWith("http")?"_blank":"_self");
+            }} style={{ background:brand.primary,color:"#fff",border:"none",borderRadius:12,padding:"11px 26px",fontFamily:FONT_T,fontSize:14,fontWeight:700,cursor:"pointer" }}>{b.cta||"Xem ngay"} →</button>
           </div>
         </div>
       ))}
@@ -503,29 +508,33 @@ function ReviewsSection({ productId, brand }) {
   );
 }
 
-function TikTokEmbed({ url }) {
-  // Extract the numeric video id from a TikTok URL like
-  // https://www.tiktok.com/@user/video/7361234567890123456
-  const m = String(url||"").match(/video\/(\d+)/);
-  const id = m ? m[1] : null;
-  if (!id) {
-    return (
-      <div style={{ fontFamily:FONT_B,fontSize:13,color:"#5f6c8f",padding:"16px",background:"#f2f5fb",borderRadius:12,textAlign:"center" }}>
-        Link video không hợp lệ. <a href={url} target="_blank" rel="noreferrer" style={{ color:"#1b295b" }}>Xem trên TikTok →</a>
-      </div>
-    );
-  }
-  return (
-    <div style={{ position:"relative",width:"100%",maxWidth:325,margin:"0 auto",borderRadius:12,overflow:"hidden",background:"#000" }}>
-      <iframe
-        src={`https://www.tiktok.com/embed/v2/${id}`}
-        style={{ width:"100%",height:575,border:"none",display:"block" }}
-        allow="autoplay; encrypted-media; fullscreen"
-        allowFullScreen
-        title="TikTok video"
-      />
+function VideoEmbed({ url }) {
+  const u = String(url||"").trim();
+  if (!u) return null;
+  const fallback = label => (
+    <div style={{ fontFamily:FONT_B,fontSize:13,color:"#5f6c8f",padding:"16px",background:"#f2f5fb",borderRadius:12,textAlign:"center" }}>
+      Không nhúng được video. <a href={u} target="_blank" rel="noreferrer" style={{ color:"#18284e",fontWeight:700 }}>Xem trên {label} →</a>
     </div>
   );
+  const frame = (src, h=575, max=340) => (
+    <div style={{ position:"relative",width:"100%",maxWidth:max,margin:"0 auto",borderRadius:12,overflow:"hidden",background:"#000" }}>
+      <iframe src={src} style={{ width:"100%",height:h,border:"none",display:"block" }} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen title="video" />
+    </div>
+  );
+  // YouTube
+  let m = u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/);
+  if (m) return frame(`https://www.youtube.com/embed/${m[1]}`, 220, 480);
+  // TikTok
+  m = u.match(/tiktok\.com\/.*video\/(\d+)/) || u.match(/tiktok\.com\/.*\/(\d{6,})/);
+  if (m) return frame(`https://www.tiktok.com/embed/v2/${m[1]}`);
+  // Instagram (reel or post)
+  m = u.match(/instagram\.com\/(?:reel|reels|p|tv)\/([\w-]+)/);
+  if (m) return frame(`https://www.instagram.com/${u.includes("/p/")?"p":"reel"}/${m[1]}/embed`, 560, 400);
+  // Direct mp4
+  if (/\.mp4($|\?)/i.test(u)) return (
+    <video src={u} controls playsInline style={{ width:"100%",maxWidth:400,margin:"0 auto",display:"block",borderRadius:12,background:"#000" }} />
+  );
+  return fallback("nguồn gốc");
 }
 function ProductModal({ product:p, brand, onClose, onAdd }) {
   const [qty,setQty]=useState(1); const [tab,setTab]=useState("story");
@@ -546,27 +555,44 @@ function ProductModal({ product:p, brand, onClose, onAdd }) {
   const slot0Mobile = (!selVar || !selVar.img) ? p.imgMobile : null;
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(10,16,38,0.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)" }}>
-      <style>{`@media (max-width:680px){.hh-modal-grid{grid-template-columns:1fr !important}.hh-modal-img{border-radius:24px 24px 0 0 !important;min-height:300px !important}}`}</style>
+      <style>{`@media (max-width:680px){.hh-modal-grid{grid-template-columns:1fr !important}.hh-modal-imgcol{border-radius:24px 24px 0 0 !important}.hh-modal-img{min-height:280px !important}}
+        .hh-modal-img:hover .hh-modal-mainimg{transform:scale(1.08) !important}
+        .hh-modal-thumbs::-webkit-scrollbar{height:5px}.hh-modal-thumbs::-webkit-scrollbar-thumb{background:#dbe2f1;border-radius:3px}`}</style>
       <div onClick={e=>e.stopPropagation()} style={{ background:"#fff",borderRadius:24,maxWidth:860,width:"100%",maxHeight:"92vh",overflow:"auto" }}>
         <div className="hh-modal-grid" style={{ display:"grid",gridTemplateColumns:"1fr 1fr" }}>
-          <div className="hh-modal-img" onClick={()=>allImgs.length>0&&setZoomed(true)} style={{ position:"relative",minHeight:400,background:"#f2f5fb",borderRadius:"24px 0 0 24px",overflow:"hidden",cursor:allImgs.length>0?"zoom-in":"default" }}>
-            {allImgs.length>0
-              ? allImgs.map((src,i)=>{
-                  const imgStyle={ width:"100%",height:"100%",objectFit:"contain",position:"absolute",inset:0,opacity:i===galIdx?1:0,transition:"opacity 0.4s ease-in-out" };
-                  return i===0 && slot0Mobile
-                    ? <ResponsiveImg key={i} src={src} srcMobile={slot0Mobile} alt="" style={imgStyle} />
-                    : <img key={i} src={src} alt="" style={imgStyle} />;
-                })
-              : <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:80 }}>📦</div>
-            }
-            {p.flashSale&&<div style={{ position:"absolute",top:16,left:16,zIndex:2 }}><FlashTimer end={p.flashEnd} /></div>}
-            {allImgs.length>1&&<div style={{ position:"absolute",bottom:14,left:0,right:0,display:"flex",justifyContent:"center",gap:8,zIndex:2 }}>
-              {allImgs.map((_,i)=><button key={i} onClick={e=>{e.stopPropagation();setGalIdx(i);}} style={{ width:i===galIdx?28:9,height:9,borderRadius:5,background:i===galIdx?brand.primary:"rgba(255,255,255,0.85)",border:"none",cursor:"pointer",transition:"all 0.3s cubic-bezier(0.34,1.56,0.64,1)",boxShadow:"0 1px 4px rgba(0,0,0,0.25)",padding:0 }} />)}
-            </div>}
-            {allImgs.length>1&&<>
-              <button onClick={e=>{e.stopPropagation();setGalIdx(i=>(i-1+allImgs.length)%allImgs.length);}} style={{ position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",width:34,height:34,borderRadius:17,background:"rgba(255,255,255,0.85)",border:"none",cursor:"pointer",fontSize:16,color:"#0d142e",zIndex:2 }}>‹</button>
-              <button onClick={e=>{e.stopPropagation();setGalIdx(i=>(i+1)%allImgs.length);}} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",width:34,height:34,borderRadius:17,background:"rgba(255,255,255,0.85)",border:"none",cursor:"pointer",fontSize:16,color:"#0d142e",zIndex:2 }}>›</button>
-            </>}
+          <div className="hh-modal-imgcol" style={{ display:"flex",flexDirection:"column",background:"#fff",borderRadius:"24px 0 0 24px",overflow:"hidden" }}>
+            <div className="hh-modal-img" onClick={()=>galIdx>=0&&allImgs.length>0&&setZoomed(true)} style={{ position:"relative",flex:1,minHeight:340,background:"#f2f5fb",overflow:"hidden",cursor:allImgs.length>0?"zoom-in":"default" }}>
+              {galIdx===-1 && (p.videoUrl||p.tiktokUrl)
+                ? <div onClick={e=>e.stopPropagation()} style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",padding:8,background:"#000" }}><VideoEmbed url={p.videoUrl||p.tiktokUrl} /></div>
+                : allImgs.length>0
+                  ? allImgs.map((src,i)=>{
+                      const imgStyle={ width:"100%",height:"100%",objectFit:"contain",position:"absolute",inset:0,opacity:i===galIdx?1:0,transition:"opacity 0.4s ease-in-out, transform 0.35s ease" };
+                      return i===0 && slot0Mobile
+                        ? <ResponsiveImg key={i} src={src} srcMobile={slot0Mobile} alt="" className="hh-modal-mainimg" style={imgStyle} />
+                        : <img key={i} src={src} alt="" className="hh-modal-mainimg" style={imgStyle} />;
+                    })
+                  : <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:80 }}>📦</div>
+              }
+              {p.flashSale&&galIdx>=0&&<div style={{ position:"absolute",top:16,left:16,zIndex:2 }}><FlashTimer end={p.flashEnd} /></div>}
+              {galIdx>=0&&allImgs.length>1&&<>
+                <button onClick={e=>{e.stopPropagation();setGalIdx(i=>(i<=0?allImgs.length-1:i-1));}} style={{ position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",width:34,height:34,borderRadius:17,background:"rgba(255,255,255,0.85)",border:"none",cursor:"pointer",fontSize:16,color:"#0d142e",zIndex:2 }}>‹</button>
+                <button onClick={e=>{e.stopPropagation();setGalIdx(i=>(i+1)%allImgs.length);}} style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",width:34,height:34,borderRadius:17,background:"rgba(255,255,255,0.85)",border:"none",cursor:"pointer",fontSize:16,color:"#0d142e",zIndex:2 }}>›</button>
+              </>}
+            </div>
+            {(allImgs.length>1||p.videoUrl||p.tiktokUrl)&&(
+              <div className="hh-modal-thumbs" style={{ display:"flex",gap:8,padding:"12px 14px",overflowX:"auto",background:"#fff" }}>
+                {(p.videoUrl||p.tiktokUrl)&&(
+                  <button onClick={()=>setGalIdx(-1)} style={{ position:"relative",width:60,height:60,borderRadius:10,overflow:"hidden",border:`2px solid ${galIdx===-1?brand.primary:"#dbe2f1"}`,background:"#0d142e",cursor:"pointer",padding:0,flexShrink:0 }}>
+                    <span style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:20 }}>▶</span>
+                  </button>
+                )}
+                {allImgs.map((src,i)=>(
+                  <button key={i} onClick={()=>setGalIdx(i)} style={{ width:60,height:60,borderRadius:10,overflow:"hidden",border:`2px solid ${i===galIdx?brand.primary:"#dbe2f1"}`,background:"#f2f5fb",cursor:"pointer",padding:0,flexShrink:0,transition:"border-color .2s" }}>
+                    <img src={src} alt="" style={{ width:"100%",height:"100%",objectFit:"contain" }} />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{ padding:32 }}>
             <button onClick={onClose} style={{ float:"right",background:"#f2f5fb",border:"none",borderRadius:50,width:32,height:32,cursor:"pointer",color:"#5f6c8f",fontSize:16 }}>✕</button>
@@ -575,7 +601,7 @@ function ProductModal({ product:p, brand, onClose, onAdd }) {
             <Stars rating={p.rating} size={15} />
             <span style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginLeft:6 }}>· còn {effStock} sản phẩm</span>
             <div style={{ display:"flex",margin:"20px 0 16px",border:"2px solid #dbe2f1",borderRadius:12,overflow:"hidden" }}>
-              {[["story","📖 Câu chuyện"],["specs","⚙️ Chi tiết"],...(p.tiktokUrl?[["video","🎬 Video"]]:[]),["reviews","💬 Đánh giá"]].map(([k,l])=>(
+              {[["story","📖 Câu chuyện"],["specs","⚙️ Chi tiết"],["reviews","💬 Đánh giá"]].map(([k,l])=>(
                 <button key={k} onClick={()=>setTab(k)} style={{ flex:1,padding:"8px 4px",background:tab===k?brand.primary:"transparent",color:tab===k?"#fff":"#5f6c8f",border:"none",fontFamily:FONT_T,fontSize:12,cursor:"pointer",transition:"all 0.2s" }}>{l}</button>
               ))}
             </div>
@@ -583,7 +609,6 @@ function ProductModal({ product:p, brand, onClose, onAdd }) {
             {tab==="specs"&&<div>{[["Tags",(p.tags||"—").split(",")[0]],["Kho hàng",`${p.stock} sản phẩm`],["Danh mục",p.category]].map(([k,v])=>(
               <div key={k} style={{ display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #dbe2f1",fontFamily:FONT_B,fontSize:13 }}><span style={{ color:"#5f6c8f" }}>{k}</span><span style={{ color:brand.primary,fontWeight:700 }}>{v}</span></div>
             ))}</div>}
-            {tab==="video"&&p.tiktokUrl&&<TikTokEmbed url={p.tiktokUrl} />}
             {tab==="reviews"&&<ReviewsSection productId={p.id} brand={brand} />}
             {hasVariants&&(
               <div style={{ marginTop:20 }}>
@@ -623,7 +648,7 @@ function ProductModal({ product:p, brand, onClose, onAdd }) {
           </div>
         </div>
       </div>
-      {zoomed&&(
+      {zoomed&&galIdx>=0&&(
         <div onClick={e=>{e.stopPropagation();setZoomed(false);}} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center",cursor:"zoom-out" }}>
           <img src={allImgs[galIdx]} alt="" style={{ maxWidth:"96vw",maxHeight:"92vh",objectFit:"contain",borderRadius:8 }} />
           <button onClick={e=>{e.stopPropagation();setZoomed(false);}} style={{ position:"fixed",top:18,right:18,width:40,height:40,borderRadius:20,background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",fontSize:18,cursor:"pointer" }}>✕</button>
@@ -1170,11 +1195,11 @@ function PromoWidget({ cfg, brand }) {
 /* ══════════ HANAPET LANDING — color-block sections ══════════ */
 const NAVY="#18284e", CLOUD="#f5f7fc", PERI="#8f9fe8";
 const SCENT_MAP=[
-  { k:["baby","powder"], name:"Baby Powder",  bg:"#cfe2f4", deep:"#3f6fae", img:"/products/wbs-baby-powder.png" },
-  { k:["cotton","candy"],name:"Cotton Candy", bg:"#f4d4e7", deep:"#bf4f97", img:"/products/wbs-cotton-candy.png" },
-  { k:["peach","yogurt"],name:"Peach Yogurt", bg:"#f8ddcb", deep:"#d9713a", img:"/products/wbs-peach-yogurt.png" },
-  { k:["quince"],        name:"Quince",       bg:"#efe171", deep:"#8a6d14", img:"/products/wbs-quince.png" },
-  { k:["lavender","oải"],name:"Lavender",     bg:"#dcd2f0", deep:"#6a55ad", img:"/products/wbs-lavender.png" },
+  { k:["baby","powder"], name:"Baby Powder",  bg:"#cfe2f4", deep:"#3f6fae", img:"/products/wbs-baby-powder.png", icon:"/scents/baby-powder.png" },
+  { k:["cotton","candy"],name:"Cotton Candy", bg:"#f4d4e7", deep:"#bf4f97", img:"/products/wbs-cotton-candy.png", icon:"/scents/cotton-candy.png" },
+  { k:["peach","yogurt"],name:"Peach Yogurt", bg:"#f8ddcb", deep:"#d9713a", img:"/products/wbs-peach-yogurt.png", icon:"/scents/peach-yogurt.png" },
+  { k:["quince"],        name:"Quince",       bg:"#efe171", deep:"#8a6d14", img:"/products/wbs-quince.png", icon:"/scents/quince.png" },
+  { k:["lavender","oải"],name:"Lavender",     bg:"#dcd2f0", deep:"#6a55ad", img:"/products/wbs-lavender.png", icon:"/scents/lavender.png" },
 ];
 const MISTY_MAP=[
   { k:["xịt","spray","chai"], img:"/products/misty-spray.png" },
@@ -1224,12 +1249,12 @@ function Hero({ brand, products, hasMisty, hasWbs }) {
       </>}
       <div className="hp-hero" style={{ position:"relative", zIndex:2 }}>
         <div className="hp-hero-copy">
-          <div style={{ fontFamily:FONT_B, fontWeight:700, fontSize:13, letterSpacing:3, textTransform:"uppercase", color:PERI, marginBottom:16, animation:"hpRise .7s both" }}>🐾 Đồ dùng thú cưng cho chó &amp; mèo</div>
+          <div style={{ fontFamily:FONT_B, fontWeight:700, fontSize:13, letterSpacing:3, textTransform:"uppercase", color:PERI, marginBottom:16, animation:"hpRise .7s both" }}>{brand.heroEyebrow||"🐾 Đồ dùng thú cưng cho chó & mèo"}</div>
           <h1 style={{ fontFamily:FONT_T, fontWeight:900, fontSize:"clamp(32px,5vw,60px)", lineHeight:1.04, letterSpacing:"-0.02em", color:"#fff", margin:"0 0 16px", textShadow:vidOk?"0 4px 30px rgba(0,0,0,0.4)":"none", animation:"hpRise .7s .1s both" }}>
-            Chăm sóc thú cưng<br/>cao cấp cùng Hanapet
+            {brand.heroTitle||"Chăm sóc thú cưng cao cấp cùng Hanapet"}
           </h1>
           <p style={{ fontFamily:FONT_B, fontSize:"clamp(14px,1.5vw,17px)", lineHeight:1.75, color:"rgba(255,255,255,0.82)", maxWidth:480, margin:"0 0 30px", animation:"hpRise .7s .2s both" }}>
-            Khử mùi an toàn · Tắm gội thơm tho — cho boss sạch thơm mỗi ngày.
+            {brand.heroSub||"Khử mùi an toàn · Tắm gội thơm tho — cho boss sạch thơm mỗi ngày."}
           </p>
           <div className="hp-hero-btns" style={{ display:"flex", gap:12, flexWrap:"wrap", animation:"hpRise .7s .3s both" }}>
             {hasMisty&&<button className="hp-hero-btn" onClick={()=>go("sku-misty")} style={{ background:"#fff", color:NAVY, border:"none", borderRadius:999, padding:"15px 28px", fontFamily:FONT_T, fontWeight:800, fontSize:15, cursor:"pointer", boxShadow:"0 10px 28px rgba(0,0,0,0.3)" }}>Xịt khử mùi →</button>}
@@ -1252,8 +1277,10 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
   const isWbs = variants.some(v=>scentOf(v)) || /bubble|shampoo|tắm/.test(norm(p.name));
   const [sel,setSel] = useState(variants[0]||null);
   const scent = isWbs ? (scentOf(sel)||SCENT_MAP[0]) : null;
-  const bg   = scent ? scent.bg   : "#dbe3f8";
-  const deep = scent ? scent.deep : NAVY;
+  const dark = !isWbs;                       // Misty = dark navy block, white text
+  const bg   = scent ? scent.bg : NAVY;
+  const deep = scent ? scent.deep : "#fff";
+  const ink  = dark ? "#fff" : NAVY;         // main text color on this block
   const img  = (sel&&sel.img) || (isWbs ? (scent&&scent.img) : mistyImg(sel)) || p.img || "/products/misty-spray.png";
   const price    = sel ? (Number(sel.price)||p.price)       : p.price;
   const original = sel ? (Number(sel.original)||p.original) : p.original;
@@ -1265,23 +1292,28 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
       <div style={{ maxWidth:1200,margin:"0 auto",background:bg,borderRadius:36,transition:"background .6s ease",overflow:"hidden" }}>
         <div className="hp-sku" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",alignItems:"center",direction:flip?"rtl":"ltr" }}>
           <div style={{ direction:"ltr",position:"relative",minHeight:320,height:"min(48vw, 520px)",maxHeight:520,display:"flex",alignItems:"center",justifyContent:"center",padding:"28px 0" }}>
-            <img key={img} src={img} alt={p.name} style={{ maxHeight:"100%",maxWidth:"70%",objectFit:"contain",filter:"drop-shadow(0 22px 34px rgba(24,40,78,0.28))",animation:"hpPop .5s cubic-bezier(0.22,1,0.36,1)" }} />
+            {dark&&<div style={{ position:"absolute",width:"70%",height:"70%",borderRadius:"50%",background:"radial-gradient(circle, rgba(143,159,232,0.55) 0%, rgba(143,159,232,0.18) 45%, rgba(24,40,78,0) 72%)",filter:"blur(6px)",pointerEvents:"none" }} />}
+            <img key={img} src={img} alt={p.name} style={{ position:"relative",maxHeight:"100%",maxWidth:"70%",objectFit:"contain",filter:dark?"drop-shadow(0 24px 40px rgba(0,0,0,0.45))":"drop-shadow(0 22px 34px rgba(24,40,78,0.28))",animation:"hpPop .5s cubic-bezier(0.22,1,0.36,1)" }} />
           </div>
           <div style={{ direction:"ltr",padding:"clamp(28px,4vw,56px)" }}>
             <div style={{ fontFamily:FONT_B,fontWeight:700,fontSize:12,letterSpacing:3.5,textTransform:"uppercase",color:deep,transition:"color .6s ease",marginBottom:12 }}>
-              {isWbs?"Tắm gội thơm tho":"Khử mùi an toàn"}{off>0&&<span style={{ marginLeft:10,background:NAVY,color:"#fff",borderRadius:999,padding:"3px 10px",letterSpacing:0 }}>-{off}%</span>}
+              {isWbs?"Tắm gội thơm tho":"Khử mùi an toàn"}{off>0&&<span style={{ marginLeft:10,background:dark?"#fff":NAVY,color:dark?NAVY:"#fff",borderRadius:999,padding:"3px 10px",letterSpacing:0 }}>-{off}%</span>}
             </div>
-            <h2 style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(30px,3.6vw,48px)",lineHeight:1.02,letterSpacing:"-0.01em",color:NAVY,margin:"0 0 14px" }}>{p.name}</h2>
-            <p style={{ fontFamily:FONT_B,fontSize:15,lineHeight:1.8,color:NAVY+"cc",whiteSpace:"pre-line",margin:"0 0 22px",maxWidth:460 }}>{p.story}</p>
+            <h2 style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(30px,3.6vw,48px)",lineHeight:1.02,letterSpacing:"-0.01em",color:ink,margin:"0 0 14px" }}>{p.name}</h2>
+            <p style={{ fontFamily:FONT_B,fontSize:15,lineHeight:1.8,color:dark?"rgba(255,255,255,0.82)":NAVY+"cc",whiteSpace:"pre-line",margin:"0 0 22px",maxWidth:460 }}>{p.story}</p>
             {variants.length>0&&(
               <div style={{ marginBottom:22 }}>
-                <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13,color:NAVY,marginBottom:10 }}>{p.variantLabel||(isWbs?"Chọn mùi hương":"Chọn loại")}</div>
+                <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13,color:ink,marginBottom:10 }}>{p.variantLabel||(isWbs?"Chọn mùi hương":"Chọn loại")}</div>
                 <div style={{ display:"flex",gap:10,flexWrap:"wrap" }}>
                   {variants.map((v,i)=>{
                     const vs=scentOf(v); const on=sel===v;
+                    const onBg  = dark ? "#fff" : NAVY;
+                    const onTxt = dark ? NAVY : "#fff";
+                    const offBg = dark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.65)";
+                    const offTxt= dark ? "#fff" : NAVY;
                     return (
-                      <button key={i} onClick={()=>setSel(v)} style={{ display:"flex",alignItems:"center",gap:8,background:on?NAVY:"rgba(255,255,255,0.65)",color:on?"#fff":NAVY,border:"none",borderRadius:999,padding:"10px 16px",fontFamily:FONT_T,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all .25s ease" }}>
-                        {vs&&<span style={{ width:14,height:14,borderRadius:7,background:vs.deep,border:"2px solid #fff",flexShrink:0 }} />}
+                      <button key={i} onClick={()=>setSel(v)} style={{ display:"flex",alignItems:"center",gap:8,background:on?onBg:offBg,color:on?onTxt:offTxt,border:"none",borderRadius:999,padding:"10px 16px",fontFamily:FONT_T,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all .25s ease" }}>
+                        {vs&&(vs.icon?<img src={vs.icon} alt="" style={{ width:20,height:20,objectFit:"contain",flexShrink:0 }} />:<span style={{ width:14,height:14,borderRadius:7,background:vs.deep,border:"2px solid #fff",flexShrink:0 }} />)}
                         {v.name}
                       </button>
                     );
@@ -1291,15 +1323,15 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
             )}
             <div style={{ display:"flex",alignItems:"center",gap:14,flexWrap:"wrap" }}>
               <div>
-                <span style={{ fontFamily:FONT_T,fontWeight:900,fontSize:30,color:NAVY }}>{fmt(price)}</span>
-                {original>price&&<span style={{ fontFamily:FONT_B,fontSize:15,color:NAVY+"77",textDecoration:"line-through",marginLeft:10 }}>{fmt(original)}</span>}
+                <span style={{ fontFamily:FONT_T,fontWeight:900,fontSize:30,color:ink }}>{fmt(price)}</span>
+                {original>price&&<span style={{ fontFamily:FONT_B,fontSize:15,color:dark?"rgba(255,255,255,0.5)":NAVY+"77",textDecoration:"line-through",marginLeft:10 }}>{fmt(original)}</span>}
               </div>
               <button onClick={()=>{ if(variants.length>0&&!sel){alert("Vui lòng chọn phân loại");return;} onAdd(p,1,sel); }} disabled={stock<=0}
-                style={{ background:NAVY,color:"#fff",border:"none",borderRadius:999,padding:"15px 30px",fontFamily:FONT_T,fontWeight:800,fontSize:15,cursor:stock>0?"pointer":"not-allowed",opacity:stock>0?1:0.5,transition:"transform .2s ease" }}
+                style={{ background:dark?"#fff":NAVY,color:dark?NAVY:"#fff",border:"none",borderRadius:999,padding:"15px 30px",fontFamily:FONT_T,fontWeight:800,fontSize:15,cursor:stock>0?"pointer":"not-allowed",opacity:stock>0?1:0.5,transition:"transform .2s ease" }}
                 onMouseEnter={e=>e.currentTarget.style.transform="scale(1.04)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}>
                 {stock>0?"Thêm vào giỏ":"Hết hàng"}
               </button>
-              <button onClick={()=>onDetail(p)} style={{ background:"transparent",color:NAVY,border:"2px solid "+NAVY,borderRadius:999,padding:"13px 24px",fontFamily:FONT_T,fontWeight:800,fontSize:15,cursor:"pointer" }}>Chi tiết</button>
+              <button onClick={()=>onDetail(p)} style={{ background:"transparent",color:ink,border:"2px solid "+(dark?"rgba(255,255,255,0.5)":NAVY),borderRadius:999,padding:"13px 24px",fontFamily:FONT_T,fontWeight:800,fontSize:15,cursor:"pointer" }}>Chi tiết</button>
             </div>
             {stock>0&&stock<=10&&<div style={{ fontFamily:FONT_B,fontSize:12,color:deep,marginTop:12,transition:"color .6s ease" }}>Chỉ còn {stock} sản phẩm</div>}
           </div>
@@ -1477,6 +1509,7 @@ export default function App() {
           return (
           <>
             <Hero brand={brand} products={products} hasMisty={!!mistyP} hasWbs={!!wbsP} />
+            {banners.length>0&&<div style={{ maxWidth:1200,margin:"14px auto 0",padding:"0 14px" }}><BannerCarousel banners={banners} brand={brand} /></div>}
             <div style={{ height:14 }} />
             {mistyP&&<SkuBlock id="sku-misty" product={mistyP} brand={brand} onAdd={addToCart} onDetail={setSelProd} />}
             {wbsP&&<SkuBlock id="sku-wbs" product={wbsP} brand={brand} onAdd={addToCart} onDetail={setSelProd} flip />}
