@@ -1456,6 +1456,16 @@ export default function AdminPage() {
           <div style={{ fontFamily:FONT_B,fontSize:12,color:"rgba(255,255,255,0.8)" }}>{b.heroSub||"Khử mùi an toàn · Tắm gội thơm tho"}</div>
         </div>
 
+        <div style={{ marginTop:16,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
+          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:8 }}>✨ Độ chuyển động (hiệu ứng toàn trang)</div>
+          <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+            {[["full","Nhẹ nhàng (đầy đủ)"],["soft","Vừa (bớt bay)"],["off","Tắt hiệu ứng"]].map(([k,lbl])=>(
+              <button key={k} onClick={()=>set("motion",k)} style={{ background:(b.motion||"full")===k?"#18284e":"#fff",color:(b.motion||"full")===k?"#fff":"#5f6c8f",border:"2px solid "+((b.motion||"full")===k?"#18284e":"#dbe2f1"),borderRadius:10,padding:"8px 14px",fontFamily:FONT_T,fontWeight:700,fontSize:12,cursor:"pointer" }}>{lbl}</button>
+            ))}
+          </div>
+          <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:8 }}>Điều chỉnh mức độ animation (chai lọ bay, khối nổi, chữ hiện dần). "Tắt" giúp web nhẹ và tĩnh hoàn toàn.</div>
+        </div>
+
         <SaveBtn onSave={async ()=>{await setSupabaseConfig("brand", b); S.brand[1](b); flash();}} saved={saved} />
       </div>
     );
@@ -1484,6 +1494,7 @@ export default function AdminPage() {
             <Field label="Nút CTA (chữ trên nút)"     value={b.cta}   onChange={v=>upd(b.id,"cta",v)} />
             <Field label="Màu nền"     value={b.bg||"#1b295b"} onChange={v=>upd(b.id,"bg",v)} type="color" />
             <Field label="Link khi bấm nút" value={b.ctaLink||""} onChange={v=>upd(b.id,"ctaLink",v)} span="full" placeholder="#sku-misty · #sku-wbs · https://... · để trống = cuộn tới sản phẩm" />
+            <Field label="🎬 Link video nền (.mp4 — ưu tiên hơn ảnh nếu có)" value={b.video||""} onChange={v=>upd(b.id,"video",v)} span="full" placeholder="https://.../banner.mp4 — để trống = dùng ảnh" />
           </div>
           <div style={{ display:"flex",gap:10,marginTop:16,alignItems:"center" }}>
             <button disabled={saving} onClick={async()=>{
@@ -1702,6 +1713,17 @@ export default function AdminPage() {
             <div style={{ gridColumn:"1 / -1" }}>
               <Field label="🎬 Link video (YouTube / TikTok / Instagram — không bắt buộc)" value={p.videoUrl||p.tiktokUrl||""} onChange={v=>upd(p.id,"videoUrl",v)} span="full" />
               <div style={{ fontFamily:FONT_B,fontSize:11,color:"#5f6c8f",marginTop:4 }}>Dán link từ YouTube, TikTok hoặc Instagram (reel/post) — hoặc link .mp4 trực tiếp. Sẽ hiện ở tab "Video" trong trang chi tiết sản phẩm. Ảnh GIF thì upload thẳng vào ô ảnh như thường, sẽ tự chạy.</div>
+
+              <div style={{ marginTop:14,padding:14,background:"#eef1fa",borderRadius:12,border:"2px solid #dbe2f1" }}>
+                <div style={{ fontFamily:FONT_T,fontSize:12,color:"#18284e",marginBottom:8 }}>🖼 Banner riêng của sản phẩm (hiện phía trên khối SP ở trang chủ — không bắt buộc)</div>
+                <div style={{ display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap" }}>
+                  <ImgUp current={p.banner} onUpload={v=>upd(p.id,"banner",v)} label="Ảnh banner (16:9)" aspect="56%" folder="products" entityId={p.id+"_banner"} hint="Ngang 16:9" />
+                  <div style={{ flex:1,minWidth:180 }}>
+                    <Field label="Link video banner (.mp4 — ưu tiên hơn ảnh)" value={p.bannerVideo||""} onChange={v=>upd(p.id,"bannerVideo",v)} span="full" placeholder="https://.../banner.mp4" />
+                    <Field label="Chữ trên banner (không bắt buộc)" value={p.bannerText||""} onChange={v=>upd(p.id,"bannerText",v)} span="full" placeholder="VD: Ưu đãi đặc biệt tháng này" />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

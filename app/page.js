@@ -347,7 +347,7 @@ function BannerCarousel({ banners, brand }) {
   useEffect(()=>{ const t=setInterval(()=>setI(x=>(x+1)%banners.length),5000); return()=>clearInterval(t); },[banners.length]);
   if(!banners.length) return null;
   return (
-    <div style={{ position:"relative",borderRadius:20,overflow:"hidden",marginBottom:28,boxShadow:`0 8px 40px rgba(27,41,91,0.25)`,minHeight:"clamp(220px,38vw,280px)" }}>
+    <div style={{ position:"relative",borderRadius:20,overflow:"hidden",marginBottom:28,boxShadow:`0 8px 40px rgba(27,41,91,0.25)`,aspectRatio:"16/9",width:"100%" }}>
       <style>{`
         .hh-banner-title{font-size:clamp(24px,5.5vw,40px) !important}
         .hh-banner-sub{font-size:clamp(12px,2.6vw,15px) !important}
@@ -356,7 +356,9 @@ function BannerCarousel({ banners, brand }) {
       `}</style>
       {banners.map((b,x)=>(
         <div key={x} style={{ position:"absolute",inset:0,opacity:x===i?1:0,transition:"opacity 0.6s ease-in-out",background:b.bg||brand.primary }}>
-          {(b.img||b.imgMobile)&&<ResponsiveImg src={b.img} srcMobile={b.imgMobile} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} />}
+          {b.video
+            ? <video src={b.video} autoPlay muted loop playsInline style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} />
+            : (b.img||b.imgMobile)&&<ResponsiveImg src={b.img} srcMobile={b.imgMobile} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} />}
           <div style={{ position:"absolute",inset:0,background:"linear-gradient(90deg,rgba(10,16,38,0.75) 0%,rgba(10,16,38,0.1) 65%,transparent 100%)" }} />
           <div className="hh-banner-pad" style={{ position:"absolute",bottom:0,left:0,right:0,boxSizing:"border-box" }}>
             <div className="hh-banner-title" style={{ fontFamily:FONT_T,fontWeight:700,color:"#fff",lineHeight:1.15,textShadow:"0 2px 12px rgba(0,0,0,0.5)",marginBottom:6,maxWidth:"90%" }}>{b.title}</div>
@@ -548,20 +550,21 @@ function ProductModal({ product:p, brand, onClose, onAdd }) {
   const effOriginal = selVar ? (Number(selVar.original)||p.original) : p.original;
   const effStock    = selVar ? (Number(selVar.stock)||0)             : p.stock;
   const d=pct(effPrice,effOriginal);
-  const baseImgs=[p.img,...(p.images||[])].filter(Boolean);
+  const extraImgs = (p.images||[]).filter(Boolean);
+  const baseImgs = extraImgs.length>0 ? extraImgs : [p.img,...extraImgs].filter(Boolean);
   const allImgs = selVar && selVar.img ? [selVar.img, ...baseImgs.filter(x=>x!==selVar.img)] : baseImgs;
   // Only swap in the product's mobile image when slot 0 is still the base product image
   // (not overridden by a selected variant's own photo).
   const slot0Mobile = (!selVar || !selVar.img) ? p.imgMobile : null;
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(10,16,38,0.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)" }}>
-      <style>{`@media (max-width:680px){.hh-modal-grid{grid-template-columns:1fr !important}.hh-modal-imgcol{border-radius:24px 24px 0 0 !important}.hh-modal-img{min-height:280px !important}}
+      <style>{`@media (max-width:680px){.hh-modal-grid{grid-template-columns:1fr !important}.hh-modal-imgcol{border-radius:22px !important}.hh-modal-img{min-height:280px !important}}
         .hh-modal-img:hover .hh-modal-mainimg{transform:scale(1.08) !important}
         .hh-modal-thumbs::-webkit-scrollbar{height:5px}.hh-modal-thumbs::-webkit-scrollbar-thumb{background:#dbe2f1;border-radius:3px}`}</style>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#fff",borderRadius:24,maxWidth:860,width:"100%",maxHeight:"92vh",overflow:"auto" }}>
-        <div className="hh-modal-grid" style={{ display:"grid",gridTemplateColumns:"1fr 1fr" }}>
-          <div className="hh-modal-imgcol" style={{ display:"flex",flexDirection:"column",background:"#fff",borderRadius:"24px 0 0 24px",overflow:"hidden" }}>
-            <div className="hh-modal-img" onClick={()=>galIdx>=0&&allImgs.length>0&&setZoomed(true)} style={{ position:"relative",flex:1,minHeight:340,background:"#f2f5fb",overflow:"hidden",cursor:allImgs.length>0?"zoom-in":"default" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"linear-gradient(160deg, #eef1fa 0%, #f8fafd 55%)",borderRadius:28,maxWidth:860,width:"100%",maxHeight:"92vh",overflow:"auto",boxShadow:"0 30px 90px rgba(24,40,78,0.35)" }}>
+        <div className="hh-modal-grid" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",padding:14,gap:6 }}>
+          <div className="hh-modal-imgcol" style={{ display:"flex",flexDirection:"column",background:"#fff",borderRadius:22,overflow:"hidden",boxShadow:"0 10px 30px rgba(24,40,78,0.1)" }}>
+            <div className="hh-modal-img" onClick={()=>galIdx>=0&&allImgs.length>0&&setZoomed(true)} style={{ position:"relative",flex:1,minHeight:340,background:"radial-gradient(circle at 50% 40%, #f2f5fb 0%, #e9edf8 100%)",overflow:"hidden",cursor:allImgs.length>0?"zoom-in":"default" }}>
               {galIdx===-1 && (p.videoUrl||p.tiktokUrl)
                 ? <div onClick={e=>e.stopPropagation()} style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",padding:8,background:"#000" }}><VideoEmbed url={p.videoUrl||p.tiktokUrl} /></div>
                 : allImgs.length>0
@@ -1292,14 +1295,29 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
   const stock    = sel ? (Number(sel.stock)||0)             : p.stock;
   const off = original>price ? pct(price,original) : 0;
   return (
-    <section id={id} style={{ padding:"14px 14px 0" }}>
+    <section id={id} style={{ padding:"16px 14px 0" }}>
+      {(p.banner||p.bannerVideo)&&(
+        <Reveal>
+        <div style={{ maxWidth:1200,margin:"0 auto 14px",borderRadius:24,overflow:"hidden",position:"relative",aspectRatio:"16/9",boxShadow:"0 12px 40px rgba(24,40,78,0.18)" }}>
+          {p.bannerVideo
+            ? <video src={p.bannerVideo} autoPlay muted loop playsInline style={{ width:"100%",height:"100%",objectFit:"cover" }} />
+            : <img src={p.banner} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }} />}
+          {p.bannerText&&<>
+            <div style={{ position:"absolute",inset:0,background:"linear-gradient(90deg,rgba(10,16,38,0.7) 0%,rgba(10,16,38,0.05) 70%)" }} />
+            <div style={{ position:"absolute",bottom:0,left:0,padding:"clamp(18px,4vw,36px)",fontFamily:FONT_T,fontWeight:800,fontSize:"clamp(20px,3vw,34px)",color:"#fff",textShadow:"0 2px 14px rgba(0,0,0,0.5)",maxWidth:"80%" }}>{p.bannerText}</div>
+          </>}
+        </div>
+        </Reveal>
+      )}
       <Reveal>
-      <div style={{ maxWidth:1200,margin:"0 auto",background:bg,borderRadius:36,transition:"background .6s ease",overflow:"hidden" }}>
+      <div className="hp-sku-card" style={{ maxWidth:1200,margin:"0 auto",background:bg,borderRadius:32,transition:"background .6s ease, transform .35s ease, box-shadow .35s ease",overflow:"hidden",boxShadow:dark?"0 18px 50px rgba(24,40,78,0.35)":"0 18px 50px rgba(24,40,78,0.16)" }}
+        onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-6px)";e.currentTarget.style.boxShadow=dark?"0 28px 64px rgba(24,40,78,0.45)":"0 28px 64px rgba(24,40,78,0.24)";}}
+        onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow=dark?"0 18px 50px rgba(24,40,78,0.35)":"0 18px 50px rgba(24,40,78,0.16)";}}>
         <div className="hp-sku" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",alignItems:"center",direction:flip?"rtl":"ltr" }}>
           <div style={{ direction:"ltr",position:"relative",minHeight:320,height:"min(48vw, 520px)",maxHeight:520,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px 0" }}>
             <div style={{ position:"relative",flex:1,width:"100%",display:"flex",alignItems:"center",justifyContent:"center",minHeight:0 }}>
               {dark&&<div style={{ position:"absolute",width:"64%",height:"64%",borderRadius:"50%",background:"radial-gradient(circle, rgba(143,159,232,0.55) 0%, rgba(143,159,232,0.18) 45%, rgba(24,40,78,0) 72%)",filter:"blur(6px)",pointerEvents:"none" }} />}
-              <img key={curImg} src={curImg} alt={p.name} onClick={()=>onDetail(p)} className="hp-sku-mainimg" style={{ position:"relative",maxHeight:"100%",maxWidth:"68%",objectFit:"contain",cursor:"pointer",filter:dark?"drop-shadow(0 24px 40px rgba(0,0,0,0.45))":"drop-shadow(0 22px 34px rgba(24,40,78,0.28))",animation:"hpPop .5s cubic-bezier(0.22,1,0.36,1)" }} />
+              <img key={curImg} src={curImg} alt={p.name} onClick={()=>onDetail(p)} className="hp-sku-mainimg" style={{ position:"relative",maxHeight:"100%",maxWidth:"68%",objectFit:"contain",cursor:"pointer",borderRadius:8,filter:dark?"drop-shadow(0 24px 40px rgba(0,0,0,0.45))":"drop-shadow(0 22px 34px rgba(24,40,78,0.28))",animation:"hpFloat 6s ease-in-out infinite" }} />
               {gallery.length>1&&<>
                 <button onClick={()=>setGi(i=>(i-1+gallery.length)%gallery.length)} aria-label="Ảnh trước" style={{ position:"absolute",left:"6%",top:"50%",transform:"translateY(-50%)",width:38,height:38,borderRadius:19,background:dark?"rgba(255,255,255,0.16)":"rgba(255,255,255,0.75)",color:dark?"#fff":NAVY,border:"none",cursor:"pointer",fontSize:18,zIndex:2,backdropFilter:"blur(4px)" }}>‹</button>
                 <button onClick={()=>setGi(i=>(i+1)%gallery.length)} aria-label="Ảnh sau" style={{ position:"absolute",right:"6%",top:"50%",transform:"translateY(-50%)",width:38,height:38,borderRadius:19,background:dark?"rgba(255,255,255,0.16)":"rgba(255,255,255,0.75)",color:dark?"#fff":NAVY,border:"none",cursor:"pointer",fontSize:18,zIndex:2,backdropFilter:"blur(4px)" }}>›</button>
@@ -1319,9 +1337,9 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
             <div style={{ fontFamily:FONT_B,fontWeight:700,fontSize:12,letterSpacing:3.5,textTransform:"uppercase",color:deep,transition:"color .6s ease",marginBottom:12 }}>
               {isWbs?"Tắm gội thơm tho":"Khử mùi an toàn"}{off>0&&<span style={{ marginLeft:10,background:dark?"#fff":NAVY,color:dark?NAVY:"#fff",borderRadius:999,padding:"3px 10px",letterSpacing:0 }}>-{off}%</span>}
             </div>
-            <h2 onClick={()=>onDetail(p)} title="Xem chi tiết" style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(30px,3.6vw,48px)",lineHeight:1.02,letterSpacing:"-0.01em",color:ink,margin:"0 0 14px",cursor:"pointer",display:"inline-block",transition:"color .2s ease",borderBottom:"3px solid transparent" }}
-              onMouseEnter={e=>{e.currentTarget.style.color=ACCENT;e.currentTarget.style.borderBottomColor=ACCENT;}}
-              onMouseLeave={e=>{e.currentTarget.style.color=ink;e.currentTarget.style.borderBottomColor="transparent";}}>{p.name}</h2>
+            <h2 onClick={()=>onDetail(p)} title="Xem chi tiết" style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(30px,3.6vw,48px)",lineHeight:1.02,letterSpacing:"-0.01em",color:ink,margin:"0 0 14px",cursor:"pointer",display:"inline-block",transition:"text-shadow .3s ease, transform .3s ease" }}
+              onMouseEnter={e=>{e.currentTarget.style.textShadow=dark?"0 0 22px rgba(255,255,255,0.65), 0 0 40px rgba(255,255,255,0.3)":"0 0 20px rgba(24,40,78,0.25)";e.currentTarget.style.transform="translateY(-1px)";}}
+              onMouseLeave={e=>{e.currentTarget.style.textShadow="none";e.currentTarget.style.transform="none";}}>{p.name}</h2>
             <p style={{ fontFamily:FONT_B,fontSize:15,lineHeight:1.8,color:dark?"rgba(255,255,255,0.82)":NAVY+"cc",whiteSpace:"pre-line",margin:"0 0 22px",maxWidth:460 }}>{p.story}</p>
             {variants.length>0&&(
               <div style={{ marginBottom:22 }}>
@@ -1468,7 +1486,13 @@ export default function App() {
   if(!ready) return <div style={{ minHeight:"100vh",background:"#f2f5fb",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16 }}><img src="/logo.png" alt="Hanapet" style={{ height:72,objectFit:"contain" }} /><div style={{ fontFamily:FONT_T,fontSize:18,color:"#1b295b" }}>Đang tải...</div></div>;
 
   return (
-    <div style={{ minHeight:"100vh",background:"#f8fafd",fontFamily:FONT_B }}>
+    <div className={"hh-motion-"+(brand.motion||"full")} style={{ minHeight:"100vh",background:"#f8fafd",fontFamily:FONT_B }}>
+      <style>{`
+        /* Motion levels: full = all animations; soft = gentle only (no float loops); off = none */
+        .hh-motion-soft [style*="hpFloat"], .hh-motion-soft [style*="hpPop"]{ animation:none !important }
+        .hh-motion-off *{ animation:none !important; transition:none !important }
+        @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition-duration:.01ms !important } }
+      `}</style>
       {toast&&<div style={{ position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:"#0d142e",color:brand.secondary,padding:"11px 26px",borderRadius:30,zIndex:9999,fontFamily:FONT_T,fontSize:14,boxShadow:"0 4px 20px rgba(27,41,91,0.3)",whiteSpace:"nowrap" }}>{toast}</div>}
 
       {/* NAV */}
