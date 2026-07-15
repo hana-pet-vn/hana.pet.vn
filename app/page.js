@@ -1193,7 +1193,7 @@ function PromoWidget({ cfg, brand }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /* ══════════ HANAPET LANDING — color-block sections ══════════ */
-const NAVY="#18284e", CLOUD="#f5f7fc", PERI="#8f9fe8";
+const NAVY="#18284e", CLOUD="#f5f7fc", PERI="#8f9fe8", ACCENT="#ff6a3d";
 const SCENT_MAP=[
   { k:["baby","powder"], name:"Baby Powder",  bg:"#cfe2f4", deep:"#3f6fae", img:"/products/wbs-baby-powder.png", icon:"/scents/baby-powder.png" },
   { k:["cotton","candy"],name:"Cotton Candy", bg:"#f4d4e7", deep:"#bf4f97", img:"/products/wbs-cotton-candy.png", icon:"/scents/cotton-candy.png" },
@@ -1282,6 +1282,11 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
   const deep = scent ? scent.deep : "#fff";
   const ink  = dark ? "#fff" : NAVY;         // main text color on this block
   const img  = (sel&&sel.img) || (isWbs ? (scent&&scent.img) : mistyImg(sel)) || p.img || "/products/misty-spray.png";
+  // Gallery: main image (variant-aware) + any extra product images
+  const gallery = [img, ...(p.images||[])].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
+  const [gi,setGi] = useState(0);
+  useEffect(()=>{ setGi(0); }, [img]);   // reset to variant image when variant changes
+  const curImg = gallery[gi] || img;
   const price    = sel ? (Number(sel.price)||p.price)       : p.price;
   const original = sel ? (Number(sel.original)||p.original) : p.original;
   const stock    = sel ? (Number(sel.stock)||0)             : p.stock;
@@ -1291,15 +1296,32 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
       <Reveal>
       <div style={{ maxWidth:1200,margin:"0 auto",background:bg,borderRadius:36,transition:"background .6s ease",overflow:"hidden" }}>
         <div className="hp-sku" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",alignItems:"center",direction:flip?"rtl":"ltr" }}>
-          <div style={{ direction:"ltr",position:"relative",minHeight:320,height:"min(48vw, 520px)",maxHeight:520,display:"flex",alignItems:"center",justifyContent:"center",padding:"28px 0" }}>
-            {dark&&<div style={{ position:"absolute",width:"70%",height:"70%",borderRadius:"50%",background:"radial-gradient(circle, rgba(143,159,232,0.55) 0%, rgba(143,159,232,0.18) 45%, rgba(24,40,78,0) 72%)",filter:"blur(6px)",pointerEvents:"none" }} />}
-            <img key={img} src={img} alt={p.name} style={{ position:"relative",maxHeight:"100%",maxWidth:"70%",objectFit:"contain",filter:dark?"drop-shadow(0 24px 40px rgba(0,0,0,0.45))":"drop-shadow(0 22px 34px rgba(24,40,78,0.28))",animation:"hpPop .5s cubic-bezier(0.22,1,0.36,1)" }} />
+          <div style={{ direction:"ltr",position:"relative",minHeight:320,height:"min(48vw, 520px)",maxHeight:520,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px 0" }}>
+            <div style={{ position:"relative",flex:1,width:"100%",display:"flex",alignItems:"center",justifyContent:"center",minHeight:0 }}>
+              {dark&&<div style={{ position:"absolute",width:"64%",height:"64%",borderRadius:"50%",background:"radial-gradient(circle, rgba(143,159,232,0.55) 0%, rgba(143,159,232,0.18) 45%, rgba(24,40,78,0) 72%)",filter:"blur(6px)",pointerEvents:"none" }} />}
+              <img key={curImg} src={curImg} alt={p.name} onClick={()=>onDetail(p)} className="hp-sku-mainimg" style={{ position:"relative",maxHeight:"100%",maxWidth:"68%",objectFit:"contain",cursor:"pointer",filter:dark?"drop-shadow(0 24px 40px rgba(0,0,0,0.45))":"drop-shadow(0 22px 34px rgba(24,40,78,0.28))",animation:"hpPop .5s cubic-bezier(0.22,1,0.36,1)" }} />
+              {gallery.length>1&&<>
+                <button onClick={()=>setGi(i=>(i-1+gallery.length)%gallery.length)} aria-label="Ảnh trước" style={{ position:"absolute",left:"6%",top:"50%",transform:"translateY(-50%)",width:38,height:38,borderRadius:19,background:dark?"rgba(255,255,255,0.16)":"rgba(255,255,255,0.75)",color:dark?"#fff":NAVY,border:"none",cursor:"pointer",fontSize:18,zIndex:2,backdropFilter:"blur(4px)" }}>‹</button>
+                <button onClick={()=>setGi(i=>(i+1)%gallery.length)} aria-label="Ảnh sau" style={{ position:"absolute",right:"6%",top:"50%",transform:"translateY(-50%)",width:38,height:38,borderRadius:19,background:dark?"rgba(255,255,255,0.16)":"rgba(255,255,255,0.75)",color:dark?"#fff":NAVY,border:"none",cursor:"pointer",fontSize:18,zIndex:2,backdropFilter:"blur(4px)" }}>›</button>
+              </>}
+            </div>
+            {gallery.length>1&&(
+              <div style={{ display:"flex",gap:8,marginTop:14,alignItems:"center",flexWrap:"wrap",justifyContent:"center",maxWidth:"90%" }}>
+                {gallery.map((src,i)=>(
+                  <button key={i} onClick={()=>setGi(i)} style={{ width:46,height:46,borderRadius:9,overflow:"hidden",border:`2px solid ${i===gi?ACCENT:(dark?"rgba(255,255,255,0.3)":"rgba(24,40,78,0.2)")}`,background:dark?"rgba(255,255,255,0.9)":"#fff",cursor:"pointer",padding:2,flexShrink:0,transition:"border-color .2s" }}>
+                    <img src={src} alt="" style={{ width:"100%",height:"100%",objectFit:"contain" }} />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{ direction:"ltr",padding:"clamp(28px,4vw,56px)" }}>
             <div style={{ fontFamily:FONT_B,fontWeight:700,fontSize:12,letterSpacing:3.5,textTransform:"uppercase",color:deep,transition:"color .6s ease",marginBottom:12 }}>
               {isWbs?"Tắm gội thơm tho":"Khử mùi an toàn"}{off>0&&<span style={{ marginLeft:10,background:dark?"#fff":NAVY,color:dark?NAVY:"#fff",borderRadius:999,padding:"3px 10px",letterSpacing:0 }}>-{off}%</span>}
             </div>
-            <h2 style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(30px,3.6vw,48px)",lineHeight:1.02,letterSpacing:"-0.01em",color:ink,margin:"0 0 14px" }}>{p.name}</h2>
+            <h2 onClick={()=>onDetail(p)} title="Xem chi tiết" style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(30px,3.6vw,48px)",lineHeight:1.02,letterSpacing:"-0.01em",color:ink,margin:"0 0 14px",cursor:"pointer",display:"inline-block",transition:"color .2s ease",borderBottom:"3px solid transparent" }}
+              onMouseEnter={e=>{e.currentTarget.style.color=ACCENT;e.currentTarget.style.borderBottomColor=ACCENT;}}
+              onMouseLeave={e=>{e.currentTarget.style.color=ink;e.currentTarget.style.borderBottomColor="transparent";}}>{p.name}</h2>
             <p style={{ fontFamily:FONT_B,fontSize:15,lineHeight:1.8,color:dark?"rgba(255,255,255,0.82)":NAVY+"cc",whiteSpace:"pre-line",margin:"0 0 22px",maxWidth:460 }}>{p.story}</p>
             {variants.length>0&&(
               <div style={{ marginBottom:22 }}>
@@ -1312,7 +1334,7 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
                     const offBg = dark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.65)";
                     const offTxt= dark ? "#fff" : NAVY;
                     return (
-                      <button key={i} onClick={()=>setSel(v)} style={{ display:"flex",alignItems:"center",gap:8,background:on?onBg:offBg,color:on?onTxt:offTxt,border:"none",borderRadius:999,padding:"10px 16px",fontFamily:FONT_T,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all .25s ease" }}>
+                      <button key={i} onClick={()=>setSel(v)} style={{ display:"flex",alignItems:"center",gap:8,background:on?onBg:offBg,color:on?onTxt:offTxt,border:on?"2px solid "+ACCENT:"2px solid transparent",borderRadius:999,padding:"9px 15px",fontFamily:FONT_T,fontWeight:800,fontSize:13,cursor:"pointer",transition:"all .25s ease" }}>
                         {vs&&(vs.icon?<img src={vs.icon} alt="" style={{ width:20,height:20,objectFit:"contain",flexShrink:0 }} />:<span style={{ width:14,height:14,borderRadius:7,background:vs.deep,border:"2px solid #fff",flexShrink:0 }} />)}
                         {v.name}
                       </button>
@@ -1322,16 +1344,20 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
               </div>
             )}
             <div style={{ display:"flex",alignItems:"center",gap:14,flexWrap:"wrap" }}>
-              <div>
-                <span style={{ fontFamily:FONT_T,fontWeight:900,fontSize:30,color:ink }}>{fmt(price)}</span>
-                {original>price&&<span style={{ fontFamily:FONT_B,fontSize:15,color:dark?"rgba(255,255,255,0.5)":NAVY+"77",textDecoration:"line-through",marginLeft:10 }}>{fmt(original)}</span>}
+              <div style={{ display:"flex",alignItems:"baseline",gap:8 }}>
+                <span style={{ fontFamily:FONT_T,fontWeight:900,fontSize:38,letterSpacing:"-0.02em",color:ink,lineHeight:1 }}>{fmt(price)}</span>
+                {original>price&&<span style={{ fontFamily:FONT_B,fontSize:13,color:dark?"rgba(255,255,255,0.45)":NAVY+"66",textDecoration:"line-through" }}>{fmt(original)}</span>}
               </div>
               <button onClick={()=>{ if(variants.length>0&&!sel){alert("Vui lòng chọn phân loại");return;} onAdd(p,1,sel); }} disabled={stock<=0}
-                style={{ background:dark?"#fff":NAVY,color:dark?NAVY:"#fff",border:"none",borderRadius:999,padding:"15px 30px",fontFamily:FONT_T,fontWeight:800,fontSize:15,cursor:stock>0?"pointer":"not-allowed",opacity:stock>0?1:0.5,transition:"transform .2s ease" }}
-                onMouseEnter={e=>e.currentTarget.style.transform="scale(1.04)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}>
-                {stock>0?"Thêm vào giỏ":"Hết hàng"}
+                style={{ background:dark?"#fff":NAVY,color:dark?NAVY:"#fff",border:"2px solid "+(dark?"#fff":NAVY),borderRadius:999,padding:"14px 30px",fontFamily:FONT_T,fontWeight:800,fontSize:15,cursor:stock>0?"pointer":"not-allowed",opacity:stock>0?1:0.5,transition:"all .2s ease",boxShadow:"0 4px 14px rgba(0,0,0,0.12)" }}
+                onMouseEnter={e=>{ if(stock>0){e.currentTarget.style.background=ACCENT;e.currentTarget.style.borderColor=ACCENT;e.currentTarget.style.color="#fff";e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 12px 28px rgba(255,106,61,0.4)";} }}
+                onMouseLeave={e=>{ e.currentTarget.style.background=dark?"#fff":NAVY;e.currentTarget.style.borderColor=dark?"#fff":NAVY;e.currentTarget.style.color=dark?NAVY:"#fff";e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 4px 14px rgba(0,0,0,0.12)"; }}>
+                {stock>0?"🛒 Thêm vào giỏ":"Hết hàng"}
               </button>
-              <button onClick={()=>onDetail(p)} style={{ background:"transparent",color:ink,border:"2px solid "+(dark?"rgba(255,255,255,0.5)":NAVY),borderRadius:999,padding:"13px 24px",fontFamily:FONT_T,fontWeight:800,fontSize:15,cursor:"pointer" }}>Chi tiết</button>
+              <button onClick={()=>onDetail(p)}
+                style={{ background:"transparent",color:ink,border:"2px solid "+(dark?"rgba(255,255,255,0.5)":NAVY),borderRadius:999,padding:"12px 24px",fontFamily:FONT_T,fontWeight:800,fontSize:15,cursor:"pointer",transition:"all .2s ease" }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=ACCENT;e.currentTarget.style.color=ACCENT;}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=dark?"rgba(255,255,255,0.5)":NAVY;e.currentTarget.style.color=ink;}}>Chi tiết →</button>
             </div>
             {stock>0&&stock<=10&&<div style={{ fontFamily:FONT_B,fontSize:12,color:deep,marginTop:12,transition:"color .6s ease" }}>Chỉ còn {stock} sản phẩm</div>}
           </div>
@@ -1499,7 +1525,7 @@ export default function App() {
       <div style={{ paddingBottom:60 }}>
         <style>{`
           @keyframes hpPop{ from{ opacity:0; transform:translateY(16px) scale(0.97) } to{ opacity:1; transform:none } }
-          @media (max-width:820px){ .hp-sku{ grid-template-columns:1fr !important; direction:ltr !important } .hp-sku>div:first-child{ min-height:260px !important; height:auto !important } }
+          @media (max-width:820px){ .hp-sku{ grid-template-columns:1fr !important; direction:ltr !important } .hp-sku>div:first-child{ min-height:0 !important; height:auto !important; padding:24px 0 !important } .hp-sku-mainimg{ max-height:250px !important; max-width:60% !important } }
           @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important } }
         `}</style>
         {page==="shop"&&(()=>{
