@@ -191,8 +191,8 @@ function CropModal({ src, onCancel, onDone }) {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(el, rect.x*scaleX, rect.y*scaleY, cw, ch, 0, 0, cw, ch);
     canvas.toBlob((blob) => {
-      if (blob) onDone(new File([blob], 'cropped.jpg', { type: 'image/jpeg' }));
-    }, 'image/jpeg', 0.92);
+      if (blob) onDone(new File([blob], 'cropped.png', { type: 'image/png' }));
+    }, 'image/png');
   };
 
   const handle = (mode, pos) => (
