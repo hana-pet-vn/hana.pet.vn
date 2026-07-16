@@ -1378,20 +1378,18 @@ export default function AdminPage() {
   const TABS = [
     ['orders','📋 Đơn hàng', pendingCount],
     ['inventory','📊 Tồn kho', null],
-    ['brand','🎨 Thương hiệu', null],
-    ['hero','🏠 Trang chủ', null],
-    ['banners','🖼 Banner', null],
     ['products','📦 Sản phẩm', null],
-    ['trust','✅ Trust Bar', null],
-    ['flash','⚡ Flash Bar', null],
-    ['categories','🏷 Danh mục', null],
-    ['vouchers','🎟 Mã giảm giá', null],
-    ['popup','📢 Popup', null],
-    ['about','🐾 Giới thiệu', null],
-    ['footer','🔻 Footer', null],
-    ['socials','📱 Mạng xã hội', null],
-    ['favicon','🌐 Favicon', null],
+    ['home','🏠 Trang chủ', null],
+    ['brand','🎨 Thương hiệu', null],
+    ['promo','🎟 Khuyến mãi', null],
   ]
+  // Sub-tabs inside grouped tabs
+  const SUBTABS = {
+    home:  [['hero','Hero'],['layout','Bố cục'],['banners','Banner'],['trust','Trust Bar'],['flash','Flash Bar'],['popup','Popup']],
+    brand: [['brandmain','Thương hiệu'],['about','Giới thiệu'],['footer','Footer'],['socials','Mạng xã hội'],['favicon','Favicon']],
+    promo: [['vouchers','Mã giảm giá'],['categories','Danh mục']],
+  }
+  const [sub,setSub] = useState({ home:'hero', brand:'brandmain', promo:'vouchers' })
 
 
 
@@ -1440,6 +1438,59 @@ export default function AdminPage() {
     );
   };
 
+  // ── Tab: Layout (kéo-thả sắp xếp khối trang chủ) ──
+  const TabLayout = () => {
+    const DEFAULT_ORDER = [
+      { id:"hero",    label:"🎬 Hero (đầu trang)",       locked:true },
+      { id:"banner",  label:"🖼 Banner khuyến mãi" },
+      { id:"misty",   label:"🧴 Khối Misty Fresh" },
+      { id:"wbs",     label:"🫧 Khối Bubble Shampoo" },
+      { id:"trust",   label:"✅ Thanh tin cậy (Trust bar)" },
+      { id:"about",   label:"📖 Giới thiệu" },
+    ];
+    const saved = (S.brand[0].layoutOrder||[]).filter(Boolean);
+    const initial = saved.length
+      ? [...DEFAULT_ORDER].sort((a,b)=>{
+          const ia=saved.indexOf(a.id), ib=saved.indexOf(b.id);
+          return (ia<0?99:ia)-(ib<0?99:ib);
+        })
+      : DEFAULT_ORDER;
+    const [items,setItems] = useState(initial);
+    const [drag,setDrag]   = useState(null);
+
+    const onDrop = (target) => {
+      if(drag===null||drag===target) return;
+      const next=[...items];
+      const [moved]=next.splice(drag,1);
+      next.splice(target,0,moved);
+      setItems(next); setDrag(null);
+    };
+
+    return (
+      <div style={{ maxWidth:520 }}>
+        <SectionHeader title="🧩 Bố cục trang chủ" />
+        <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:16 }}>Kéo-thả để sắp xếp thứ tự các khối hiển thị trên trang chủ. Khối Hero luôn ở trên cùng.</div>
+        {items.map((it,idx)=>(
+          <div key={it.id}
+            draggable={!it.locked}
+            onDragStart={()=>!it.locked&&setDrag(idx)}
+            onDragOver={e=>{e.preventDefault();}}
+            onDrop={()=>onDrop(idx)}
+            style={{ display:"flex",alignItems:"center",gap:12,padding:"14px 16px",marginBottom:8,background:drag===idx?"#e7ecfa":"#fff",border:"2px solid "+(drag===idx?"#18284e":"#dbe2f1"),borderRadius:12,cursor:it.locked?"not-allowed":"grab",opacity:it.locked?0.6:1,transition:"background .15s" }}>
+            <span style={{ fontSize:18,color:"#8a93ad" }}>{it.locked?"🔒":"⠿"}</span>
+            <span style={{ fontFamily:FONT_T,fontSize:14,color:"#18284e",flex:1 }}>{it.label}</span>
+            <span style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad" }}>#{idx+1}</span>
+          </div>
+        ))}
+        <SaveBtn onSave={async ()=>{
+          const order=items.map(x=>x.id);
+          const nb={...S.brand[0],layoutOrder:order};
+          await setSupabaseConfig("brand", nb); S.brand[1](nb); flash();
+        }} saved={saved} />
+      </div>
+    );
+  };
+
   // ── Tab: Hero / Trang chủ ──
   const TabHero = () => {
     const [b,setB] = useState({...S.brand[0]});
@@ -1470,6 +1521,15 @@ export default function AdminPage() {
           <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12,lineHeight:1.6 }}>Dán link video .mp4 để làm nền động cho hero (nền sẽ mờ nhẹ + phủ tối cho chữ dễ đọc). Để trống = nền xanh navy tĩnh với ảnh sản phẩm.</div>
           <Field label="Link video .mp4" value={b.heroVideo||""} onChange={v=>set("heroVideo",v)} span="full" placeholder="https://.../tvc.mp4" />
           <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:6 }}>Mẹo: upload video lên Supabase Storage (bucket public) hoặc dịch vụ như Cloudinary rồi dán link .mp4 vào đây. Nên nén dưới 10MB để tải nhanh.</div>
+        </div>
+
+        <div style={{ marginTop:20,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
+          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:6 }}>🧴 Ảnh 2 sản phẩm ở hero</div>
+          <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12,lineHeight:1.6 }}>2 ảnh nổi bên phải hero (chỉ hiện khi KHÔNG dùng video nền). Nên dùng ảnh PNG nền trong suốt. Để trống = dùng ảnh mặc định.</div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
+            <ImgUp current={b.heroImg1} onUpload={v=>set("heroImg1",v)} label="Ảnh chai bên trái" aspect="120%" folder="brand" entityId="hero-img1" hint="PNG trong suốt, đứng" />
+            <ImgUp current={b.heroImg2} onUpload={v=>set("heroImg2",v)} label="Ảnh chai bên phải" aspect="120%" folder="brand" entityId="hero-img2" hint="PNG trong suốt, đứng" />
+          </div>
         </div>
 
         <div style={{ marginTop:16,padding:16,background:"#18284e",borderRadius:14 }}>
@@ -2244,23 +2304,37 @@ export default function AdminPage() {
         ))}
       </div>
 
+      {/* Sub-tab bar (for grouped tabs) */}
+      {SUBTABS[tab] && (
+        <div style={{ display:'flex', gap:6, overflowX:'auto', padding:'10px 20px', background:'#eef1fa', borderBottom:'1px solid #dbe2f1', position:'sticky', top:101, zIndex:98 }}>
+          {SUBTABS[tab].map(([key,label])=>{
+            const on = (sub[tab]||SUBTABS[tab][0][0])===key;
+            return <button key={key} onClick={()=>setSub(s=>({...s,[tab]:key}))} style={{ padding:'7px 16px', borderRadius:999, background:on?PRIMARY:'#fff', color:on?'#fff':'#5f6c8f', border:'1px solid '+(on?PRIMARY:'#dbe2f1'), fontFamily:FONT_T, fontWeight:700, fontSize:12, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>{label}</button>;
+          })}
+        </div>
+      )}
+
       {/* Content */}
       <div className="hh-admin-content" style={{ maxWidth:900, margin:'0 auto', padding:'28px 20px', boxSizing:'border-box' }}>
         {tab==='orders'     && <TabOrders S={S} />}
         {tab==='inventory'  && <TabInventory S={S} />}
-        {tab==='brand'      && <TabBrand />}
-        {tab==='hero'       && <TabHero />}
-        {tab==='banners'    && <TabBanners />}
         {tab==='products'   && <TabProducts />}
-        {tab==='trust'      && <TabTrust />}
-        {tab==='flash'      && <TabFlash />}
-        {tab==='categories' && <TabCats />}
-        {tab==='vouchers'   && <TabVouchers />}
-        {tab==='popup'      && <TabPopup />}
-        {tab==='about'      && <TabAbout />}
-        {tab==='footer'     && <TabFooter />}
-        {tab==='socials'    && <TabSocials />}
-        {tab==='favicon'    && <TabFavicon />}
+
+        {tab==='home' && (sub.home||'hero')==='hero'     && <TabHero />}
+        {tab==='home' && sub.home==='layout'             && <TabLayout />}
+        {tab==='home' && sub.home==='banners'            && <TabBanners />}
+        {tab==='home' && sub.home==='trust'              && <TabTrust />}
+        {tab==='home' && sub.home==='flash'              && <TabFlash />}
+        {tab==='home' && sub.home==='popup'              && <TabPopup />}
+
+        {tab==='brand' && (sub.brand||'brandmain')==='brandmain' && <TabBrand />}
+        {tab==='brand' && sub.brand==='about'            && <TabAbout />}
+        {tab==='brand' && sub.brand==='footer'           && <TabFooter />}
+        {tab==='brand' && sub.brand==='socials'          && <TabSocials />}
+        {tab==='brand' && sub.brand==='favicon'          && <TabFavicon />}
+
+        {tab==='promo' && (sub.promo||'vouchers')==='vouchers' && <TabVouchers />}
+        {tab==='promo' && sub.promo==='categories'       && <TabCats />}
       </div>
     </div>
   )

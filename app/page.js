@@ -1245,16 +1245,19 @@ function Hero({ brand, products, hasMisty, hasWbs }) {
   return (
     <section style={{ position:"relative", overflow:"hidden", background:NAVY }}>
       <style>{`
-        @keyframes hpFloat{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-12px) } }
+        @keyframes hpFloat{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-16px) } }
+        @keyframes hpFloat2{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-24px) } }
+        @keyframes hpPulse{ 0%,100%{ opacity:.5; transform:scale(1) } 50%{ opacity:.85; transform:scale(1.1) } }
         @keyframes hpRise{ from{ opacity:0; transform:translateY(28px) } to{ opacity:1; transform:none } }
-        .hp-hero{ max-width:1200px; margin:0 auto; padding:64px 24px 72px; display:grid; grid-template-columns:1.05fr 0.95fr; gap:32px; align-items:center; min-height:calc(88svh - 64px) }
+        .hp-hero{ max-width:1240px; margin:0 auto; padding:64px 24px 0; display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:center; min-height:calc(90svh - 64px) }
         .hp-hero-btn{ transition:transform .25s cubic-bezier(0.34,1.56,0.64,1), box-shadow .25s ease }
         .hp-hero-btn:hover{ transform:translateY(-4px) scale(1.03); box-shadow:0 16px 36px rgba(0,0,0,0.35) }
-        .hp-hero-stage{ position:relative; height:clamp(300px,42vw,460px) }
-        .hp-hero-stage img{ position:absolute; bottom:0; filter:drop-shadow(0 26px 40px rgba(0,0,0,0.4)) }
+        .hp-hero-stage{ position:relative; height:clamp(380px,46vw,540px); align-self:end }
+        .hp-hero-glow{ position:absolute; bottom:-20px; border-radius:50%; filter:blur(14px); animation:hpPulse 5s ease-in-out infinite; pointer-events:none }
+        .hp-hero-stage img{ position:absolute; bottom:-44px; filter:drop-shadow(0 32px 46px rgba(0,0,0,0.5)); z-index:2 }
         @media (max-width:820px){
-          .hp-hero{ grid-template-columns:1fr; text-align:center; padding:44px 22px 56px; gap:20px; min-height:0 }
-          .hp-hero-copy{ order:1 } .hp-hero-stage{ order:2; height:300px }
+          .hp-hero{ grid-template-columns:1fr; text-align:center; padding:44px 22px 0; gap:16px; min-height:0 }
+          .hp-hero-copy{ order:1 } .hp-hero-stage{ order:2; height:360px }
           .hp-hero-btns{ justify-content:center }
         }
       `}</style>
@@ -1281,8 +1284,10 @@ function Hero({ brand, products, hasMisty, hasWbs }) {
         </div>
         {!vidOk&&(
           <div className="hp-hero-stage">
-            <img src="/products/misty-spray.png" alt="Misty Fresh" style={{ right:"34%", height:"100%", animation:"hpFloat 7s ease-in-out infinite" }} />
-            <img src="/products/wbs-lavender.png" alt="Bubble Shampoo" style={{ right:"4%", height:"82%", animation:"hpFloat 7s ease-in-out 1.2s infinite" }} />
+            <div className="hp-hero-glow" style={{ right:"24%", width:"clamp(180px,22vw,260px)", height:"clamp(180px,22vw,260px)", background:"radial-gradient(circle, rgba(143,159,232,0.55) 0%, rgba(24,40,78,0) 70%)" }} />
+            <div className="hp-hero-glow" style={{ right:"0%", width:"clamp(150px,18vw,220px)", height:"clamp(150px,18vw,220px)", background:"radial-gradient(circle, rgba(143,159,232,0.4) 0%, rgba(24,40,78,0) 70%)", animationDelay:"1.5s" }} />
+            <img src={brand.heroImg1||"/products/misty-spray.png"} alt="" style={{ right:"24%", height:"118%", animation:"hpFloat 6.5s ease-in-out infinite" }} />
+            <img src={brand.heroImg2||"/products/wbs-lavender.png"} alt="" style={{ right:"0%", height:"98%", animation:"hpFloat2 6.5s ease-in-out 1.2s infinite" }} />
           </div>
         )}
       </div>
@@ -1303,11 +1308,8 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
   const deep = scent ? scent.deep : "#fff";
   const ink  = dark ? "#fff" : NAVY;         // main text color on this block
   const img  = (sel&&sel.img) || (isWbs ? (scent&&scent.img) : mistyImg(sel)) || p.img || "/products/misty-spray.png";
-  // Gallery: main image (variant-aware) + any extra product images
-  const gallery = [img, ...(p.images||[])].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
-  const [gi,setGi] = useState(0);
-  useEffect(()=>{ setGi(0); }, [img]);   // reset to variant image when variant changes
-  const curImg = gallery[gi] || img;
+  const [popped,setPopped] = useState(false);
+  const handleImgClick = () => { setPopped(true); setTimeout(()=>{ setPopped(false); onDetail(p); }, 260); };
   const price    = sel ? (Number(sel.price)||p.price)       : p.price;
   const original = sel ? (Number(sel.original)||p.original) : p.original;
   const stock    = sel ? (Number(sel.stock)||0)             : p.stock;
@@ -1328,28 +1330,18 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
         </Reveal>
       )}
       <Reveal>
-      <div className="hp-sku-card" style={{ maxWidth:1200,margin:"0 auto",background:bg,borderRadius:32,transition:"background .6s ease, transform .35s ease, box-shadow .35s ease",overflow:"hidden",boxShadow:dark?"0 18px 50px rgba(24,40,78,0.35)":"0 18px 50px rgba(24,40,78,0.16)" }}
+      <div className="hp-sku-card" style={{ position:"relative",maxWidth:1200,margin:"0 auto",background:bg,borderRadius:32,transition:"background .6s ease, transform .35s ease, box-shadow .35s ease",overflow:"hidden",boxShadow:dark?"0 18px 50px rgba(24,40,78,0.35)":"0 18px 50px rgba(24,40,78,0.16)" }}
         onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-6px)";e.currentTarget.style.boxShadow=dark?"0 28px 64px rgba(24,40,78,0.45)":"0 28px 64px rgba(24,40,78,0.24)";}}
         onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow=dark?"0 18px 50px rgba(24,40,78,0.35)":"0 18px 50px rgba(24,40,78,0.16)";}}>
+        <div aria-hidden style={{ position:"absolute",top:-10,right:24,fontSize:88,opacity:dark?0.06:0.05,pointerEvents:"none",lineHeight:1 }}>🐾</div>
+        <div aria-hidden style={{ position:"absolute",bottom:16,left:"38%",fontSize:34,opacity:dark?0.05:0.04,pointerEvents:"none",lineHeight:1 }}>🐾</div>
         <div className="hp-sku" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",alignItems:"center",direction:flip?"rtl":"ltr" }}>
           <div style={{ direction:"ltr",position:"relative",minHeight:320,height:"min(48vw, 520px)",maxHeight:520,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px 0" }}>
             <div style={{ position:"relative",flex:1,width:"100%",display:"flex",alignItems:"center",justifyContent:"center",minHeight:0 }}>
-              {dark&&<div style={{ position:"absolute",width:"64%",height:"64%",borderRadius:"50%",background:"radial-gradient(circle, rgba(143,159,232,0.55) 0%, rgba(143,159,232,0.18) 45%, rgba(24,40,78,0) 72%)",filter:"blur(6px)",pointerEvents:"none" }} />}
-              <img key={curImg} src={curImg} alt={p.name} onClick={()=>onDetail(p)} className="hp-sku-mainimg" style={{ position:"relative",maxHeight:"100%",maxWidth:"68%",objectFit:"contain",cursor:"pointer",borderRadius:8,filter:dark?"drop-shadow(0 24px 40px rgba(0,0,0,0.45))":"drop-shadow(0 22px 34px rgba(24,40,78,0.28))",animation:"hpFloat 6s ease-in-out infinite" }} />
-              {gallery.length>1&&<>
-                <button onClick={()=>setGi(i=>(i-1+gallery.length)%gallery.length)} aria-label="Ảnh trước" style={{ position:"absolute",left:"6%",top:"50%",transform:"translateY(-50%)",width:38,height:38,borderRadius:19,background:dark?"rgba(255,255,255,0.16)":"rgba(255,255,255,0.75)",color:dark?"#fff":NAVY,border:"none",cursor:"pointer",fontSize:18,zIndex:2,backdropFilter:"blur(4px)" }}>‹</button>
-                <button onClick={()=>setGi(i=>(i+1)%gallery.length)} aria-label="Ảnh sau" style={{ position:"absolute",right:"6%",top:"50%",transform:"translateY(-50%)",width:38,height:38,borderRadius:19,background:dark?"rgba(255,255,255,0.16)":"rgba(255,255,255,0.75)",color:dark?"#fff":NAVY,border:"none",cursor:"pointer",fontSize:18,zIndex:2,backdropFilter:"blur(4px)" }}>›</button>
-              </>}
+              {dark&&<div style={{ position:"absolute",width:popped?"82%":"64%",height:popped?"82%":"64%",borderRadius:"50%",background:`radial-gradient(circle, rgba(143,159,232,${popped?0.85:0.55}) 0%, rgba(143,159,232,${popped?0.35:0.18}) 45%, rgba(24,40,78,0) 72%)`,filter:"blur(6px)",pointerEvents:"none",transition:"all .3s ease" }} />}
+              {!dark&&popped&&<div style={{ position:"absolute",width:"80%",height:"80%",borderRadius:"50%",background:"radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.4) 45%, rgba(255,255,255,0) 72%)",filter:"blur(8px)",pointerEvents:"none",transition:"all .3s ease" }} />}
+              <img key={img} src={img} alt={p.name} onClick={handleImgClick} className="hp-sku-mainimg" style={{ position:"relative",maxHeight:"100%",maxWidth:"68%",objectFit:"contain",cursor:"pointer",borderRadius:8,filter:dark?"drop-shadow(0 24px 40px rgba(0,0,0,0.45))":"drop-shadow(0 22px 34px rgba(24,40,78,0.28))",animation:"hpFloat 6s ease-in-out infinite",transform:popped?"translateY(-14px) scale(1.05)":"none",transition:"transform .28s cubic-bezier(0.34,1.56,0.64,1)" }} />
             </div>
-            {gallery.length>1&&(
-              <div style={{ display:"flex",gap:8,marginTop:14,alignItems:"center",flexWrap:"wrap",justifyContent:"center",maxWidth:"90%" }}>
-                {gallery.map((src,i)=>(
-                  <button key={i} onClick={()=>setGi(i)} style={{ width:46,height:46,borderRadius:9,overflow:"hidden",border:`2px solid ${i===gi?ACCENT:(dark?"rgba(255,255,255,0.3)":"rgba(24,40,78,0.2)")}`,background:dark?"rgba(255,255,255,0.9)":"#fff",cursor:"pointer",padding:2,flexShrink:0,transition:"border-color .2s" }}>
-                    <img src={src} alt="" style={{ width:"100%",height:"100%",objectFit:"contain" }} />
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
           <div style={{ direction:"ltr",padding:"clamp(28px,4vw,56px)" }}>
             <div style={{ fontFamily:FONT_B,fontWeight:700,fontSize:12,letterSpacing:3.5,textTransform:"uppercase",color:deep,transition:"color .6s ease",marginBottom:12 }}>
@@ -1504,7 +1496,13 @@ export default function App() {
   if(!ready) return <div style={{ minHeight:"100vh",background:"#f2f5fb",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16 }}><img src="/logo.png" alt="Hanapet" style={{ height:72,objectFit:"contain" }} /><div style={{ fontFamily:FONT_T,fontSize:18,color:"#1b295b" }}>Đang tải...</div></div>;
 
   return (
-    <div className={"hh-motion-"+(brand.motion||"full")} style={{ minHeight:"100vh",background:"#f8fafd",fontFamily:FONT_B,"--font-title":brand.fontTitle||"'Nunito','Segoe UI',sans-serif","--font-body":brand.fontBody||"'Nunito Sans','Segoe UI',sans-serif" }}>
+    <div className={"hh-motion-"+(brand.motion||"full")} style={{ minHeight:"100vh",background:"#fbfaf7",fontFamily:FONT_B,position:"relative","--font-title":brand.fontTitle||"'Nunito','Segoe UI',sans-serif","--font-body":brand.fontBody||"'Nunito Sans','Segoe UI',sans-serif" }}>
+      <div aria-hidden style={{ position:"fixed",inset:0,zIndex:0,pointerEvents:"none",overflow:"hidden" }}>
+        <div style={{ position:"absolute",top:"8%",right:"-6%",width:"clamp(240px,32vw,440px)",height:"clamp(240px,32vw,440px)",borderRadius:"50%",background:"radial-gradient(circle, rgba(143,159,232,0.16) 0%, transparent 70%)" }} />
+        <div style={{ position:"absolute",top:"46%",left:"-8%",width:"clamp(220px,30vw,420px)",height:"clamp(220px,30vw,420px)",borderRadius:"50%",background:"radial-gradient(circle, rgba(255,142,102,0.13) 0%, transparent 70%)" }} />
+        <div style={{ position:"absolute",bottom:"4%",right:"6%",width:"clamp(200px,26vw,360px)",height:"clamp(200px,26vw,360px)",borderRadius:"50%",background:"radial-gradient(circle, rgba(143,159,232,0.12) 0%, transparent 70%)" }} />
+      </div>
+      <div style={{ position:"relative",zIndex:1 }}>
       <style>{`
         /* Motion levels: full = all animations; soft = gentle only (no float loops); off = none */
         .hh-motion-soft [style*="hpFloat"], .hh-motion-soft [style*="hpPop"]{ animation:none !important }
@@ -1574,37 +1572,50 @@ export default function App() {
           const mistyP = products.find(pp=>/misty|khử mùi|xịt/.test(norm(pp.name)));
           const wbsP   = products.find(pp=>/bubble|shampoo|tắm/.test(norm(pp.name)));
           const rest   = products.filter(pp=>pp!==mistyP&&pp!==wbsP);
+          const SECTIONS = {
+            banner: banners.length>0 ? <div key="banner" style={{ maxWidth:1200,margin:"14px auto 0",padding:"0 14px" }}><BannerCarousel banners={banners} brand={brand} /></div> : null,
+            misty:  mistyP ? <SkuBlock key="misty" id="sku-misty" product={mistyP} brand={brand} onAdd={addToCart} onDetail={setSelProd} /> : null,
+            wbs:    wbsP ? <SkuBlock key="wbs" id="sku-wbs" product={wbsP} brand={brand} onAdd={addToCart} onDetail={setSelProd} flip /> : null,
+            trust: (
+              <Reveal key="trust">
+              <div style={{ maxWidth:1200,margin:"0 auto",padding:"44px 24px 6px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:12 }}>
+                {trustBar.map((t,i)=>{
+                  const tints=["#eef1fb","#fdeee6","#eafaf3","#faf0e6"];
+                  const tint=tints[i%tints.length];
+                  return (
+                  <div key={t.id} className="hp-trust-card" style={{ display:"flex",alignItems:"center",gap:13,padding:"16px 18px",background:"#fff",border:"1px solid #efe6dd",borderRadius:20,boxShadow:"0 4px 16px rgba(24,40,78,0.05)",transition:"transform .25s ease, box-shadow .25s ease" }}
+                    onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.boxShadow="0 12px 30px rgba(24,40,78,0.12)";}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 4px 16px rgba(24,40,78,0.05)";}}>
+                    <span style={{ width:44,height:44,borderRadius:"50%",background:tint,display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,flexShrink:0 }}>{t.icon}</span>
+                    <div>
+                      <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13.5,color:"#18284e" }}>{t.title}</div>
+                      <div style={{ fontFamily:FONT_B,fontSize:11.5,color:"#8a7f72" }}>{t.sub}</div>
+                    </div>
+                  </div>
+                  );
+                })}
+              </div>
+              </Reveal>
+            ),
+            about: (
+              <Reveal key="about">
+              <div style={{ maxWidth:1200,margin:"36px auto 0",padding:"0 24px",textAlign:"center" }}>
+                <div style={{ width:38,height:3,background:ACCENT,borderRadius:2,margin:"0 auto 10px" }} />
+                <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:11,letterSpacing:2,textTransform:"uppercase",color:ACCENT,marginBottom:10 }}>Về Hanapet</div>
+                <h3 style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(24px,3vw,34px)",color:"#18284e",margin:"0 0 12px" }}>{about.heading}</h3>
+                <p style={{ fontFamily:FONT_B,fontSize:15,lineHeight:1.9,color:"#3c4664",maxWidth:640,margin:"0 auto",whiteSpace:"pre-line" }}>{about.body}</p>
+              </div>
+              </Reveal>
+            ),
+          };
+          const order = (brand.layoutOrder&&brand.layoutOrder.length) ? brand.layoutOrder : ["banner","misty","wbs","trust","about"];
+          const restBlocks = rest.map((pp,i)=><SkuBlock key={pp.id} id={"sku-"+pp.id} product={pp} brand={brand} onAdd={addToCart} onDetail={setSelProd} flip={i%2===1} />);
           return (
           <>
             <Hero brand={brand} products={products} hasMisty={!!mistyP} hasWbs={!!wbsP} />
-            {banners.length>0&&<div style={{ maxWidth:1200,margin:"14px auto 0",padding:"0 14px" }}><BannerCarousel banners={banners} brand={brand} /></div>}
             <div style={{ height:14 }} />
-            {mistyP&&<SkuBlock id="sku-misty" product={mistyP} brand={brand} onAdd={addToCart} onDetail={setSelProd} />}
-            {wbsP&&<SkuBlock id="sku-wbs" product={wbsP} brand={brand} onAdd={addToCart} onDetail={setSelProd} flip />}
-            {rest.map((pp,i)=><SkuBlock key={pp.id} id={"sku-"+pp.id} product={pp} brand={brand} onAdd={addToCart} onDetail={setSelProd} flip={(i+(mistyP?1:0)+(wbsP?1:0))%2===1} />)}
-
-            {/* trust strip */}
-            <Reveal>
-            <div style={{ maxWidth:1200,margin:"0 auto",padding:"44px 24px 6px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:10 }}>
-              {trustBar.map(t=>(
-                <div key={t.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"16px 18px",background:"#fff",border:"1px solid #e6eaf4",borderRadius:20 }}>
-                  <span style={{ fontSize:22 }}>{t.icon}</span>
-                  <div>
-                    <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13,color:"#18284e" }}>{t.title}</div>
-                    <div style={{ fontFamily:FONT_B,fontSize:11,color:"#5f6c8f" }}>{t.sub}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            </Reveal>
-
-            {/* about strip */}
-            <Reveal>
-            <div style={{ maxWidth:1200,margin:"36px auto 0",padding:"0 24px",textAlign:"center" }}>
-              <h3 style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(24px,3vw,34px)",color:"#18284e",margin:"0 0 12px" }}>{about.heading}</h3>
-              <p style={{ fontFamily:FONT_B,fontSize:15,lineHeight:1.9,color:"#3c4664",maxWidth:640,margin:"0 auto",whiteSpace:"pre-line" }}>{about.body}</p>
-            </div>
-            </Reveal>
+            {order.filter(k=>k!=="hero").map(k=>SECTIONS[k]).filter(Boolean)}
+            {restBlocks}
           </>
           );
         })()}
@@ -1670,6 +1681,17 @@ export default function App() {
         <div style={{ fontFamily:FONT_B,fontSize:11,color:"rgba(255,255,255,0.18)" }}>© 2025 {brand.name} · {footer.tagline2}</div>
         </div>
       </footer>
+      </div>
+
+      {/* Sticky quick-cart (fast buy) */}
+      {page==="shop" && cartCount>0 && !showCart && (
+        <button onClick={()=>setShowCart(true)} className="hp-fab" style={{ position:"fixed",right:"clamp(16px,4vw,32px)",bottom:"clamp(16px,4vw,28px)",zIndex:90,display:"flex",alignItems:"center",gap:10,background:"#18284e",color:"#fff",border:"none",borderRadius:999,padding:"14px 22px",fontFamily:FONT_T,fontWeight:800,fontSize:15,cursor:"pointer",boxShadow:"0 10px 30px rgba(24,40,78,0.4)",animation:"hpPop .4s ease both",transition:"transform .25s cubic-bezier(0.34,1.56,0.64,1), box-shadow .25s ease" }}
+          onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px) scale(1.04)";e.currentTarget.style.boxShadow="0 16px 40px rgba(24,40,78,0.5)";}}
+          onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 10px 30px rgba(24,40,78,0.4)";}}>
+          <span style={{ fontSize:18 }}>🛒</span> Xem giỏ
+          <span style={{ background:ACCENT,color:"#fff",borderRadius:999,minWidth:22,height:22,padding:"0 6px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900 }}>{cartCount}</span>
+        </button>
+      )}
 
       {/* MODALS */}
       {selProd    && <ProductModal product={selProd} brand={brand} onClose={()=>setSelProd(null)} onAdd={addToCart} />}
