@@ -12,8 +12,19 @@ import {
 
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
-const FONT_T = "'Nunito','Nunito Sans','Segoe UI',sans-serif";
-const FONT_B = "'Nunito Sans','Nunito','Segoe UI',sans-serif";
+const FONT_T = "var(--font-title, 'Nunito','Segoe UI',sans-serif)";
+const FONT_B = "var(--font-body, 'Nunito Sans','Segoe UI',sans-serif)";
+// Curated font choices for the admin picker (label → CSS font stack)
+const FONT_CHOICES = [
+  ["Nunito","'Nunito','Segoe UI',sans-serif"],
+  ["Nunito Sans","'Nunito Sans','Segoe UI',sans-serif"],
+  ["Be Vietnam Pro","'Be Vietnam Pro','Segoe UI',sans-serif"],
+  ["Quicksand","'Quicksand','Segoe UI',sans-serif"],
+  ["Baloo 2","'Baloo 2','Segoe UI',sans-serif"],
+  ["Montserrat","'Montserrat','Segoe UI',sans-serif"],
+  ["Lexend","'Lexend','Segoe UI',sans-serif"],
+  ["Fredoka","'Fredoka','Segoe UI',sans-serif"],
+];
 // Admin auth is handled by Supabase (email + password)
 const INV_PFX  = "HP";
 
@@ -347,31 +358,37 @@ function BannerCarousel({ banners, brand }) {
   useEffect(()=>{ const t=setInterval(()=>setI(x=>(x+1)%banners.length),5000); return()=>clearInterval(t); },[banners.length]);
   if(!banners.length) return null;
   return (
-    <div style={{ position:"relative",borderRadius:20,overflow:"hidden",marginBottom:28,boxShadow:`0 8px 40px rgba(27,41,91,0.25)`,aspectRatio:"16/9",width:"100%" }}>
+    <div style={{ position:"relative",borderRadius:20,overflow:"hidden",marginBottom:28,boxShadow:`0 8px 40px rgba(27,41,91,0.25)`,width:"100%" }}>
       <style>{`
         .hh-banner-title{font-size:clamp(24px,5.5vw,40px) !important}
         .hh-banner-sub{font-size:clamp(12px,2.6vw,15px) !important}
         .hh-banner-pad{padding:clamp(18px,4vw,32px) clamp(18px,5vw,40px) !important}
         @media (max-width:480px){.hh-banner-cta{padding:9px 18px !important;font-size:12px !important}}
       `}</style>
-      {banners.map((b,x)=>(
-        <div key={x} style={{ position:"absolute",inset:0,opacity:x===i?1:0,transition:"opacity 0.6s ease-in-out",background:b.bg||brand.primary }}>
+      {banners.map((b,x)=>{
+        const active = x===i;
+        return (
+        <div key={x} style={{ position:active?"relative":"absolute",inset:active?"auto":0,opacity:active?1:0,transition:"opacity 0.6s ease-in-out",background:b.bg||brand.primary }}>
           {b.video
-            ? <video src={b.video} autoPlay muted loop playsInline style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} />
-            : (b.img||b.imgMobile)&&<ResponsiveImg src={b.img} srcMobile={b.imgMobile} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} />}
-          <div style={{ position:"absolute",inset:0,background:"linear-gradient(90deg,rgba(10,16,38,0.75) 0%,rgba(10,16,38,0.1) 65%,transparent 100%)" }} />
+            ? <video src={b.video} autoPlay muted loop playsInline style={{ display:"block",width:"100%",height:"auto" }} />
+            : (b.img||b.imgMobile)
+              ? <ResponsiveImg src={b.img} srcMobile={b.imgMobile} alt="" style={{ display:"block",width:"100%",height:"auto" }} />
+              : <div style={{ width:"100%",aspectRatio:"16/9" }} />}
+          {(b.title||b.sub||b.cta)&&<>
+          <div style={{ position:"absolute",inset:0,background:"linear-gradient(90deg,rgba(10,16,38,0.65) 0%,rgba(10,16,38,0.08) 65%,transparent 100%)" }} />
           <div className="hh-banner-pad" style={{ position:"absolute",bottom:0,left:0,right:0,boxSizing:"border-box" }}>
-            <div className="hh-banner-title" style={{ fontFamily:FONT_T,fontWeight:700,color:"#fff",lineHeight:1.15,textShadow:"0 2px 12px rgba(0,0,0,0.5)",marginBottom:6,maxWidth:"90%" }}>{b.title}</div>
-            <div className="hh-banner-sub" style={{ fontFamily:FONT_B,color:"rgba(255,255,255,0.85)",marginBottom:16,maxWidth:"85%" }}>{b.sub}</div>
-            <button className="hh-banner-cta" onClick={()=>{
+            {b.title&&<div className="hh-banner-title" style={{ fontFamily:FONT_T,fontWeight:700,color:"#fff",lineHeight:1.15,textShadow:"0 2px 12px rgba(0,0,0,0.5)",marginBottom:6,maxWidth:"90%" }}>{b.title}</div>}
+            {b.sub&&<div className="hh-banner-sub" style={{ fontFamily:FONT_B,color:"rgba(255,255,255,0.85)",marginBottom:16,maxWidth:"85%" }}>{b.sub}</div>}
+            {b.cta&&<button className="hh-banner-cta" onClick={()=>{
               const t=(b.ctaLink||"").trim();
               if(!t) { document.getElementById("sku-misty")?.scrollIntoView({behavior:"smooth"}); return; }
               if(t.startsWith("#")) { document.getElementById(t.slice(1))?.scrollIntoView({behavior:"smooth"}); return; }
               window.open(t, t.startsWith("http")?"_blank":"_self");
-            }} style={{ background:brand.primary,color:"#fff",border:"none",borderRadius:12,padding:"11px 26px",fontFamily:FONT_T,fontSize:14,fontWeight:700,cursor:"pointer" }}>{b.cta||"Xem ngay"} →</button>
+            }} style={{ background:brand.primary,color:"#fff",border:"none",borderRadius:12,padding:"11px 26px",fontFamily:FONT_T,fontSize:14,fontWeight:700,cursor:"pointer" }}>{b.cta} →</button>}
           </div>
+          </>}
         </div>
-      ))}
+      );})}
       <div style={{ position:"absolute",bottom:14,right:18,display:"flex",gap:6,zIndex:2 }}>
         {banners.map((_,x)=><button key={x} onClick={()=>setI(x)} style={{ width:x===i?22:8,height:8,borderRadius:4,background:x===i?"#fff":"rgba(255,255,255,0.4)",border:"none",cursor:"pointer",transition:"all 0.3s",padding:0 }} />)}
       </div>
@@ -750,8 +767,6 @@ function InvoiceModal({ order, brand, onClose }) {
 // ─── CART DRAWER ──────────────────────────────────────────────────────────────
 
 function CartDrawer({ cart, brand, vouchers, onClose, onRemove, onQty, onOrderComplete }) {
-  const FONT_T = "'Nunito','Nunito Sans','Segoe UI',sans-serif";
-  const FONT_B = "'Nunito Sans','Nunito','Segoe UI',sans-serif";
   const fmt = n => n?.toLocaleString('vi-VN') + 'đ';
 
   const [vc, setVc]       = useState('');
@@ -1260,8 +1275,8 @@ function Hero({ brand, products, hasMisty, hasWbs }) {
             {brand.heroSub||"Khử mùi an toàn · Tắm gội thơm tho — cho boss sạch thơm mỗi ngày."}
           </p>
           <div className="hp-hero-btns" style={{ display:"flex", gap:12, flexWrap:"wrap", animation:"hpRise .7s .3s both" }}>
-            {hasMisty&&<button className="hp-hero-btn" onClick={()=>go("sku-misty")} style={{ background:"#fff", color:NAVY, border:"none", borderRadius:999, padding:"15px 28px", fontFamily:FONT_T, fontWeight:800, fontSize:15, cursor:"pointer", boxShadow:"0 10px 28px rgba(0,0,0,0.3)" }}>Xịt khử mùi →</button>}
-            {hasWbs&&<button className="hp-hero-btn" onClick={()=>go("sku-wbs")} style={{ background:PERI, color:NAVY, border:"none", borderRadius:999, padding:"15px 28px", fontFamily:FONT_T, fontWeight:800, fontSize:15, cursor:"pointer", boxShadow:"0 10px 28px rgba(0,0,0,0.3)" }}>Tắm gội thơm tho →</button>}
+            {hasMisty&&<button className="hp-hero-btn" onClick={()=>go("sku-misty")} style={{ background:"#fff", color:NAVY, border:"none", borderRadius:999, padding:"15px 28px", fontFamily:FONT_T, fontWeight:800, fontSize:15, cursor:"pointer", boxShadow:"0 10px 28px rgba(0,0,0,0.3)" }}>{brand.heroBtn1||"Xịt khử mùi"} →</button>}
+            {hasWbs&&<button className="hp-hero-btn" onClick={()=>go("sku-wbs")} style={{ background:PERI, color:NAVY, border:"none", borderRadius:999, padding:"15px 28px", fontFamily:FONT_T, fontWeight:800, fontSize:15, cursor:"pointer", boxShadow:"0 10px 28px rgba(0,0,0,0.3)" }}>{brand.heroBtn2||"Tắm gội thơm tho"} →</button>}
           </div>
         </div>
         {!vidOk&&(
@@ -1271,6 +1286,9 @@ function Hero({ brand, products, hasMisty, hasWbs }) {
           </div>
         )}
       </div>
+      <svg viewBox="0 0 1440 90" preserveAspectRatio="none" style={{ display:"block", width:"100%", height:"clamp(40px,6vw,80px)", marginBottom:-1 }}>
+        <path d="M0,40 C360,90 1080,0 1440,50 L1440,90 L0,90 Z" fill="#f8fafd" />
+      </svg>
     </section>
   );
 }
@@ -1335,7 +1353,7 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
           </div>
           <div style={{ direction:"ltr",padding:"clamp(28px,4vw,56px)" }}>
             <div style={{ fontFamily:FONT_B,fontWeight:700,fontSize:12,letterSpacing:3.5,textTransform:"uppercase",color:deep,transition:"color .6s ease",marginBottom:12 }}>
-              {isWbs?"Tắm gội thơm tho":"Khử mùi an toàn"}{off>0&&<span style={{ marginLeft:10,background:dark?"#fff":NAVY,color:dark?NAVY:"#fff",borderRadius:999,padding:"3px 10px",letterSpacing:0 }}>-{off}%</span>}
+              {isWbs?(brand.labelWbs||"Tắm gội thơm tho"):(brand.labelMisty||"Khử mùi an toàn")}{off>0&&<span style={{ marginLeft:10,background:dark?"#fff":NAVY,color:dark?NAVY:"#fff",borderRadius:999,padding:"3px 10px",letterSpacing:0 }}>-{off}%</span>}
             </div>
             <h2 onClick={()=>onDetail(p)} title="Xem chi tiết" style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(30px,3.6vw,48px)",lineHeight:1.02,letterSpacing:"-0.01em",color:ink,margin:"0 0 14px",cursor:"pointer",display:"inline-block",transition:"text-shadow .3s ease, transform .3s ease" }}
               onMouseEnter={e=>{e.currentTarget.style.textShadow=dark?"0 0 22px rgba(255,255,255,0.65), 0 0 40px rgba(255,255,255,0.3)":"0 0 20px rgba(24,40,78,0.25)";e.currentTarget.style.transform="translateY(-1px)";}}
@@ -1370,12 +1388,12 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
                 style={{ background:dark?"#fff":NAVY,color:dark?NAVY:"#fff",border:"2px solid "+(dark?"#fff":NAVY),borderRadius:999,padding:"14px 30px",fontFamily:FONT_T,fontWeight:800,fontSize:15,cursor:stock>0?"pointer":"not-allowed",opacity:stock>0?1:0.5,transition:"all .2s ease",boxShadow:"0 4px 14px rgba(0,0,0,0.12)" }}
                 onMouseEnter={e=>{ if(stock>0){e.currentTarget.style.background=ACCENT;e.currentTarget.style.borderColor=ACCENT;e.currentTarget.style.color="#fff";e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 12px 28px rgba(255,106,61,0.4)";} }}
                 onMouseLeave={e=>{ e.currentTarget.style.background=dark?"#fff":NAVY;e.currentTarget.style.borderColor=dark?"#fff":NAVY;e.currentTarget.style.color=dark?NAVY:"#fff";e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 4px 14px rgba(0,0,0,0.12)"; }}>
-                {stock>0?"🛒 Thêm vào giỏ":"Hết hàng"}
+                {stock>0?(brand.labelAddCart||"🛒 Thêm vào giỏ"):"Hết hàng"}
               </button>
               <button onClick={()=>onDetail(p)}
                 style={{ background:"transparent",color:ink,border:"2px solid "+(dark?"rgba(255,255,255,0.5)":NAVY),borderRadius:999,padding:"12px 24px",fontFamily:FONT_T,fontWeight:800,fontSize:15,cursor:"pointer",transition:"all .2s ease" }}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor=ACCENT;e.currentTarget.style.color=ACCENT;}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor=dark?"rgba(255,255,255,0.5)":NAVY;e.currentTarget.style.color=ink;}}>Chi tiết →</button>
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=dark?"rgba(255,255,255,0.5)":NAVY;e.currentTarget.style.color=ink;}}>{brand.labelDetail||"Chi tiết →"}</button>
             </div>
             {stock>0&&stock<=10&&<div style={{ fontFamily:FONT_B,fontSize:12,color:deep,marginTop:12,transition:"color .6s ease" }}>Chỉ còn {stock} sản phẩm</div>}
           </div>
@@ -1486,7 +1504,7 @@ export default function App() {
   if(!ready) return <div style={{ minHeight:"100vh",background:"#f2f5fb",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16 }}><img src="/logo.png" alt="Hanapet" style={{ height:72,objectFit:"contain" }} /><div style={{ fontFamily:FONT_T,fontSize:18,color:"#1b295b" }}>Đang tải...</div></div>;
 
   return (
-    <div className={"hh-motion-"+(brand.motion||"full")} style={{ minHeight:"100vh",background:"#f8fafd",fontFamily:FONT_B }}>
+    <div className={"hh-motion-"+(brand.motion||"full")} style={{ minHeight:"100vh",background:"#f8fafd",fontFamily:FONT_B,"--font-title":brand.fontTitle||"'Nunito','Segoe UI',sans-serif","--font-body":brand.fontBody||"'Nunito Sans','Segoe UI',sans-serif" }}>
       <style>{`
         /* Motion levels: full = all animations; soft = gentle only (no float loops); off = none */
         .hh-motion-soft [style*="hpFloat"], .hh-motion-soft [style*="hpPop"]{ animation:none !important }

@@ -9,7 +9,7 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&family=Be+Vietnam+Pro:wght@400;600;700;800&family=Quicksand:wght@500;600;700&family=Baloo+2:wght@500;600;700;800&family=Montserrat:wght@500;600;700;800;900&family=Lexend:wght@400;600;700;800&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet" />
         <style>{`
           * { -webkit-tap-highlight-color: transparent; }
           html, body { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }

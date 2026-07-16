@@ -13,6 +13,16 @@ import {
 
 const FONT_T = "'Baloo 2','Be Vietnam Pro','Segoe UI',sans-serif"
 const FONT_B = "'Be Vietnam Pro','Segoe UI',sans-serif"
+const FONT_CHOICES = [
+  ["Nunito","'Nunito','Segoe UI',sans-serif"],
+  ["Nunito Sans","'Nunito Sans','Segoe UI',sans-serif"],
+  ["Be Vietnam Pro","'Be Vietnam Pro','Segoe UI',sans-serif"],
+  ["Quicksand","'Quicksand','Segoe UI',sans-serif"],
+  ["Baloo 2","'Baloo 2','Segoe UI',sans-serif"],
+  ["Montserrat","'Montserrat','Segoe UI',sans-serif"],
+  ["Lexend","'Lexend','Segoe UI',sans-serif"],
+  ["Fredoka","'Fredoka','Segoe UI',sans-serif"],
+]
 const PRIMARY_DEFAULT = '#1b295b'
 
 
@@ -137,7 +147,8 @@ function CropModal({ src, onCancel, onDone }) {
     const el = imgRef.current;
     const w = el.clientWidth, h = el.clientHeight;
     setDim({ w, h });
-    setRect({ x: 0, y: 0, w, h });   // start covering the whole image
+    // Default a bit zoomed-in (trims ~8% edges) so stray borders/corners get cropped out
+    setRect({ x: w*0.08, y: h*0.08, w: w*0.84, h: h*0.84 });
   };
   const selectAll = () => { if(dim) setRect({ x:0, y:0, w:dim.w, h:dim.h }); };
 
@@ -1442,6 +1453,18 @@ export default function AdminPage() {
         <Field label="Tiêu đề lớn" value={b.heroTitle||""} onChange={v=>set("heroTitle",v)} span="full" placeholder="Chăm sóc thú cưng cao cấp cùng Hanapet" />
         <Field label="Mô tả ngắn dưới tiêu đề" value={b.heroSub||""} onChange={v=>set("heroSub",v)} span="full" placeholder="Khử mùi an toàn · Tắm gội thơm tho" />
 
+        <div style={{ marginTop:16,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
+          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:10 }}>🔠 Chữ trên các nút &amp; nhãn</div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+            <Field label="Nút hero 1" value={b.heroBtn1||""} onChange={v=>set("heroBtn1",v)} placeholder="Xịt khử mùi" />
+            <Field label="Nút hero 2" value={b.heroBtn2||""} onChange={v=>set("heroBtn2",v)} placeholder="Tắm gội thơm tho" />
+            <Field label="Nút thêm giỏ" value={b.labelAddCart||""} onChange={v=>set("labelAddCart",v)} placeholder="🛒 Thêm vào giỏ" />
+            <Field label="Nút chi tiết" value={b.labelDetail||""} onChange={v=>set("labelDetail",v)} placeholder="Chi tiết →" />
+            <Field label="Nhãn khối Misty" value={b.labelMisty||""} onChange={v=>set("labelMisty",v)} placeholder="Khử mùi an toàn" />
+            <Field label="Nhãn khối tắm gội" value={b.labelWbs||""} onChange={v=>set("labelWbs",v)} placeholder="Tắm gội thơm tho" />
+          </div>
+        </div>
+
         <div style={{ marginTop:20,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
           <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:6 }}>🎬 Video nền (TVC)</div>
           <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12,lineHeight:1.6 }}>Dán link video .mp4 để làm nền động cho hero (nền sẽ mờ nhẹ + phủ tối cho chữ dễ đọc). Để trống = nền xanh navy tĩnh với ảnh sản phẩm.</div>
@@ -1454,6 +1477,25 @@ export default function AdminPage() {
           <div style={{ fontFamily:FONT_B,fontSize:10,letterSpacing:2,color:"#8f9fe8",marginBottom:6 }}>{b.heroEyebrow||"🐾 Đồ dùng thú cưng cho chó & mèo"}</div>
           <div style={{ fontFamily:FONT_T,fontWeight:900,fontSize:22,color:"#fff",lineHeight:1.1,marginBottom:6 }}>{b.heroTitle||"Chăm sóc thú cưng cao cấp cùng Hanapet"}</div>
           <div style={{ fontFamily:FONT_B,fontSize:12,color:"rgba(255,255,255,0.8)" }}>{b.heroSub||"Khử mùi an toàn · Tắm gội thơm tho"}</div>
+        </div>
+
+        <div style={{ marginTop:16,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
+          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:10 }}>🔤 Phông chữ</div>
+          {[["fontTitle","Font tiêu đề (tên sản phẩm, heading)"],["fontBody","Font nội dung (mô tả, chữ thường)"]].map(([key,lbl])=>(
+            <div key={key} style={{ marginBottom:14 }}>
+              <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:6 }}>{lbl}</div>
+              <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                {FONT_CHOICES.map(([name,stack])=>{
+                  const cur=(b[key]||FONT_CHOICES[key==="fontTitle"?0:1][1])===stack;
+                  return <button key={name} onClick={()=>set(key,stack)} style={{ fontFamily:stack,background:cur?"#18284e":"#fff",color:cur?"#fff":"#18284e",border:"2px solid "+(cur?"#18284e":"#dbe2f1"),borderRadius:10,padding:"8px 14px",fontSize:15,fontWeight:700,cursor:"pointer" }}>{name}</button>;
+                })}
+              </div>
+            </div>
+          ))}
+          <div style={{ padding:14,background:"#18284e",borderRadius:10,marginTop:4 }}>
+            <div style={{ fontFamily:b.fontTitle||"'Nunito',sans-serif",fontWeight:800,fontSize:22,color:"#fff",marginBottom:4 }}>Misty Fresh</div>
+            <div style={{ fontFamily:b.fontBody||"'Nunito Sans',sans-serif",fontSize:13,color:"rgba(255,255,255,0.8)" }}>Xịt khử mùi khử khuẩn cho thú cưng — xem trước phông chữ.</div>
+          </div>
         </div>
 
         <div style={{ marginTop:16,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
