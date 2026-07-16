@@ -1303,11 +1303,8 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
   const deep = scent ? scent.deep : "#fff";
   const ink  = dark ? "#fff" : NAVY;         // main text color on this block
   const img  = (sel&&sel.img) || (isWbs ? (scent&&scent.img) : mistyImg(sel)) || p.img || "/products/misty-spray.png";
-  // Gallery: main image (variant-aware) + any extra product images
-  const gallery = [img, ...(p.images||[])].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
-  const [gi,setGi] = useState(0);
-  useEffect(()=>{ setGi(0); }, [img]);   // reset to variant image when variant changes
-  const curImg = gallery[gi] || img;
+  const [popped,setPopped] = useState(false);
+  const handleImgClick = () => { setPopped(true); setTimeout(()=>{ setPopped(false); onDetail(p); }, 260); };
   const price    = sel ? (Number(sel.price)||p.price)       : p.price;
   const original = sel ? (Number(sel.original)||p.original) : p.original;
   const stock    = sel ? (Number(sel.stock)||0)             : p.stock;
@@ -1334,22 +1331,10 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
         <div className="hp-sku" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",alignItems:"center",direction:flip?"rtl":"ltr" }}>
           <div style={{ direction:"ltr",position:"relative",minHeight:320,height:"min(48vw, 520px)",maxHeight:520,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px 0" }}>
             <div style={{ position:"relative",flex:1,width:"100%",display:"flex",alignItems:"center",justifyContent:"center",minHeight:0 }}>
-              {dark&&<div style={{ position:"absolute",width:"64%",height:"64%",borderRadius:"50%",background:"radial-gradient(circle, rgba(143,159,232,0.55) 0%, rgba(143,159,232,0.18) 45%, rgba(24,40,78,0) 72%)",filter:"blur(6px)",pointerEvents:"none" }} />}
-              <img key={curImg} src={curImg} alt={p.name} onClick={()=>onDetail(p)} className="hp-sku-mainimg" style={{ position:"relative",maxHeight:"100%",maxWidth:"68%",objectFit:"contain",cursor:"pointer",borderRadius:8,filter:dark?"drop-shadow(0 24px 40px rgba(0,0,0,0.45))":"drop-shadow(0 22px 34px rgba(24,40,78,0.28))",animation:"hpFloat 6s ease-in-out infinite" }} />
-              {gallery.length>1&&<>
-                <button onClick={()=>setGi(i=>(i-1+gallery.length)%gallery.length)} aria-label="Ảnh trước" style={{ position:"absolute",left:"6%",top:"50%",transform:"translateY(-50%)",width:38,height:38,borderRadius:19,background:dark?"rgba(255,255,255,0.16)":"rgba(255,255,255,0.75)",color:dark?"#fff":NAVY,border:"none",cursor:"pointer",fontSize:18,zIndex:2,backdropFilter:"blur(4px)" }}>‹</button>
-                <button onClick={()=>setGi(i=>(i+1)%gallery.length)} aria-label="Ảnh sau" style={{ position:"absolute",right:"6%",top:"50%",transform:"translateY(-50%)",width:38,height:38,borderRadius:19,background:dark?"rgba(255,255,255,0.16)":"rgba(255,255,255,0.75)",color:dark?"#fff":NAVY,border:"none",cursor:"pointer",fontSize:18,zIndex:2,backdropFilter:"blur(4px)" }}>›</button>
-              </>}
+              {dark&&<div style={{ position:"absolute",width:popped?"82%":"64%",height:popped?"82%":"64%",borderRadius:"50%",background:`radial-gradient(circle, rgba(143,159,232,${popped?0.85:0.55}) 0%, rgba(143,159,232,${popped?0.35:0.18}) 45%, rgba(24,40,78,0) 72%)`,filter:"blur(6px)",pointerEvents:"none",transition:"all .3s ease" }} />}
+              {!dark&&popped&&<div style={{ position:"absolute",width:"80%",height:"80%",borderRadius:"50%",background:"radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.4) 45%, rgba(255,255,255,0) 72%)",filter:"blur(8px)",pointerEvents:"none",transition:"all .3s ease" }} />}
+              <img key={img} src={img} alt={p.name} onClick={handleImgClick} className="hp-sku-mainimg" style={{ position:"relative",maxHeight:"100%",maxWidth:"68%",objectFit:"contain",cursor:"pointer",borderRadius:8,filter:dark?"drop-shadow(0 24px 40px rgba(0,0,0,0.45))":"drop-shadow(0 22px 34px rgba(24,40,78,0.28))",animation:"hpFloat 6s ease-in-out infinite",transform:popped?"translateY(-14px) scale(1.05)":"none",transition:"transform .28s cubic-bezier(0.34,1.56,0.64,1)" }} />
             </div>
-            {gallery.length>1&&(
-              <div style={{ display:"flex",gap:8,marginTop:14,alignItems:"center",flexWrap:"wrap",justifyContent:"center",maxWidth:"90%" }}>
-                {gallery.map((src,i)=>(
-                  <button key={i} onClick={()=>setGi(i)} style={{ width:46,height:46,borderRadius:9,overflow:"hidden",border:`2px solid ${i===gi?ACCENT:(dark?"rgba(255,255,255,0.3)":"rgba(24,40,78,0.2)")}`,background:dark?"rgba(255,255,255,0.9)":"#fff",cursor:"pointer",padding:2,flexShrink:0,transition:"border-color .2s" }}>
-                    <img src={src} alt="" style={{ width:"100%",height:"100%",objectFit:"contain" }} />
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
           <div style={{ direction:"ltr",padding:"clamp(28px,4vw,56px)" }}>
             <div style={{ fontFamily:FONT_B,fontWeight:700,fontSize:12,letterSpacing:3.5,textTransform:"uppercase",color:deep,transition:"color .6s ease",marginBottom:12 }}>
@@ -1574,37 +1559,42 @@ export default function App() {
           const mistyP = products.find(pp=>/misty|khử mùi|xịt/.test(norm(pp.name)));
           const wbsP   = products.find(pp=>/bubble|shampoo|tắm/.test(norm(pp.name)));
           const rest   = products.filter(pp=>pp!==mistyP&&pp!==wbsP);
+          const SECTIONS = {
+            banner: banners.length>0 ? <div key="banner" style={{ maxWidth:1200,margin:"14px auto 0",padding:"0 14px" }}><BannerCarousel banners={banners} brand={brand} /></div> : null,
+            misty:  mistyP ? <SkuBlock key="misty" id="sku-misty" product={mistyP} brand={brand} onAdd={addToCart} onDetail={setSelProd} /> : null,
+            wbs:    wbsP ? <SkuBlock key="wbs" id="sku-wbs" product={wbsP} brand={brand} onAdd={addToCart} onDetail={setSelProd} flip /> : null,
+            trust: (
+              <Reveal key="trust">
+              <div style={{ maxWidth:1200,margin:"0 auto",padding:"44px 24px 6px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:10 }}>
+                {trustBar.map(t=>(
+                  <div key={t.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"16px 18px",background:"#fff",border:"1px solid #e6eaf4",borderRadius:20 }}>
+                    <span style={{ fontSize:22 }}>{t.icon}</span>
+                    <div>
+                      <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13,color:"#18284e" }}>{t.title}</div>
+                      <div style={{ fontFamily:FONT_B,fontSize:11,color:"#5f6c8f" }}>{t.sub}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              </Reveal>
+            ),
+            about: (
+              <Reveal key="about">
+              <div style={{ maxWidth:1200,margin:"36px auto 0",padding:"0 24px",textAlign:"center" }}>
+                <h3 style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(24px,3vw,34px)",color:"#18284e",margin:"0 0 12px" }}>{about.heading}</h3>
+                <p style={{ fontFamily:FONT_B,fontSize:15,lineHeight:1.9,color:"#3c4664",maxWidth:640,margin:"0 auto",whiteSpace:"pre-line" }}>{about.body}</p>
+              </div>
+              </Reveal>
+            ),
+          };
+          const order = (brand.layoutOrder&&brand.layoutOrder.length) ? brand.layoutOrder : ["banner","misty","wbs","trust","about"];
+          const restBlocks = rest.map((pp,i)=><SkuBlock key={pp.id} id={"sku-"+pp.id} product={pp} brand={brand} onAdd={addToCart} onDetail={setSelProd} flip={i%2===1} />);
           return (
           <>
             <Hero brand={brand} products={products} hasMisty={!!mistyP} hasWbs={!!wbsP} />
-            {banners.length>0&&<div style={{ maxWidth:1200,margin:"14px auto 0",padding:"0 14px" }}><BannerCarousel banners={banners} brand={brand} /></div>}
             <div style={{ height:14 }} />
-            {mistyP&&<SkuBlock id="sku-misty" product={mistyP} brand={brand} onAdd={addToCart} onDetail={setSelProd} />}
-            {wbsP&&<SkuBlock id="sku-wbs" product={wbsP} brand={brand} onAdd={addToCart} onDetail={setSelProd} flip />}
-            {rest.map((pp,i)=><SkuBlock key={pp.id} id={"sku-"+pp.id} product={pp} brand={brand} onAdd={addToCart} onDetail={setSelProd} flip={(i+(mistyP?1:0)+(wbsP?1:0))%2===1} />)}
-
-            {/* trust strip */}
-            <Reveal>
-            <div style={{ maxWidth:1200,margin:"0 auto",padding:"44px 24px 6px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:10 }}>
-              {trustBar.map(t=>(
-                <div key={t.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"16px 18px",background:"#fff",border:"1px solid #e6eaf4",borderRadius:20 }}>
-                  <span style={{ fontSize:22 }}>{t.icon}</span>
-                  <div>
-                    <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13,color:"#18284e" }}>{t.title}</div>
-                    <div style={{ fontFamily:FONT_B,fontSize:11,color:"#5f6c8f" }}>{t.sub}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            </Reveal>
-
-            {/* about strip */}
-            <Reveal>
-            <div style={{ maxWidth:1200,margin:"36px auto 0",padding:"0 24px",textAlign:"center" }}>
-              <h3 style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(24px,3vw,34px)",color:"#18284e",margin:"0 0 12px" }}>{about.heading}</h3>
-              <p style={{ fontFamily:FONT_B,fontSize:15,lineHeight:1.9,color:"#3c4664",maxWidth:640,margin:"0 auto",whiteSpace:"pre-line" }}>{about.body}</p>
-            </div>
-            </Reveal>
+            {order.filter(k=>k!=="hero").map(k=>SECTIONS[k]).filter(Boolean)}
+            {restBlocks}
           </>
           );
         })()}

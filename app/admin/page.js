@@ -1380,6 +1380,7 @@ export default function AdminPage() {
     ['inventory','📊 Tồn kho', null],
     ['brand','🎨 Thương hiệu', null],
     ['hero','🏠 Trang chủ', null],
+    ['layout','🧩 Bố cục', null],
     ['banners','🖼 Banner', null],
     ['products','📦 Sản phẩm', null],
     ['trust','✅ Trust Bar', null],
@@ -1436,6 +1437,59 @@ export default function AdminPage() {
           </div>
         </div>
         <SaveBtn onSave={async ()=>{await setSupabaseConfig("brand", b); S.brand[1](b); flash();}} saved={saved} />
+      </div>
+    );
+  };
+
+  // ── Tab: Layout (kéo-thả sắp xếp khối trang chủ) ──
+  const TabLayout = () => {
+    const DEFAULT_ORDER = [
+      { id:"hero",    label:"🎬 Hero (đầu trang)",       locked:true },
+      { id:"banner",  label:"🖼 Banner khuyến mãi" },
+      { id:"misty",   label:"🧴 Khối Misty Fresh" },
+      { id:"wbs",     label:"🫧 Khối Bubble Shampoo" },
+      { id:"trust",   label:"✅ Thanh tin cậy (Trust bar)" },
+      { id:"about",   label:"📖 Giới thiệu" },
+    ];
+    const saved = (S.brand[0].layoutOrder||[]).filter(Boolean);
+    const initial = saved.length
+      ? [...DEFAULT_ORDER].sort((a,b)=>{
+          const ia=saved.indexOf(a.id), ib=saved.indexOf(b.id);
+          return (ia<0?99:ia)-(ib<0?99:ib);
+        })
+      : DEFAULT_ORDER;
+    const [items,setItems] = useState(initial);
+    const [drag,setDrag]   = useState(null);
+
+    const onDrop = (target) => {
+      if(drag===null||drag===target) return;
+      const next=[...items];
+      const [moved]=next.splice(drag,1);
+      next.splice(target,0,moved);
+      setItems(next); setDrag(null);
+    };
+
+    return (
+      <div style={{ maxWidth:520 }}>
+        <SectionHeader title="🧩 Bố cục trang chủ" />
+        <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:16 }}>Kéo-thả để sắp xếp thứ tự các khối hiển thị trên trang chủ. Khối Hero luôn ở trên cùng.</div>
+        {items.map((it,idx)=>(
+          <div key={it.id}
+            draggable={!it.locked}
+            onDragStart={()=>!it.locked&&setDrag(idx)}
+            onDragOver={e=>{e.preventDefault();}}
+            onDrop={()=>onDrop(idx)}
+            style={{ display:"flex",alignItems:"center",gap:12,padding:"14px 16px",marginBottom:8,background:drag===idx?"#e7ecfa":"#fff",border:"2px solid "+(drag===idx?"#18284e":"#dbe2f1"),borderRadius:12,cursor:it.locked?"not-allowed":"grab",opacity:it.locked?0.6:1,transition:"background .15s" }}>
+            <span style={{ fontSize:18,color:"#8a93ad" }}>{it.locked?"🔒":"⠿"}</span>
+            <span style={{ fontFamily:FONT_T,fontSize:14,color:"#18284e",flex:1 }}>{it.label}</span>
+            <span style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad" }}>#{idx+1}</span>
+          </div>
+        ))}
+        <SaveBtn onSave={async ()=>{
+          const order=items.map(x=>x.id);
+          const nb={...S.brand[0],layoutOrder:order};
+          await setSupabaseConfig("brand", nb); S.brand[1](nb); flash();
+        }} saved={saved} />
       </div>
     );
   };
@@ -2250,6 +2304,7 @@ export default function AdminPage() {
         {tab==='inventory'  && <TabInventory S={S} />}
         {tab==='brand'      && <TabBrand />}
         {tab==='hero'       && <TabHero />}
+        {tab==='layout'     && <TabLayout />}
         {tab==='banners'    && <TabBanners />}
         {tab==='products'   && <TabProducts />}
         {tab==='trust'      && <TabTrust />}
