@@ -1334,7 +1334,7 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, onActive, flip=false 
     <section ref={secRef} id={id} style={{ padding:"16px 14px 0" }}>
       {(p.banner||p.bannerVideo)&&(
         <Reveal>
-        <div style={{ maxWidth:1200,margin:"0 auto 14px",borderRadius:24,overflow:"hidden",position:"relative",aspectRatio:"16/9",boxShadow:"0 12px 40px rgba(24,40,78,0.18)" }}>
+        <div style={{ maxWidth:1200,margin:"0 auto 14px",borderRadius:24,overflow:"hidden",position:"relative",aspectRatio:"2 / 1",boxShadow:"0 12px 40px rgba(24,40,78,0.18)" }}>
           {p.bannerVideo
             ? <video src={p.bannerVideo} autoPlay muted loop playsInline style={{ width:"100%",height:"100%",objectFit:"cover" }} />
             : <img src={p.banner} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }} />}
@@ -1366,7 +1366,7 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, onActive, flip=false 
             <h2 onClick={()=>onDetail(p)} title="Xem chi tiết" style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(30px,3.6vw,48px)",lineHeight:1.02,letterSpacing:"-0.01em",color:ink,margin:"0 0 14px",cursor:"pointer",display:"inline-block",transition:"text-shadow .3s ease, transform .3s ease" }}
               onMouseEnter={e=>{e.currentTarget.style.textShadow=dark?"0 0 22px rgba(255,255,255,0.65), 0 0 40px rgba(255,255,255,0.3)":"0 0 20px rgba(24,40,78,0.25)";e.currentTarget.style.transform="translateY(-1px)";}}
               onMouseLeave={e=>{e.currentTarget.style.textShadow="none";e.currentTarget.style.transform="none";}}>{p.name}</h2>
-            <p style={{ fontFamily:FONT_B,fontSize:15,lineHeight:1.7,color:dark?"rgba(255,255,255,0.82)":NAVY+"cc",margin:"0 0 22px",maxWidth:460,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden" }}>{p.subtitle||p.story}</p>
+            <p style={{ fontFamily:FONT_B,fontSize:15,lineHeight:1.7,color:dark?"rgba(255,255,255,0.82)":NAVY+"cc",margin:"0 0 22px",maxWidth:460,...(p.subtitle?{}:{display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}) }}>{p.subtitle||p.story}</p>
             {variants.length>0&&(
               <div style={{ marginBottom:22 }}>
                 <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13,color:ink,marginBottom:10 }}>{p.variantLabel||(isWbs?"Chọn mùi hương":"Chọn loại")}</div>

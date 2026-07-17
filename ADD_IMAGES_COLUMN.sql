@@ -11,6 +11,9 @@ ALTER TABLE products
 ALTER TABLE products
   ADD COLUMN IF NOT EXISTS video_url TEXT NOT NULL DEFAULT '';
 
+-- Mô tả ngắn hiện ở trang chủ (khác với story = mô tả dài trong popup chi tiết)
+ALTER TABLE products ADD COLUMN IF NOT EXISTS subtitle TEXT NOT NULL DEFAULT '';
+
 -- Banner riêng cho từng sản phẩm
 ALTER TABLE products ADD COLUMN IF NOT EXISTS banner TEXT NOT NULL DEFAULT '';
 ALTER TABLE products ADD COLUMN IF NOT EXISTS banner_video TEXT NOT NULL DEFAULT '';

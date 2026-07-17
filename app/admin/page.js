@@ -1834,7 +1834,8 @@ export default function AdminPage() {
             <Field label="Kho hàng"     value={p.stock}    onChange={v=>upd(p.id,"stock",v)}    type="number" />
             <Field label="Đánh giá (0-5)" value={p.rating}   onChange={v=>upd(p.id,"rating",v)}   type="number" />
             <Field label="Tags (cách nhau bằng dấu phẩy)" value={p.tags||""} onChange={v=>upd(p.id,"tags",v)} span="full" />
-            <Field label="Câu chuyện sản phẩm" value={p.story||""} onChange={v=>upd(p.id,"story",v)} rows={4} span="full" />
+            <Field label="Mô tả ngắn (hiện ở trang chủ — 1-2 câu)" value={p.subtitle||""} onChange={v=>upd(p.id,"subtitle",v)} rows={2} span="full" placeholder="VD: Xịt khử mùi khử khuẩn, an toàn khi liếm" />
+            <Field label="Câu chuyện sản phẩm (mô tả dài — chỉ hiện trong popup chi tiết)" value={p.story||""} onChange={v=>upd(p.id,"story",v)} rows={4} span="full" />
             <div style={{ gridColumn:"1 / -1" }}>
               <Field label="🎬 Link video (YouTube / TikTok / Instagram — không bắt buộc)" value={p.videoUrl||p.tiktokUrl||""} onChange={v=>upd(p.id,"videoUrl",v)} span="full" />
               <div style={{ fontFamily:FONT_B,fontSize:11,color:"#5f6c8f",marginTop:4 }}>Dán link từ YouTube, TikTok hoặc Instagram (reel/post) — hoặc link .mp4 trực tiếp. Sẽ hiện ở tab "Video" trong trang chi tiết sản phẩm. Ảnh GIF thì upload thẳng vào ô ảnh như thường, sẽ tự chạy.</div>
@@ -1842,7 +1843,7 @@ export default function AdminPage() {
               <div style={{ marginTop:14,padding:14,background:"#eef1fa",borderRadius:12,border:"2px solid #dbe2f1" }}>
                 <div style={{ fontFamily:FONT_T,fontSize:12,color:"#18284e",marginBottom:8 }}>🖼 Banner riêng của sản phẩm (hiện phía trên khối SP ở trang chủ — không bắt buộc)</div>
                 <div style={{ display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap" }}>
-                  <ImgUp current={p.banner} onUpload={v=>upd(p.id,"banner",v)} label="Ảnh banner (16:9)" aspect="56%" folder="products" entityId={p.id+"_banner"} hint="Ngang 16:9" />
+                  <ImgUp current={p.banner} onUpload={v=>upd(p.id,"banner",v)} label="Ảnh banner (tỉ lệ 2:1 — ngang)" aspect="50%" folder="products" entityId={p.id+"_banner"} hint="Ngang 2:1 — nên dùng ảnh ngang, không dùng ảnh dọc" />
                   <div style={{ flex:1,minWidth:180 }}>
                     <Field label="Link video banner (.mp4 — ưu tiên hơn ảnh)" value={p.bannerVideo||""} onChange={v=>upd(p.id,"bannerVideo",v)} span="full" placeholder="https://.../banner.mp4" />
                     <Field label="Chữ trên banner (không bắt buộc)" value={p.bannerText||""} onChange={v=>upd(p.id,"bannerText",v)} span="full" placeholder="VD: Ưu đãi đặc biệt tháng này" />
