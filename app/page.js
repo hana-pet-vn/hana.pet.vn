@@ -1318,18 +1318,13 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, onActive, flip=false 
   const stock    = sel ? (Number(sel.stock)||0)             : p.stock;
   const off = original>price ? pct(price,original) : 0;
   const secRef = useRef(null);
-  const inView = useRef(false);
-  // Report sticky-CTA payload while this block is on screen (keeps latest variant)
-  useEffect(()=>{
-    if(!onActive) return;
-    if(inView.current) onActive({ id, name:sel?`${p.name} — ${sel.name}`:p.name, img, price, original, add:()=>{ if(variants.length>0&&!sel){onDetail(p);return;} onAdd(p,1,sel); } });
-  }); // runs each render → payload always reflects current sel/price
+  const payloadRef = useRef(null);
+  payloadRef.current = { id, name:sel?`${p.name} — ${sel.name}`:p.name, img, price, original, add:()=>{ if(variants.length>0&&!sel){onDetail(p);return;} onAdd(p,1,sel); } };
   useEffect(()=>{
     const el=secRef.current; if(!el||!onActive) return;
     if(typeof IntersectionObserver==="undefined") return;
     const io=new IntersectionObserver(([e])=>{
-      inView.current=e.isIntersecting;
-      if(e.isIntersecting) onActive({ id, name:sel?`${p.name} — ${sel.name}`:p.name, img, price, original, add:()=>{ if(variants.length>0&&!sel){onDetail(p);return;} onAdd(p,1,sel); } });
+      if(e.isIntersecting) onActive(payloadRef.current);
       else onActive(cur=>cur&&cur.id===id?null:cur);
     },{ threshold:0.4 });
     io.observe(el); return ()=>io.disconnect();
