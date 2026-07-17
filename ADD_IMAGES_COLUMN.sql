@@ -14,6 +14,9 @@ ALTER TABLE products
 -- Mô tả ngắn hiện ở trang chủ (khác với story = mô tả dài trong popup chi tiết)
 ALTER TABLE products ADD COLUMN IF NOT EXISTS subtitle TEXT NOT NULL DEFAULT '';
 
+-- Font riêng cho từng sản phẩm (tên + mô tả), để trống = dùng font chung
+ALTER TABLE products ADD COLUMN IF NOT EXISTS product_font TEXT NOT NULL DEFAULT '';
+
 -- Banner riêng cho từng sản phẩm
 ALTER TABLE products ADD COLUMN IF NOT EXISTS banner TEXT NOT NULL DEFAULT '';
 ALTER TABLE products ADD COLUMN IF NOT EXISTS banner_video TEXT NOT NULL DEFAULT '';

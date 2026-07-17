@@ -1836,6 +1836,20 @@ export default function AdminPage() {
             <Field label="Tags (cách nhau bằng dấu phẩy)" value={p.tags||""} onChange={v=>upd(p.id,"tags",v)} span="full" />
             <Field label="Mô tả ngắn (hiện ở trang chủ — 1-2 câu)" value={p.subtitle||""} onChange={v=>upd(p.id,"subtitle",v)} rows={2} span="full" placeholder="VD: Xịt khử mùi khử khuẩn, an toàn khi liếm" />
             <Field label="Câu chuyện sản phẩm (mô tả dài — chỉ hiện trong popup chi tiết)" value={p.story||""} onChange={v=>upd(p.id,"story",v)} rows={4} span="full" />
+            <div style={{ gridColumn:"1 / -1",marginTop:4 }}>
+              <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:6 }}>🔤 Phông chữ riêng cho SP này — áp cho tên + mô tả (để trống = dùng font chung của web)</div>
+              <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+                <button onClick={()=>upd(p.id,"productFont","")} style={{ background:!p.productFont?"#18284e":"#fff",color:!p.productFont?"#fff":"#18284e",border:"2px solid "+(!p.productFont?"#18284e":"#dbe2f1"),borderRadius:8,padding:"6px 12px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:FONT_T }}>Mặc định</button>
+                {FONT_CHOICES.map(([name,stack])=>{
+                  const on=p.productFont===stack;
+                  return <button key={name} onClick={()=>upd(p.id,"productFont",stack)} style={{ fontFamily:stack,background:on?"#18284e":"#fff",color:on?"#fff":"#18284e",border:"2px solid "+(on?"#18284e":"#dbe2f1"),borderRadius:8,padding:"6px 12px",fontSize:14,fontWeight:700,cursor:"pointer" }}>{name}</button>;
+                })}
+                {S.brand[0].customFontName&&(()=>{
+                  const stack=`'${S.brand[0].customFontName}',sans-serif`; const on=p.productFont===stack;
+                  return <button onClick={()=>upd(p.id,"productFont",stack)} style={{ fontFamily:stack,background:on?"#ff6a3d":"#fff",color:on?"#fff":"#ff6a3d",border:"2px solid #ff6a3d",borderRadius:8,padding:"6px 12px",fontSize:14,fontWeight:700,cursor:"pointer" }}>★ {S.brand[0].customFontName}</button>;
+                })()}
+              </div>
+            </div>
             <div style={{ gridColumn:"1 / -1" }}>
               <Field label="🎬 Link video (YouTube / TikTok / Instagram — không bắt buộc)" value={p.videoUrl||p.tiktokUrl||""} onChange={v=>upd(p.id,"videoUrl",v)} span="full" />
               <div style={{ fontFamily:FONT_B,fontSize:11,color:"#5f6c8f",marginTop:4 }}>Dán link từ YouTube, TikTok hoặc Instagram (reel/post) — hoặc link .mp4 trực tiếp. Sẽ hiện ở tab "Video" trong trang chi tiết sản phẩm. Ảnh GIF thì upload thẳng vào ô ảnh như thường, sẽ tự chạy.</div>
@@ -2016,6 +2030,15 @@ export default function AdminPage() {
     return (
       <div style={{ maxWidth:480 }}>
         <SectionHeader title="⚡ Flash Sale Bar" />
+        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:b.enabled?"#eafaf3":"#f2f5fb",borderRadius:12,marginBottom:16,border:"1px solid "+(b.enabled?"#a8e6cf":"#dbe2f1") }}>
+          <div>
+            <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13,color:"#18284e" }}>Hiện thanh Flash Sale</div>
+            <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad" }}>Bật để hiện dải chạy trên đầu trang chủ</div>
+          </div>
+          <button onClick={()=>setB(x=>({...x,enabled:!x.enabled}))} style={{ width:48,height:27,background:b.enabled?"#22c55e":"#c8cede",borderRadius:999,border:"none",position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0 }}>
+            <span style={{ position:"absolute",top:3,left:b.enabled?24:3,width:21,height:21,background:"#fff",borderRadius:"50%",transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,0.3)" }} />
+          </button>
+        </div>
         <Field label="Tiêu đề"     value={b.title} onChange={v=>setB(x=>({...x,title:v}))} />
         <div style={{ marginTop:12 }}>
           <Field label="Phụ đề" value={b.sub}   onChange={v=>setB(x=>({...x,sub:v}))} />

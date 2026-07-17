@@ -622,7 +622,7 @@ function ProductModal({ product:p, brand, onClose, onAdd }) {
           <div className="hh-modal-content" style={{ padding:32,overflowY:"auto",maxHeight:"calc(92vh - 28px)",minWidth:0 }}>
             <button onClick={onClose} style={{ float:"right",background:"#f2f5fb",border:"none",borderRadius:50,width:32,height:32,cursor:"pointer",color:"#5f6c8f",fontSize:16 }}>✕</button>
             <Tag text={p.category} color={brand.primary} />
-            <h2 style={{ fontFamily:FONT_T,fontSize:26,color:"#0d142e",margin:"10px 0 4px",overflowWrap:"anywhere" }}>{p.name}</h2>
+            <h2 style={{ fontFamily:p.productFont||FONT_T,fontSize:26,color:"#0d142e",margin:"10px 0 4px",overflowWrap:"anywhere" }}>{p.name}</h2>
             <Stars rating={p.rating} size={15} />
             <span style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginLeft:6 }}>· còn {effStock} sản phẩm</span>
             <div style={{ display:"flex",margin:"20px 0 16px",border:"2px solid #dbe2f1",borderRadius:12,overflow:"hidden" }}>
@@ -630,7 +630,7 @@ function ProductModal({ product:p, brand, onClose, onAdd }) {
                 <button key={k} onClick={()=>setTab(k)} style={{ flex:1,padding:"8px 4px",background:tab===k?brand.primary:"transparent",color:tab===k?"#fff":"#5f6c8f",border:"none",fontFamily:FONT_T,fontSize:12,cursor:"pointer",transition:"all 0.2s" }}>{l}</button>
               ))}
             </div>
-            {tab==="story"&&<p style={{ fontFamily:FONT_B,fontSize:14,color:"#131c3d",lineHeight:1.8,whiteSpace:"pre-line",overflowWrap:"anywhere",wordBreak:"break-word",background:"#f2f5fb",borderLeft:`4px solid ${brand.primary}`,padding:"12px 16px",borderRadius:"0 10px 10px 0",margin:0 }}>{p.story||"Chưa có câu chuyện."}</p>}
+            {tab==="story"&&<p style={{ fontFamily:p.productFont||FONT_B,fontSize:14,color:"#131c3d",lineHeight:1.8,whiteSpace:"pre-line",overflowWrap:"anywhere",wordBreak:"break-word",background:"#f2f5fb",borderLeft:`4px solid ${brand.primary}`,padding:"12px 16px",borderRadius:"0 10px 10px 0",margin:0 }}>{p.story||"Chưa có câu chuyện."}</p>}
             {tab==="specs"&&<div>{[["Tags",(p.tags||"—").split(",")[0]],["Kho hàng",`${p.stock} sản phẩm`],["Danh mục",p.category]].map(([k,v])=>(
               <div key={k} style={{ display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #dbe2f1",fontFamily:FONT_B,fontSize:13 }}><span style={{ color:"#5f6c8f" }}>{k}</span><span style={{ color:brand.primary,fontWeight:700 }}>{v}</span></div>
             ))}</div>}
@@ -1308,6 +1308,7 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, onActive, flip=false 
   const isWbs = variants.some(v=>scentOf(v)) || /bubble|shampoo|tắm/.test(norm(p.name));
   const [sel,setSel] = useState(variants[0]||null);
   const scent = isWbs ? (scentOf(sel)||SCENT_MAP[0]) : null;
+  const pFont = p.productFont || FONT_T;     // per-product font (name + desc), fallback to global
   const dark = !isWbs;                       // Misty = dark navy block, white text
   const bg   = scent ? scent.bg : NAVY;
   const deep = scent ? scent.deep : "#fff";
@@ -1364,10 +1365,10 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, onActive, flip=false 
             <div style={{ fontFamily:FONT_B,fontWeight:700,fontSize:12,letterSpacing:3.5,textTransform:"uppercase",color:deep,transition:"color .6s ease",marginBottom:12 }}>
               {isWbs?(brand.labelWbs||"Tắm gội thơm tho"):(brand.labelMisty||"Khử mùi an toàn")}{off>0&&<span style={{ marginLeft:10,background:dark?"#fff":NAVY,color:dark?NAVY:"#fff",borderRadius:999,padding:"3px 10px",letterSpacing:0 }}>-{off}%</span>}
             </div>
-            <h2 onClick={()=>onDetail(p)} title="Xem chi tiết" style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(30px,3.6vw,48px)",lineHeight:1.02,letterSpacing:"-0.01em",color:ink,margin:"0 0 14px",cursor:"pointer",display:"inline-block",transition:"text-shadow .3s ease, transform .3s ease" }}
+            <h2 onClick={()=>onDetail(p)} title="Xem chi tiết" style={{ fontFamily:pFont,fontWeight:900,fontSize:"clamp(30px,3.6vw,48px)",lineHeight:1.02,letterSpacing:"-0.01em",color:ink,margin:"0 0 14px",cursor:"pointer",display:"inline-block",transition:"text-shadow .3s ease, transform .3s ease" }}
               onMouseEnter={e=>{e.currentTarget.style.textShadow=dark?"0 0 22px rgba(255,255,255,0.65), 0 0 40px rgba(255,255,255,0.3)":"0 0 20px rgba(24,40,78,0.25)";e.currentTarget.style.transform="translateY(-1px)";}}
               onMouseLeave={e=>{e.currentTarget.style.textShadow="none";e.currentTarget.style.transform="none";}}>{p.name}</h2>
-            <p style={{ fontFamily:FONT_B,fontSize:15,lineHeight:1.7,color:dark?"rgba(255,255,255,0.82)":NAVY+"cc",margin:"0 0 22px",maxWidth:460,...(p.subtitle?{}:{display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}) }}>{p.subtitle||p.story}</p>
+            <p style={{ fontFamily:p.productFont||FONT_B,fontSize:15,lineHeight:1.7,color:dark?"rgba(255,255,255,0.82)":NAVY+"cc",margin:"0 0 22px",maxWidth:460,...(p.subtitle?{}:{display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}) }}>{p.subtitle||p.story}</p>
             {variants.length>0&&(
               <div style={{ marginBottom:22 }}>
                 <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13,color:ink,marginBottom:10 }}>{p.variantLabel||(isWbs?"Chọn mùi hương":"Chọn loại")}</div>
@@ -1580,6 +1581,11 @@ export default function App() {
           .hh-nav-cart{ padding:7px 12px !important; font-size:12px !important }
         }
       `}</style>
+      {page==="shop" && flashBar?.enabled && (flashBar.title||flashBar.sub) && (
+        <div style={{ background:`linear-gradient(90deg, ${ACCENT}, #e2502a)`,color:"#fff",textAlign:"center",padding:"8px 16px",fontFamily:FONT_T,fontWeight:800,fontSize:13.5,position:"relative",zIndex:101 }}>
+          {flashBar.title}{flashBar.title&&flashBar.sub?" · ":""}<span style={{ fontWeight:600,opacity:0.9 }}>{flashBar.sub}</span>
+        </div>
+      )}
       <nav style={{ background:"rgba(255,255,255,0.92)",backdropFilter:"blur(12px)",borderBottom:"1px solid #e6eaf4",position:"sticky",top:0,zIndex:100 }}>
         <div className="hh-nav-row" style={{ maxWidth:1200,margin:"0 auto",padding:"0 20px",boxSizing:"border-box",height:64,display:"flex",alignItems:"center",gap:16 }}>
           <div style={{ display:"flex",alignItems:"center",gap:10,flexShrink:0,userSelect:"none",cursor:"pointer" }} onClick={onLogoClick}>
