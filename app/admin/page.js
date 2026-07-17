@@ -1346,11 +1346,11 @@ export default function AdminPage() {
         if (cfg.brand    !== undefined) setBrand(cfg.brand)
         if (cfg.banners  !== undefined) setBanners(cfg.banners)
         if (cfg.socials  !== undefined) setSocials(cfg.socials)
-        if (cfg.trustBar !== undefined) setTrustBar(cfg.trustBar)
+        if ((cfg.trustBar ?? cfg.trustbar) !== undefined) setTrustBar(cfg.trustBar ?? cfg.trustbar)
         if (cfg.popup    !== undefined) setPopup(cfg.popup)
         if (cfg.about    !== undefined) setAbout(cfg.about)
         if (cfg.footer   !== undefined) setFooter(cfg.footer)
-        if (cfg.flashBar !== undefined) setFlashBar(cfg.flashBar)
+        if ((cfg.flashBar ?? cfg.flashbar) !== undefined) setFlashBar(cfg.flashBar ?? cfg.flashbar)
         if (cfg.vouchers !== undefined) setVouchers(cfg.vouchers)
         setProducts(prods)
         setOrders(ords)
@@ -2005,7 +2005,7 @@ export default function AdminPage() {
             <div style={{ marginTop:8 }}><DelBtn onClick={()=>setList(l=>l.filter(x=>x.id!==t.id))} /></div>
           </div>
         ))}
-        <SaveBtn onSave={async ()=>{await setSupabaseConfig("trustbar", list); S.trustBar[1](list); flash();}} saved={saved} />
+        <SaveBtn onSave={async ()=>{await setSupabaseConfig("trustBar", list); S.trustBar[1](list); flash();}} saved={saved} />
       </div>
     );
   };
@@ -2020,7 +2020,7 @@ export default function AdminPage() {
         <div style={{ marginTop:12 }}>
           <Field label="Phụ đề" value={b.sub}   onChange={v=>setB(x=>({...x,sub:v}))} />
         </div>
-        <SaveBtn onSave={async ()=>{await setSupabaseConfig("flashbar", b); S.flashBar[1](b); flash();}} saved={saved} />
+        <SaveBtn onSave={async ()=>{await setSupabaseConfig("flashBar", b); S.flashBar[1](b); flash();}} saved={saved} />
       </div>
     );
   };

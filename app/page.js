@@ -578,14 +578,15 @@ function ProductModal({ product:p, brand, onClose, onAdd }) {
   const slot0Mobile = (!selVar || !selVar.img) ? p.imgMobile : null;
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(10,16,38,0.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)" }}>
-      <style>{`@media (max-width:680px){.hh-modal-grid{grid-template-columns:1fr !important}.hh-modal-imgcol{border-radius:22px !important}.hh-modal-img{min-height:280px !important}.hh-modal-content{max-height:none !important;overflow:visible !important}}
+      <style>{`@media (max-width:680px){.hh-modal-grid{grid-template-columns:1fr !important}.hh-modal-imgcol{border-radius:22px !important;position:static !important;max-height:none !important}.hh-modal-img{aspect-ratio:1/1 !important}.hh-modal-content{max-height:none !important;overflow:visible !important}}
         .hh-modal-img:hover .hh-modal-mainimg{transform:scale(1.08) !important}
         .hh-modal-content::-webkit-scrollbar{width:6px}.hh-modal-content::-webkit-scrollbar-thumb{background:#dbe2f1;border-radius:3px}
-        .hh-modal-thumbs::-webkit-scrollbar{height:5px}.hh-modal-thumbs::-webkit-scrollbar-thumb{background:#dbe2f1;border-radius:3px}`}</style>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"linear-gradient(160deg, #eef1fa 0%, #f8fafd 55%)",borderRadius:28,maxWidth:860,width:"100%",maxHeight:"92vh",overflow:"hidden",boxShadow:"0 30px 90px rgba(24,40,78,0.35)" }}>
-        <div className="hh-modal-grid" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",padding:14,gap:6,maxHeight:"92vh",boxSizing:"border-box" }}>
-          <div className="hh-modal-imgcol" style={{ display:"flex",flexDirection:"column",background:"#fff",borderRadius:22,overflow:"hidden",boxShadow:"0 10px 30px rgba(24,40,78,0.1)" }}>
-            <div className="hh-modal-img" onClick={()=>galIdx>=0&&allImgs.length>0&&setZoomed(true)} style={{ position:"relative",flex:1,minHeight:340,background:"radial-gradient(circle at 50% 40%, #f2f5fb 0%, #e9edf8 100%)",overflow:"hidden",cursor:allImgs.length>0?"zoom-in":"default" }}>
+        .hh-modal-thumbs::-webkit-scrollbar{height:5px}.hh-modal-thumbs::-webkit-scrollbar-thumb{background:#dbe2f1;border-radius:3px}
+        @media (max-width:680px){.hh-modal-outer{overflow:auto !important}.hh-modal-grid{max-height:none !important}}`}</style>
+      <div onClick={e=>e.stopPropagation()} className="hh-modal-outer" style={{ background:"linear-gradient(160deg, #eef1fa 0%, #f8fafd 55%)",borderRadius:28,maxWidth:860,width:"100%",maxHeight:"90vh",overflow:"hidden",boxShadow:"0 30px 90px rgba(24,40,78,0.35)" }}>
+        <div className="hh-modal-grid" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",padding:12,gap:12,maxHeight:"90vh",boxSizing:"border-box",alignItems:"stretch" }}>
+          <div className="hh-modal-imgcol" style={{ display:"flex",flexDirection:"column",background:"#fff",borderRadius:22,overflow:"hidden",boxShadow:"0 10px 30px rgba(24,40,78,0.1)",alignSelf:"start",position:"sticky",top:0,maxHeight:"calc(90vh - 24px)" }}>
+            <div className="hh-modal-img" onClick={()=>galIdx>=0&&allImgs.length>0&&setZoomed(true)} style={{ position:"relative",aspectRatio:"1 / 1",width:"100%",background:"radial-gradient(circle at 50% 40%, #f2f5fb 0%, #e9edf8 100%)",overflow:"hidden",cursor:allImgs.length>0?"zoom-in":"default",flexShrink:0 }}>
               {galIdx===-1 && (p.videoUrl||p.tiktokUrl)
                 ? <div onClick={e=>e.stopPropagation()} style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",padding:8,background:"#000" }}><VideoEmbed url={p.videoUrl||p.tiktokUrl} /></div>
                 : allImgs.length>0
@@ -1458,11 +1459,11 @@ export default function App() {
       if (cfg.brand    !== undefined) setBrand(cfg.brand);
       if (cfg.banners  !== undefined) setBanners(cfg.banners);
       if (cfg.socials  !== undefined) setSocials(cfg.socials);
-      if (cfg.trustBar !== undefined) setTrustBar(cfg.trustBar);
+      if ((cfg.trustBar ?? cfg.trustbar) !== undefined) setTrustBar(cfg.trustBar ?? cfg.trustbar);
       if (cfg.popup    !== undefined) setPopup(cfg.popup);
       if (cfg.about    !== undefined) setAbout(cfg.about);
       if (cfg.footer   !== undefined) setFooter(cfg.footer);
-      if (cfg.flashBar !== undefined) setFlashBar(cfg.flashBar);
+      if ((cfg.flashBar ?? cfg.flashbar) !== undefined) setFlashBar(cfg.flashBar ?? cfg.flashbar);
       // Inject favicon dynamically from uploaded URL
       const favUrl = cfg.footer?.faviconUrl;
       if (favUrl) {
