@@ -1309,6 +1309,7 @@ export default function AdminPage() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('orders')
+  const [sub,setSub] = useState({ home:'hero', brand:'brandmain', promo:'vouchers' })
   const [saved, setSaved] = useState(false)
   const flash = () => { setSaved(true); setTimeout(() => setSaved(false), 1800) }
 
@@ -1390,7 +1391,7 @@ export default function AdminPage() {
     brand: [['brandmain','Thương hiệu'],['about','Giới thiệu'],['footer','Footer'],['socials','Mạng xã hội'],['favicon','Favicon']],
     promo: [['vouchers','Mã giảm giá'],['categories','Danh mục']],
   }
-  const [sub,setSub] = useState({ home:'hero', brand:'brandmain', promo:'vouchers' })
+  // (sub-tab state declared at top with other hooks)
 
 
 
