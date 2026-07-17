@@ -22,6 +22,7 @@ const FONT_CHOICES = [
   ["Montserrat","'Montserrat','Segoe UI',sans-serif"],
   ["Lexend","'Lexend','Segoe UI',sans-serif"],
   ["Fredoka","'Fredoka','Segoe UI',sans-serif"],
+  ["Poppins (giống Avant)","'Poppins','Segoe UI',sans-serif"],
 ]
 const PRIMARY_DEFAULT = '#1b295b'
 
@@ -1549,12 +1550,24 @@ export default function AdminPage() {
                   const cur=(b[key]||FONT_CHOICES[key==="fontTitle"?0:1][1])===stack;
                   return <button key={name} onClick={()=>set(key,stack)} style={{ fontFamily:stack,background:cur?"#18284e":"#fff",color:cur?"#fff":"#18284e",border:"2px solid "+(cur?"#18284e":"#dbe2f1"),borderRadius:10,padding:"8px 14px",fontSize:15,fontWeight:700,cursor:"pointer" }}>{name}</button>;
                 })}
+                {b.customFontName&&(()=>{
+                  const stack=`'${b.customFontName}',sans-serif`; const cur=b[key]===stack;
+                  return <button onClick={()=>set(key,stack)} style={{ fontFamily:stack,background:cur?"#ff6a3d":"#fff",color:cur?"#fff":"#ff6a3d",border:"2px solid #ff6a3d",borderRadius:10,padding:"8px 14px",fontSize:15,fontWeight:700,cursor:"pointer" }}>★ {b.customFontName}</button>;
+                })()}
               </div>
             </div>
           ))}
           <div style={{ padding:14,background:"#18284e",borderRadius:10,marginTop:4 }}>
             <div style={{ fontFamily:b.fontTitle||"'Nunito',sans-serif",fontWeight:800,fontSize:22,color:"#fff",marginBottom:4 }}>Misty Fresh</div>
             <div style={{ fontFamily:b.fontBody||"'Nunito Sans',sans-serif",fontSize:13,color:"rgba(255,255,255,0.8)" }}>Xịt khử mùi khử khuẩn cho thú cưng — xem trước phông chữ.</div>
+          </div>
+          <div style={{ marginTop:12,padding:14,background:"#fff7f2",borderRadius:12,border:"2px dashed #ffcbb3" }}>
+            <div style={{ fontFamily:FONT_T,fontSize:12,color:"#c2410c",marginBottom:8 }}>★ Font riêng (ví dụ Avant Garde trên chai)</div>
+            <div className="hh-admin-grid2" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+              <Field label="Tên font (tự đặt)" value={b.customFontName||""} onChange={v=>set("customFontName",v)} placeholder="VD: Avant Garde" />
+              <Field label="Link file font (.woff2 / .ttf / .otf)" value={b.customFontUrl||""} onChange={v=>set("customFontUrl",v)} placeholder="https://.../font.woff2" />
+            </div>
+            <div style={{ fontFamily:FONT_B,fontSize:11,color:"#a8927f",marginTop:8,lineHeight:1.6 }}>Upload file font lên Supabase Storage (bucket công khai) hoặc dịch vụ lưu file, rồi dán link vào đây. Điền cả 2 ô → nút "★ Tên font" sẽ hiện ở trên để chọn.</div>
           </div>
         </div>
 
@@ -1588,8 +1601,17 @@ export default function AdminPage() {
             <button onClick={()=>setEditing(null)} style={{ background:"#f2f5fb",border:"2px solid #dbe2f1",borderRadius:9,padding:"6px 14px",fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",cursor:"pointer" }}>← Quay lại</button>
             <div style={{ fontFamily:FONT_T,fontSize:15,color:"#0d142e" }}>Sửa Banner</div>
           </div>
-          <ImgUp current={b.img} onUpload={v=>upd(b.id,"img",v)} label="Ảnh banner (tỷ lệ 3:1 là đẹp nhất) — PC" aspect="33%" folder="banners" entityId={b.id} hint="Ngang 3:1 (banner rộng)" />
-          <ImgUp current={b.imgMobile} onUpload={v=>upd(b.id,"imgMobile",v)} label="Ảnh banner — Mobile (không bắt buộc, tỷ lệ dọc hơn)" aspect="60%" folder="banners" entityId={b.id+"_m"} hint="Dọc hơn ~4:3 (banner mobile)" />
+          <div style={{ marginBottom:14,padding:14,background:"#f2f5fb",borderRadius:12,border:"2px solid #dbe2f1" }}>
+            <div style={{ fontFamily:FONT_T,fontSize:12,color:"#5f6c8f",marginBottom:8 }}>Tỉ lệ banner (áp dụng cho cả dải banner)</div>
+            <div style={{ display:"flex",gap:8 }}>
+              {[["2:1","Lớn (2:1)"],["5:1","Dải mảnh (5:1)"]].map(([val,lbl])=>{
+                const on=(b.ratio||"2:1")===val;
+                return <button key={val} onClick={()=>upd(b.id,"ratio",val)} style={{ flex:1,padding:"9px 0",borderRadius:10,background:on?S.brand[0].primary:"#fff",color:on?"#fff":"#5f6c8f",border:"2px solid "+(on?S.brand[0].primary:"#dbe2f1"),fontFamily:FONT_T,fontWeight:700,fontSize:13,cursor:"pointer" }}>{lbl}</button>;
+              })}
+            </div>
+          </div>
+          <ImgUp current={b.img} onUpload={v=>upd(b.id,"img",v)} label={"Ảnh banner — PC (đúng tỉ lệ "+(b.ratio||"2:1")+")"} aspect={(b.ratio||"2:1")==="5:1"?"20%":"50%"} folder="banners" entityId={b.id} hint={"Ngang "+(b.ratio||"2:1")} />
+          <ImgUp current={b.imgMobile} onUpload={v=>upd(b.id,"imgMobile",v)} label="Ảnh banner — Mobile (không bắt buộc)" aspect="60%" folder="banners" entityId={b.id+"_m"} hint="Dọc hơn cho điện thoại" />
           <div className="hh-admin-grid2" style={{ marginTop:14,display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
             <Field label="Tiêu đề chính" value={b.title} onChange={v=>upd(b.id,"title",v)} span="full" />
             <Field label="Phụ đề"      value={b.sub}   onChange={v=>upd(b.id,"sub",v)} span="full" />

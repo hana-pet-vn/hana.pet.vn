@@ -24,6 +24,7 @@ const FONT_CHOICES = [
   ["Montserrat","'Montserrat','Segoe UI',sans-serif"],
   ["Lexend","'Lexend','Segoe UI',sans-serif"],
   ["Fredoka","'Fredoka','Segoe UI',sans-serif"],
+  ["Poppins (giống Avant)","'Poppins','Segoe UI',sans-serif"],
 ];
 // Admin auth is handled by Supabase (email + password)
 const INV_PFX  = "HP";
@@ -357,28 +358,30 @@ function BannerCarousel({ banners, brand }) {
   const [i,setI]=useState(0);
   useEffect(()=>{ const t=setInterval(()=>setI(x=>(x+1)%banners.length),5000); return()=>clearInterval(t); },[banners.length]);
   if(!banners.length) return null;
+  const ratio = banners[0]?.ratio==="5:1" ? "5 / 1" : "2 / 1";
+  const cover = { display:"block",width:"100%",height:"100%",objectFit:"cover" };
   return (
-    <div style={{ position:"relative",borderRadius:20,overflow:"hidden",marginBottom:28,boxShadow:`0 8px 40px rgba(27,41,91,0.25)`,width:"100%" }}>
+    <div style={{ position:"relative",borderRadius:20,overflow:"hidden",marginBottom:28,boxShadow:`0 8px 40px rgba(27,41,91,0.25)`,width:"100%",aspectRatio:ratio,background:brand.primary }}>
       <style>{`
-        .hh-banner-title{font-size:clamp(24px,5.5vw,40px) !important}
+        .hh-banner-title{font-size:clamp(20px,4.5vw,38px) !important}
         .hh-banner-sub{font-size:clamp(12px,2.6vw,15px) !important}
-        .hh-banner-pad{padding:clamp(18px,4vw,32px) clamp(18px,5vw,40px) !important}
+        .hh-banner-pad{padding:clamp(16px,4vw,32px) clamp(18px,5vw,40px) !important}
         @media (max-width:480px){.hh-banner-cta{padding:9px 18px !important;font-size:12px !important}}
       `}</style>
       {banners.map((b,x)=>{
         const active = x===i;
         return (
-        <div key={x} style={{ position:active?"relative":"absolute",inset:active?"auto":0,opacity:active?1:0,transition:"opacity 0.6s ease-in-out",background:b.bg||brand.primary }}>
+        <div key={x} style={{ position:"absolute",inset:0,opacity:active?1:0,transition:"opacity 0.6s ease-in-out",background:b.bg||brand.primary }}>
           {b.video
-            ? <video src={b.video} autoPlay muted loop playsInline style={{ display:"block",width:"100%",height:"auto" }} />
+            ? <video src={b.video} autoPlay muted loop playsInline style={cover} />
             : (b.img||b.imgMobile)
-              ? <ResponsiveImg src={b.img} srcMobile={b.imgMobile} alt="" style={{ display:"block",width:"100%",height:"auto" }} />
-              : <div style={{ width:"100%",aspectRatio:"16/9" }} />}
+              ? <ResponsiveImg src={b.img} srcMobile={b.imgMobile} alt="" style={cover} />
+              : null}
           {(b.title||b.sub||b.cta)&&<>
           <div style={{ position:"absolute",inset:0,background:"linear-gradient(90deg,rgba(10,16,38,0.65) 0%,rgba(10,16,38,0.08) 65%,transparent 100%)" }} />
           <div className="hh-banner-pad" style={{ position:"absolute",bottom:0,left:0,right:0,boxSizing:"border-box" }}>
             {b.title&&<div className="hh-banner-title" style={{ fontFamily:FONT_T,fontWeight:700,color:"#fff",lineHeight:1.15,textShadow:"0 2px 12px rgba(0,0,0,0.5)",marginBottom:6,maxWidth:"90%" }}>{b.title}</div>}
-            {b.sub&&<div className="hh-banner-sub" style={{ fontFamily:FONT_B,color:"rgba(255,255,255,0.85)",marginBottom:16,maxWidth:"85%" }}>{b.sub}</div>}
+            {b.sub&&<div className="hh-banner-sub" style={{ fontFamily:FONT_B,color:"rgba(255,255,255,0.85)",marginBottom:14,maxWidth:"85%" }}>{b.sub}</div>}
             {b.cta&&<button className="hh-banner-cta" onClick={()=>{
               const t=(b.ctaLink||"").trim();
               if(!t) { document.getElementById("sku-misty")?.scrollIntoView({behavior:"smooth"}); return; }
@@ -389,9 +392,9 @@ function BannerCarousel({ banners, brand }) {
           </>}
         </div>
       );})}
-      <div style={{ position:"absolute",bottom:14,right:18,display:"flex",gap:6,zIndex:2 }}>
+      {banners.length>1&&<div style={{ position:"absolute",bottom:14,right:18,display:"flex",gap:6,zIndex:2 }}>
         {banners.map((_,x)=><button key={x} onClick={()=>setI(x)} style={{ width:x===i?22:8,height:8,borderRadius:4,background:x===i?"#fff":"rgba(255,255,255,0.4)",border:"none",cursor:"pointer",transition:"all 0.3s",padding:0 }} />)}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -1253,7 +1256,7 @@ function Hero({ brand, products, hasMisty, hasWbs }) {
         .hp-hero-btn{ transition:transform .25s cubic-bezier(0.34,1.56,0.64,1), box-shadow .25s ease }
         .hp-hero-btn:hover{ transform:translateY(-4px) scale(1.03); box-shadow:0 16px 36px rgba(0,0,0,0.35) }
         .hp-hero-stage{ position:relative; height:clamp(380px,46vw,540px); align-self:end }
-        .hp-hero-glow{ position:absolute; bottom:-20px; border-radius:50%; filter:blur(14px); animation:hpPulse 5s ease-in-out infinite; pointer-events:none }
+        .hp-hero-glow{ position:absolute; bottom:-20px; border-radius:50%; filter:blur(12px); animation:hpPulse 5s ease-in-out infinite; pointer-events:none }
         .hp-hero-stage img{ position:absolute; bottom:-44px; filter:drop-shadow(0 32px 46px rgba(0,0,0,0.5)); z-index:2 }
         @media (max-width:820px){
           .hp-hero{ grid-template-columns:1fr; text-align:center; padding:44px 22px 0; gap:16px; min-height:0 }
@@ -1284,10 +1287,10 @@ function Hero({ brand, products, hasMisty, hasWbs }) {
         </div>
         {!vidOk&&(
           <div className="hp-hero-stage">
-            <div className="hp-hero-glow" style={{ right:"24%", width:"clamp(180px,22vw,260px)", height:"clamp(180px,22vw,260px)", background:"radial-gradient(circle, rgba(143,159,232,0.55) 0%, rgba(24,40,78,0) 70%)" }} />
-            <div className="hp-hero-glow" style={{ right:"0%", width:"clamp(150px,18vw,220px)", height:"clamp(150px,18vw,220px)", background:"radial-gradient(circle, rgba(143,159,232,0.4) 0%, rgba(24,40,78,0) 70%)", animationDelay:"1.5s" }} />
-            <img src={brand.heroImg1||"/products/misty-spray.png"} alt="" style={{ right:"24%", height:"118%", animation:"hpFloat 6.5s ease-in-out infinite" }} />
-            <img src={brand.heroImg2||"/products/wbs-lavender.png"} alt="" style={{ right:"0%", height:"98%", animation:"hpFloat2 6.5s ease-in-out 1.2s infinite" }} />
+            <div className="hp-hero-glow" style={{ right:"30%", width:"clamp(150px,18vw,220px)", height:"clamp(150px,18vw,220px)", background:"radial-gradient(circle, rgba(143,159,232,0.32) 0%, rgba(24,40,78,0) 68%)" }} />
+            <div className="hp-hero-glow" style={{ right:"4%", width:"clamp(140px,16vw,200px)", height:"clamp(140px,16vw,200px)", background:"radial-gradient(circle, rgba(143,159,232,0.26) 0%, rgba(24,40,78,0) 68%)", animationDelay:"1.5s" }} />
+            <img src={brand.heroImg1||"/products/misty-spray.png"} alt="" style={{ right:"30%", height:"118%", animation:"hpFloat 6.5s ease-in-out infinite" }} />
+            <img src={brand.heroImg2||"/products/wbs-lavender.png"} alt="" style={{ right:"4%", height:"98%", animation:"hpFloat2 6.5s ease-in-out 1.2s infinite" }} />
           </div>
         )}
       </div>
@@ -1298,7 +1301,7 @@ function Hero({ brand, products, hasMisty, hasWbs }) {
   );
 }
 
-function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
+function SkuBlock({ id, product:p, brand, onAdd, onDetail, onActive, flip=false }) {
   const variants = Array.isArray(p.variants)?p.variants:[];
   const isWbs = variants.some(v=>scentOf(v)) || /bubble|shampoo|tắm/.test(norm(p.name));
   const [sel,setSel] = useState(variants[0]||null);
@@ -1314,8 +1317,25 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, flip=false }) {
   const original = sel ? (Number(sel.original)||p.original) : p.original;
   const stock    = sel ? (Number(sel.stock)||0)             : p.stock;
   const off = original>price ? pct(price,original) : 0;
+  const secRef = useRef(null);
+  const inView = useRef(false);
+  // Report sticky-CTA payload while this block is on screen (keeps latest variant)
+  useEffect(()=>{
+    if(!onActive) return;
+    if(inView.current) onActive({ id, name:sel?`${p.name} — ${sel.name}`:p.name, img, price, original, add:()=>{ if(variants.length>0&&!sel){onDetail(p);return;} onAdd(p,1,sel); } });
+  }); // runs each render → payload always reflects current sel/price
+  useEffect(()=>{
+    const el=secRef.current; if(!el||!onActive) return;
+    if(typeof IntersectionObserver==="undefined") return;
+    const io=new IntersectionObserver(([e])=>{
+      inView.current=e.isIntersecting;
+      if(e.isIntersecting) onActive({ id, name:sel?`${p.name} — ${sel.name}`:p.name, img, price, original, add:()=>{ if(variants.length>0&&!sel){onDetail(p);return;} onAdd(p,1,sel); } });
+      else onActive(cur=>cur&&cur.id===id?null:cur);
+    },{ threshold:0.4 });
+    io.observe(el); return ()=>io.disconnect();
+  },[id]);
   return (
-    <section id={id} style={{ padding:"16px 14px 0" }}>
+    <section ref={secRef} id={id} style={{ padding:"16px 14px 0" }}>
       {(p.banner||p.bannerVideo)&&(
         <Reveal>
         <div style={{ maxWidth:1200,margin:"0 auto 14px",borderRadius:24,overflow:"hidden",position:"relative",aspectRatio:"16/9",boxShadow:"0 12px 40px rgba(24,40,78,0.18)" }}>
@@ -1422,6 +1442,7 @@ export default function App() {
   const [cart,setCart]             = useState([]);
   const [showCart,setShowCart]     = useState(false);
   const [toast,setToast]           = useState(null);
+  const [activeSku,setActiveSku]   = useState(null);   // sticky mini-CTA payload
 
   const onLogoClick = () => { setPage("shop"); };
 
@@ -1498,16 +1519,32 @@ export default function App() {
   return (
     <div className={"hh-motion-"+(brand.motion||"full")} style={{ minHeight:"100vh",background:"#fbfaf7",fontFamily:FONT_B,position:"relative","--font-title":brand.fontTitle||"'Nunito','Segoe UI',sans-serif","--font-body":brand.fontBody||"'Nunito Sans','Segoe UI',sans-serif" }}>
       <div aria-hidden style={{ position:"fixed",inset:0,zIndex:0,pointerEvents:"none",overflow:"hidden" }}>
-        <div style={{ position:"absolute",top:"8%",right:"-6%",width:"clamp(240px,32vw,440px)",height:"clamp(240px,32vw,440px)",borderRadius:"50%",background:"radial-gradient(circle, rgba(143,159,232,0.16) 0%, transparent 70%)" }} />
-        <div style={{ position:"absolute",top:"46%",left:"-8%",width:"clamp(220px,30vw,420px)",height:"clamp(220px,30vw,420px)",borderRadius:"50%",background:"radial-gradient(circle, rgba(255,142,102,0.13) 0%, transparent 70%)" }} />
-        <div style={{ position:"absolute",bottom:"4%",right:"6%",width:"clamp(200px,26vw,360px)",height:"clamp(200px,26vw,360px)",borderRadius:"50%",background:"radial-gradient(circle, rgba(143,159,232,0.12) 0%, transparent 70%)" }} />
+        <div style={{ position:"absolute",top:"8%",right:"-6%",width:"clamp(240px,32vw,440px)",height:"clamp(240px,32vw,440px)",borderRadius:"50%",background:"radial-gradient(circle, rgba(143,159,232,0.28) 0%, transparent 68%)" }} />
+        <div style={{ position:"absolute",top:"46%",left:"-8%",width:"clamp(220px,30vw,420px)",height:"clamp(220px,30vw,420px)",borderRadius:"50%",background:"radial-gradient(circle, rgba(255,142,102,0.22) 0%, transparent 68%)" }} />
+        <div style={{ position:"absolute",bottom:"4%",right:"6%",width:"clamp(200px,26vw,360px)",height:"clamp(200px,26vw,360px)",borderRadius:"50%",background:"radial-gradient(circle, rgba(143,159,232,0.22) 0%, transparent 68%)" }} />
+        <div className="hp-bubbles">
+          {[[8,17,7,0],[24,13,9,1.2],[42,10,6,2.4],[58,20,8,0.6],[71,12,7.5,1.8],[86,15,8.5,3]].map(([left,size,dur,delay],i)=>(
+            <span key={i} className="hp-bubble" style={{ left:left+"%",width:size,height:size,animationDuration:dur+"s",animationDelay:delay+"s" }} />
+          ))}
+        </div>
       </div>
       <div style={{ position:"relative",zIndex:1 }}>
+      {brand.customFontUrl&&brand.customFontName&&(
+        <style>{`@font-face{ font-family:'${brand.customFontName}'; src:url('${brand.customFontUrl}'); font-display:swap; }`}</style>
+      )}
+      <style>{`
+        .hh-motion-full, .hh-motion-soft, .hh-motion-off{ letter-spacing:-0.01em }
+        h1,h2,h3{ letter-spacing:-0.02em }
+      `}</style>
       <style>{`
         /* Motion levels: full = all animations; soft = gentle only (no float loops); off = none */
         .hh-motion-soft [style*="hpFloat"], .hh-motion-soft [style*="hpPop"]{ animation:none !important }
         .hh-motion-off *{ animation:none !important; transition:none !important }
-        @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition-duration:.01ms !important } }
+        .hp-bubbles{ position:absolute; inset:0; overflow:hidden }
+        .hp-bubble{ position:absolute; bottom:-30px; border-radius:50%; background:radial-gradient(circle at 35% 30%, rgba(255,255,255,0.7), rgba(143,159,232,0.22)); animation-name:hpBubble; animation-timing-function:linear; animation-iteration-count:infinite }
+        @keyframes hpBubble{ 0%{ transform:translateY(0) translateX(0); opacity:0 } 12%{ opacity:0.5 } 88%{ opacity:0.5 } 100%{ transform:translateY(-88vh) translateX(24px); opacity:0 } }
+        .hh-motion-off .hp-bubble, .hh-motion-soft .hp-bubble{ display:none }
+        @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition-duration:.01ms !important } .hp-bubble{ display:none } }
       `}</style>
       {toast&&<div style={{ position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:"#0d142e",color:brand.secondary,padding:"11px 26px",borderRadius:30,zIndex:9999,fontFamily:FONT_T,fontSize:14,boxShadow:"0 4px 20px rgba(27,41,91,0.3)",whiteSpace:"nowrap" }}>{toast}</div>}
 
@@ -1565,6 +1602,8 @@ export default function App() {
       <div style={{ paddingBottom:60 }}>
         <style>{`
           @keyframes hpPop{ from{ opacity:0; transform:translateY(16px) scale(0.97) } to{ opacity:1; transform:none } }
+          @keyframes hpSlideUp{ from{ opacity:0; transform:translateY(100%) } to{ opacity:1; transform:none } }
+          @keyframes hpBob{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-4px) } }
           @media (max-width:820px){ .hp-sku{ grid-template-columns:1fr !important; direction:ltr !important } .hp-sku>div:first-child{ min-height:0 !important; height:auto !important; padding:24px 0 !important } .hp-sku-mainimg{ max-height:250px !important; max-width:60% !important } }
           @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important } }
         `}</style>
@@ -1574,26 +1613,32 @@ export default function App() {
           const rest   = products.filter(pp=>pp!==mistyP&&pp!==wbsP);
           const SECTIONS = {
             banner: banners.length>0 ? <div key="banner" style={{ maxWidth:1200,margin:"14px auto 0",padding:"0 14px" }}><BannerCarousel banners={banners} brand={brand} /></div> : null,
-            misty:  mistyP ? <SkuBlock key="misty" id="sku-misty" product={mistyP} brand={brand} onAdd={addToCart} onDetail={setSelProd} /> : null,
-            wbs:    wbsP ? <SkuBlock key="wbs" id="sku-wbs" product={wbsP} brand={brand} onAdd={addToCart} onDetail={setSelProd} flip /> : null,
+            misty:  mistyP ? <SkuBlock key="misty" id="sku-misty" product={mistyP} brand={brand} onAdd={addToCart} onDetail={setSelProd} onActive={setActiveSku} /> : null,
+            wbs:    wbsP ? <SkuBlock key="wbs" id="sku-wbs" product={wbsP} brand={brand} onAdd={addToCart} onDetail={setSelProd} onActive={setActiveSku} flip /> : null,
             trust: (
               <Reveal key="trust">
-              <div style={{ maxWidth:1200,margin:"0 auto",padding:"44px 24px 6px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:12 }}>
+              <div style={{ maxWidth:1200,margin:"0 auto",padding:"36px 24px 6px" }}>
+                <div style={{ textAlign:"center",marginBottom:18 }}>
+                  <div style={{ width:32,height:3,background:ACCENT,borderRadius:2,margin:"0 auto 8px" }} />
+                  <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:10.5,letterSpacing:1.5,textTransform:"uppercase",color:ACCENT }}>Vì sao chọn Hanapet</div>
+                </div>
+                <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:9 }}>
                 {trustBar.map((t,i)=>{
                   const tints=["#eef1fb","#fdeee6","#eafaf3","#faf0e6"];
                   const tint=tints[i%tints.length];
                   return (
-                  <div key={t.id} className="hp-trust-card" style={{ display:"flex",alignItems:"center",gap:13,padding:"16px 18px",background:"#fff",border:"1px solid #efe6dd",borderRadius:20,boxShadow:"0 4px 16px rgba(24,40,78,0.05)",transition:"transform .25s ease, box-shadow .25s ease" }}
-                    onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.boxShadow="0 12px 30px rgba(24,40,78,0.12)";}}
-                    onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 4px 16px rgba(24,40,78,0.05)";}}>
-                    <span style={{ width:44,height:44,borderRadius:"50%",background:tint,display:"flex",alignItems:"center",justifyContent:"center",fontSize:21,flexShrink:0 }}>{t.icon}</span>
-                    <div>
-                      <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13.5,color:"#18284e" }}>{t.title}</div>
-                      <div style={{ fontFamily:FONT_B,fontSize:11.5,color:"#8a7f72" }}>{t.sub}</div>
+                  <div key={t.id} className="hp-trust-card" style={{ display:"flex",alignItems:"center",gap:9,padding:"11px 12px",background:"#fff",border:"1px solid #ece2d8",borderRadius:14,boxShadow:"0 4px 14px rgba(24,40,78,0.06)",transition:"transform .25s ease, box-shadow .25s ease",opacity:0,animation:`hpPop .55s cubic-bezier(0.34,1.56,0.64,1) ${i*0.09}s forwards` }}
+                    onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 10px 26px rgba(24,40,78,0.13)";}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 4px 14px rgba(24,40,78,0.06)";}}>
+                    <span className="hp-trust-ico" style={{ width:36,height:36,borderRadius:"50%",background:tint,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0,animation:`hpBob 3s ease-in-out ${i*0.4}s infinite` }}>{t.icon}</span>
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:12,color:"#18284e",lineHeight:1.2 }}>{t.title}</div>
+                      <div style={{ fontFamily:FONT_B,fontSize:10.5,color:"#9a8f82" }}>{t.sub}</div>
                     </div>
                   </div>
                   );
                 })}
+                </div>
               </div>
               </Reveal>
             ),
@@ -1608,8 +1653,8 @@ export default function App() {
               </Reveal>
             ),
           };
-          const order = (brand.layoutOrder&&brand.layoutOrder.length) ? brand.layoutOrder : ["banner","misty","wbs","trust","about"];
-          const restBlocks = rest.map((pp,i)=><SkuBlock key={pp.id} id={"sku-"+pp.id} product={pp} brand={brand} onAdd={addToCart} onDetail={setSelProd} flip={i%2===1} />);
+          const order = (brand.layoutOrder&&brand.layoutOrder.length) ? brand.layoutOrder : ["trust","banner","misty","wbs","about"];
+          const restBlocks = rest.map((pp,i)=><SkuBlock key={pp.id} id={"sku-"+pp.id} product={pp} brand={brand} onAdd={addToCart} onDetail={setSelProd} onActive={setActiveSku} flip={i%2===1} />);
           return (
           <>
             <Hero brand={brand} products={products} hasMisty={!!mistyP} hasWbs={!!wbsP} />
@@ -1684,13 +1729,32 @@ export default function App() {
       </div>
 
       {/* Sticky quick-cart (fast buy) */}
-      {page==="shop" && cartCount>0 && !showCart && (
+      {page==="shop" && cartCount>0 && !showCart && !activeSku && (
         <button onClick={()=>setShowCart(true)} className="hp-fab" style={{ position:"fixed",right:"clamp(16px,4vw,32px)",bottom:"clamp(16px,4vw,28px)",zIndex:90,display:"flex",alignItems:"center",gap:10,background:"#18284e",color:"#fff",border:"none",borderRadius:999,padding:"14px 22px",fontFamily:FONT_T,fontWeight:800,fontSize:15,cursor:"pointer",boxShadow:"0 10px 30px rgba(24,40,78,0.4)",animation:"hpPop .4s ease both",transition:"transform .25s cubic-bezier(0.34,1.56,0.64,1), box-shadow .25s ease" }}
           onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px) scale(1.04)";e.currentTarget.style.boxShadow="0 16px 40px rgba(24,40,78,0.5)";}}
           onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 10px 30px rgba(24,40,78,0.4)";}}>
           <span style={{ fontSize:18 }}>🛒</span> Xem giỏ
           <span style={{ background:ACCENT,color:"#fff",borderRadius:999,minWidth:22,height:22,padding:"0 6px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900 }}>{cartCount}</span>
         </button>
+      )}
+
+      {/* Sticky mini-CTA — shows while a product block is in view (fast buy) */}
+      {page==="shop" && activeSku && !showCart && !selProd && (
+        <div style={{ position:"fixed",left:0,right:0,bottom:0,zIndex:95,background:"rgba(255,255,255,0.97)",backdropFilter:"blur(8px)",borderTop:"1px solid #efe6dd",boxShadow:"0 -6px 20px rgba(24,40,78,0.08)",padding:"10px 16px",animation:"hpSlideUp .3s ease both" }}>
+          <div style={{ maxWidth:1000,margin:"0 auto",display:"flex",alignItems:"center",gap:12 }}>
+            <div style={{ width:44,height:44,borderRadius:10,background:"#f2f5fb",flexShrink:0,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center" }}>
+              {activeSku.img ? <img src={activeSku.img} alt="" style={{ width:"100%",height:"100%",objectFit:"contain" }} /> : <span style={{ fontSize:20 }}>🧴</span>}
+            </div>
+            <div style={{ flex:1,minWidth:0 }}>
+              <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:14,color:"#18284e",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{activeSku.name}</div>
+              <div style={{ fontFamily:FONT_T,fontWeight:900,fontSize:16,color:"#18284e",lineHeight:1.1 }}>
+                {fmt(activeSku.price)}
+                {activeSku.original>activeSku.price&&<span style={{ fontSize:11,color:"#b9a99b",textDecoration:"line-through",fontWeight:600,marginLeft:6 }}>{fmt(activeSku.original)}</span>}
+              </div>
+            </div>
+            <button onClick={()=>activeSku.add()} className="hp-hero-btn" style={{ background:"#18284e",color:"#fff",border:"none",borderRadius:999,padding:"12px 22px",fontFamily:FONT_T,fontWeight:800,fontSize:14,whiteSpace:"nowrap",cursor:"pointer",flexShrink:0 }}>🛒 Thêm giỏ</button>
+          </div>
+        </div>
       )}
 
       {/* MODALS */}
