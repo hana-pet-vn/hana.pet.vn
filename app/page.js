@@ -1366,7 +1366,7 @@ function SkuBlock({ id, product:p, brand, onAdd, onDetail, onActive, flip=false 
             <h2 onClick={()=>onDetail(p)} title="Xem chi tiết" style={{ fontFamily:FONT_T,fontWeight:900,fontSize:"clamp(30px,3.6vw,48px)",lineHeight:1.02,letterSpacing:"-0.01em",color:ink,margin:"0 0 14px",cursor:"pointer",display:"inline-block",transition:"text-shadow .3s ease, transform .3s ease" }}
               onMouseEnter={e=>{e.currentTarget.style.textShadow=dark?"0 0 22px rgba(255,255,255,0.65), 0 0 40px rgba(255,255,255,0.3)":"0 0 20px rgba(24,40,78,0.25)";e.currentTarget.style.transform="translateY(-1px)";}}
               onMouseLeave={e=>{e.currentTarget.style.textShadow="none";e.currentTarget.style.transform="none";}}>{p.name}</h2>
-            <p style={{ fontFamily:FONT_B,fontSize:15,lineHeight:1.8,color:dark?"rgba(255,255,255,0.82)":NAVY+"cc",whiteSpace:"pre-line",margin:"0 0 22px",maxWidth:460 }}>{p.story}</p>
+            <p style={{ fontFamily:FONT_B,fontSize:15,lineHeight:1.7,color:dark?"rgba(255,255,255,0.82)":NAVY+"cc",margin:"0 0 22px",maxWidth:460,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden" }}>{p.subtitle||p.story}</p>
             {variants.length>0&&(
               <div style={{ marginBottom:22 }}>
                 <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13,color:ink,marginBottom:10 }}>{p.variantLabel||(isWbs?"Chọn mùi hương":"Chọn loại")}</div>
@@ -1455,14 +1455,14 @@ export default function App() {
       if (cs && cs.length > 0) setCats(cs);
     }).catch(() => {});
     getAllConfigs().then(cfg => {
-      if (cfg.brand)    setBrand(cfg.brand);
-      if (cfg.banners)  setBanners(cfg.banners);
-      if (cfg.socials)  setSocials(cfg.socials);
-      if (cfg.trustBar) setTrustBar(cfg.trustBar);
-      if (cfg.popup)    setPopup(cfg.popup);
-      if (cfg.about)    setAbout(cfg.about);
-      if (cfg.footer)   setFooter(cfg.footer);
-      if (cfg.flashBar) setFlashBar(cfg.flashBar);
+      if (cfg.brand    !== undefined) setBrand(cfg.brand);
+      if (cfg.banners  !== undefined) setBanners(cfg.banners);
+      if (cfg.socials  !== undefined) setSocials(cfg.socials);
+      if (cfg.trustBar !== undefined) setTrustBar(cfg.trustBar);
+      if (cfg.popup    !== undefined) setPopup(cfg.popup);
+      if (cfg.about    !== undefined) setAbout(cfg.about);
+      if (cfg.footer   !== undefined) setFooter(cfg.footer);
+      if (cfg.flashBar !== undefined) setFlashBar(cfg.flashBar);
       // Inject favicon dynamically from uploaded URL
       const favUrl = cfg.footer?.faviconUrl;
       if (favUrl) {
