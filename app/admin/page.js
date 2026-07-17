@@ -1643,6 +1643,15 @@ export default function AdminPage() {
     return (
       <div>
         <SectionHeader title="🖼 Banners"><AddBtn onClick={()=>{const nb={id:uid(),title:"Banner Mới",sub:"Phụ đề",cta:"Mua ngay",img:"",bg:S.brand[0].primary};setList(l=>[...l,nb]);setEditing(nb.id);}} label="Thêm Banner" /></SectionHeader>
+        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:(S.brand[0].bannersEnabled!==false)?"#eafaf3":"#f2f5fb",borderRadius:12,marginBottom:14,border:"1px solid "+((S.brand[0].bannersEnabled!==false)?"#a8e6cf":"#dbe2f1") }}>
+          <div>
+            <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13,color:"#18284e" }}>Hiện dải banner ở trang chủ</div>
+            <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad" }}>Tắt để ẩn toàn bộ banner (không xoá)</div>
+          </div>
+          <button onClick={async()=>{const nb={...S.brand[0],bannersEnabled:!(S.brand[0].bannersEnabled!==false)};await setSupabaseConfig("brand",nb);S.brand[1](nb);flash();}} style={{ width:48,height:27,background:(S.brand[0].bannersEnabled!==false)?"#22c55e":"#c8cede",borderRadius:999,border:"none",position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0 }}>
+            <span style={{ position:"absolute",top:3,left:(S.brand[0].bannersEnabled!==false)?24:3,width:21,height:21,background:"#fff",borderRadius:"50%",transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,0.3)" }} />
+          </button>
+        </div>
         {list.map(b=>(
           <div key={b.id} style={{ display:"flex",alignItems:"center",gap:14,padding:14,background:"#f8fafd",borderRadius:14,border:"2px solid #dbe2f1",marginBottom:10,cursor:"pointer" }} onClick={()=>setEditing(b.id)}>
             <div style={{ width:90,height:50,borderRadius:8,overflow:"hidden",background:b.bg||"#ff7a00",flexShrink:0,position:"relative" }}>

@@ -583,9 +583,9 @@ function ProductModal({ product:p, brand, onClose, onAdd }) {
         .hh-modal-content::-webkit-scrollbar{width:6px}.hh-modal-content::-webkit-scrollbar-thumb{background:#dbe2f1;border-radius:3px}
         .hh-modal-thumbs::-webkit-scrollbar{height:5px}.hh-modal-thumbs::-webkit-scrollbar-thumb{background:#dbe2f1;border-radius:3px}
         @media (max-width:680px){.hh-modal-outer{overflow:auto !important}.hh-modal-grid{max-height:none !important}}`}</style>
-      <div onClick={e=>e.stopPropagation()} className="hh-modal-outer" style={{ background:"linear-gradient(160deg, #eef1fa 0%, #f8fafd 55%)",borderRadius:28,maxWidth:860,width:"100%",maxHeight:"90vh",overflow:"hidden",boxShadow:"0 30px 90px rgba(24,40,78,0.35)" }}>
-        <div className="hh-modal-grid" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",padding:12,gap:12,maxHeight:"90vh",boxSizing:"border-box",alignItems:"stretch" }}>
-          <div className="hh-modal-imgcol" style={{ display:"flex",flexDirection:"column",background:"#fff",borderRadius:22,overflow:"hidden",boxShadow:"0 10px 30px rgba(24,40,78,0.1)",alignSelf:"start",position:"sticky",top:0,maxHeight:"calc(90vh - 24px)" }}>
+      <div onClick={e=>e.stopPropagation()} className="hh-modal-outer" style={{ background:"linear-gradient(160deg, #eef1fa 0%, #f8fafd 55%)",borderRadius:28,maxWidth:820,width:"100%",maxHeight:"82vh",overflow:"hidden",boxShadow:"0 30px 90px rgba(24,40,78,0.35)" }}>
+        <div className="hh-modal-grid" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",padding:12,gap:12,maxHeight:"82vh",boxSizing:"border-box",alignItems:"stretch" }}>
+          <div className="hh-modal-imgcol" style={{ display:"flex",flexDirection:"column",background:"#fff",borderRadius:22,overflow:"hidden",boxShadow:"0 10px 30px rgba(24,40,78,0.1)",alignSelf:"start",position:"sticky",top:0,maxHeight:"calc(82vh - 24px)" }}>
             <div className="hh-modal-img" onClick={()=>galIdx>=0&&allImgs.length>0&&setZoomed(true)} style={{ position:"relative",aspectRatio:"1 / 1",width:"100%",background:"radial-gradient(circle at 50% 40%, #f2f5fb 0%, #e9edf8 100%)",overflow:"hidden",cursor:allImgs.length>0?"zoom-in":"default",flexShrink:0 }}>
               {galIdx===-1 && (p.videoUrl||p.tiktokUrl)
                 ? <div onClick={e=>e.stopPropagation()} style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",padding:8,background:"#000" }}><VideoEmbed url={p.videoUrl||p.tiktokUrl} /></div>
@@ -619,7 +619,7 @@ function ProductModal({ product:p, brand, onClose, onAdd }) {
               </div>
             )}
           </div>
-          <div className="hh-modal-content" style={{ padding:32,overflowY:"auto",maxHeight:"calc(92vh - 28px)",minWidth:0 }}>
+          <div className="hh-modal-content" style={{ padding:32,overflowY:"auto",maxHeight:"calc(82vh - 24px)",minWidth:0 }}>
             <button onClick={onClose} style={{ float:"right",background:"#f2f5fb",border:"none",borderRadius:50,width:32,height:32,cursor:"pointer",color:"#5f6c8f",fontSize:16 }}>✕</button>
             <Tag text={p.category} color={brand.primary} />
             <h2 style={{ fontFamily:p.productFont||FONT_T,fontSize:26,color:"#0d142e",margin:"10px 0 4px",overflowWrap:"anywhere" }}>{p.name}</h2>
@@ -1615,7 +1615,7 @@ export default function App() {
           const wbsP   = products.find(pp=>/bubble|shampoo|tắm/.test(norm(pp.name)));
           const rest   = products.filter(pp=>pp!==mistyP&&pp!==wbsP);
           const SECTIONS = {
-            banner: banners.length>0 ? <div key="banner" style={{ maxWidth:1200,margin:"14px auto 0",padding:"0 14px" }}><BannerCarousel banners={banners} brand={brand} /></div> : null,
+            banner: (brand.bannersEnabled!==false && banners.length>0) ? <div key="banner" style={{ maxWidth:1200,margin:"14px auto 0",padding:"0 14px" }}><BannerCarousel banners={banners} brand={brand} /></div> : null,
             misty:  mistyP ? <SkuBlock key="misty" id="sku-misty" product={mistyP} brand={brand} onAdd={addToCart} onDetail={setSelProd} onActive={setActiveSku} /> : null,
             wbs:    wbsP ? <SkuBlock key="wbs" id="sku-wbs" product={wbsP} brand={brand} onAdd={addToCart} onDetail={setSelProd} onActive={setActiveSku} flip /> : null,
             trust: (
