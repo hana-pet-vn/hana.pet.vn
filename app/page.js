@@ -578,11 +578,12 @@ function ProductModal({ product:p, brand, onClose, onAdd }) {
   const slot0Mobile = (!selVar || !selVar.img) ? p.imgMobile : null;
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(10,16,38,0.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)" }}>
-      <style>{`@media (max-width:680px){.hh-modal-grid{grid-template-columns:1fr !important}.hh-modal-imgcol{border-radius:22px !important}.hh-modal-img{min-height:280px !important}}
+      <style>{`@media (max-width:680px){.hh-modal-grid{grid-template-columns:1fr !important}.hh-modal-imgcol{border-radius:22px !important}.hh-modal-img{min-height:280px !important}.hh-modal-content{max-height:none !important;overflow:visible !important}}
         .hh-modal-img:hover .hh-modal-mainimg{transform:scale(1.08) !important}
+        .hh-modal-content::-webkit-scrollbar{width:6px}.hh-modal-content::-webkit-scrollbar-thumb{background:#dbe2f1;border-radius:3px}
         .hh-modal-thumbs::-webkit-scrollbar{height:5px}.hh-modal-thumbs::-webkit-scrollbar-thumb{background:#dbe2f1;border-radius:3px}`}</style>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"linear-gradient(160deg, #eef1fa 0%, #f8fafd 55%)",borderRadius:28,maxWidth:860,width:"100%",maxHeight:"92vh",overflow:"auto",boxShadow:"0 30px 90px rgba(24,40,78,0.35)" }}>
-        <div className="hh-modal-grid" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",padding:14,gap:6 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"linear-gradient(160deg, #eef1fa 0%, #f8fafd 55%)",borderRadius:28,maxWidth:860,width:"100%",maxHeight:"92vh",overflow:"hidden",boxShadow:"0 30px 90px rgba(24,40,78,0.35)" }}>
+        <div className="hh-modal-grid" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",padding:14,gap:6,maxHeight:"92vh",boxSizing:"border-box" }}>
           <div className="hh-modal-imgcol" style={{ display:"flex",flexDirection:"column",background:"#fff",borderRadius:22,overflow:"hidden",boxShadow:"0 10px 30px rgba(24,40,78,0.1)" }}>
             <div className="hh-modal-img" onClick={()=>galIdx>=0&&allImgs.length>0&&setZoomed(true)} style={{ position:"relative",flex:1,minHeight:340,background:"radial-gradient(circle at 50% 40%, #f2f5fb 0%, #e9edf8 100%)",overflow:"hidden",cursor:allImgs.length>0?"zoom-in":"default" }}>
               {galIdx===-1 && (p.videoUrl||p.tiktokUrl)
@@ -617,10 +618,10 @@ function ProductModal({ product:p, brand, onClose, onAdd }) {
               </div>
             )}
           </div>
-          <div style={{ padding:32 }}>
+          <div className="hh-modal-content" style={{ padding:32,overflowY:"auto",maxHeight:"calc(92vh - 28px)",minWidth:0 }}>
             <button onClick={onClose} style={{ float:"right",background:"#f2f5fb",border:"none",borderRadius:50,width:32,height:32,cursor:"pointer",color:"#5f6c8f",fontSize:16 }}>✕</button>
             <Tag text={p.category} color={brand.primary} />
-            <h2 style={{ fontFamily:FONT_T,fontSize:26,color:"#0d142e",margin:"10px 0 4px" }}>{p.name}</h2>
+            <h2 style={{ fontFamily:FONT_T,fontSize:26,color:"#0d142e",margin:"10px 0 4px",overflowWrap:"anywhere" }}>{p.name}</h2>
             <Stars rating={p.rating} size={15} />
             <span style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginLeft:6 }}>· còn {effStock} sản phẩm</span>
             <div style={{ display:"flex",margin:"20px 0 16px",border:"2px solid #dbe2f1",borderRadius:12,overflow:"hidden" }}>
@@ -628,7 +629,7 @@ function ProductModal({ product:p, brand, onClose, onAdd }) {
                 <button key={k} onClick={()=>setTab(k)} style={{ flex:1,padding:"8px 4px",background:tab===k?brand.primary:"transparent",color:tab===k?"#fff":"#5f6c8f",border:"none",fontFamily:FONT_T,fontSize:12,cursor:"pointer",transition:"all 0.2s" }}>{l}</button>
               ))}
             </div>
-            {tab==="story"&&<p style={{ fontFamily:FONT_B,fontSize:14,color:"#131c3d",lineHeight:1.8,whiteSpace:"pre-line",background:"#f2f5fb",borderLeft:`4px solid ${brand.primary}`,padding:"12px 16px",borderRadius:"0 10px 10px 0",margin:0 }}>{p.story||"Chưa có câu chuyện."}</p>}
+            {tab==="story"&&<p style={{ fontFamily:FONT_B,fontSize:14,color:"#131c3d",lineHeight:1.8,whiteSpace:"pre-line",overflowWrap:"anywhere",wordBreak:"break-word",background:"#f2f5fb",borderLeft:`4px solid ${brand.primary}`,padding:"12px 16px",borderRadius:"0 10px 10px 0",margin:0 }}>{p.story||"Chưa có câu chuyện."}</p>}
             {tab==="specs"&&<div>{[["Tags",(p.tags||"—").split(",")[0]],["Kho hàng",`${p.stock} sản phẩm`],["Danh mục",p.category]].map(([k,v])=>(
               <div key={k} style={{ display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #dbe2f1",fontFamily:FONT_B,fontSize:13 }}><span style={{ color:"#5f6c8f" }}>{k}</span><span style={{ color:brand.primary,fontWeight:700 }}>{v}</span></div>
             ))}</div>}
