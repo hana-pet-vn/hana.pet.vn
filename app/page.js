@@ -996,24 +996,24 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 #sp .shead h2{color:#fff}
 #sp .shead p{color:rgba(255,255,255,.68)}
 
-.grid{display:grid;grid-template-columns:1fr;gap:clamp(16px,2vw,22px);max-width:1180px;margin:0 auto}
-@media(min-width:760px){.grid{grid-template-columns:1fr 1fr}}
-/* Thẻ kính mờ trên navy, ô ảnh DỌC 3/4 nằm trên. */
+.grid{display:grid;grid-template-columns:1fr;gap:16px;max-width:720px;margin:0 auto}
+/* v14: thẻ NẰM NGANG — ảnh dọc bên trái, chữ bên phải. Xếp chồng 1 cột. */
 .card{background:rgba(255,255,255,.055);border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.17);
-  backdrop-filter:blur(6px);transition:.28s cubic-bezier(.2,.7,.3,1);display:flex;flex-direction:column}
+  backdrop-filter:blur(6px);transition:.28s cubic-bezier(.2,.7,.3,1);
+  display:grid;grid-template-columns:200px minmax(0,1fr);align-items:stretch}
 .card.star{border-color:rgba(255,255,255,.4)}
 .card:hover{transform:translateY(-6px);border-color:rgba(255,255,255,.36);box-shadow:0 22px 50px rgba(0,0,0,.32)}
-.cimg{position:relative;aspect-ratio:3/4;overflow:hidden;transition:background .45s;
-  display:grid;place-items:center;padding:22px}
+.cimg{position:relative;aspect-ratio:3/4;max-height:280px;overflow:hidden;transition:background .45s;
+  display:grid;place-items:center;padding:18px}
 /* Ảnh LUÔN nằm gọn trong khung, không kéo giãn theo chiều cao cột chữ */
 .cimg img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
   transition:transform .3s cubic-bezier(.2,.7,.3,1)}
 .card:hover .cimg img{transform:translateY(-6px) scale(1.03)}
 .badge{position:absolute;top:14px;left:14px;background:#fff;color:var(--navy);font-size:11px;font-weight:800;
   letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.14);z-index:2}
-.cbody{padding:20px;display:flex;flex-direction:column;gap:10px;flex:1}
-.cbody h3{font-size:20px;color:var(--navy);line-height:1.25}
-.cdesc{font-size:14.5px;color:rgba(27,36,64,.66);line-height:1.6}
+.cbody{padding:18px 20px;display:flex;flex-direction:column;gap:8px;justify-content:center;min-width:0}
+.cbody h3{font-size:18px;color:var(--navy);line-height:1.28}
+.cdesc{font-size:13.5px;color:rgba(27,36,64,.66);line-height:1.55}
 .optlabel{font-size:12.5px;font-weight:800;color:var(--navy);opacity:.6}
 .variants{display:flex;gap:8px;flex-wrap:wrap}
 .chip{padding:9px 15px;border-radius:999px;border:1.5px solid rgba(24,40,78,.18);font-size:13px;font-weight:700;
@@ -1035,22 +1035,27 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .scent b{font-weight:800;max-width:0;overflow:hidden;opacity:0;
   transition:max-width .26s cubic-bezier(.2,.7,.3,1),opacity .2s}
 .scent.on b{max-width:150px;opacity:1}
-.pricerow{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-top:auto;padding-top:10px}
-.price{font-family:'Nunito';font-weight:900;font-size:29px;color:var(--navy);letter-spacing:-.02em}
+.pricerow{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;padding-top:4px}
+.price{font-family:'Nunito';font-weight:900;font-size:25px;color:var(--navy);letter-spacing:-.02em}
 .was{font-size:15px;color:rgba(27,36,64,.36);text-decoration:line-through}
 .save{font-size:12px;font-weight:800;color:var(--navy);background:rgba(24,40,78,.09);padding:4px 9px;border-radius:6px}
 .stock{font-size:12px;color:#2e7d4f;font-weight:700;display:flex;align-items:center;gap:6px}
 .stock::before{content:"";width:7px;height:7px;border-radius:50%;background:#2e7d4f}
 .stock.out{color:#c25050}
 .stock.out::before{background:#c25050}
-.cfoot{margin-top:auto;padding-top:15px;border-top:1px solid rgba(24,40,78,.11);
-  display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.cfoot{padding-top:12px;border-top:1px solid rgba(24,40,78,.11);
+  display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .cfoot-l{display:flex;flex-direction:column;gap:7px;min-width:0}
 .cbtns{display:flex;gap:9px;flex-shrink:0}
-.cbtns .btn{padding:13px 18px;font-size:14px;white-space:nowrap}
-.cbtns .b-buy{padding-left:26px;padding-right:26px}
+.cbtns .btn{padding:11px 16px;font-size:13.5px;white-space:nowrap}
+.cbtns .b-buy{padding-left:20px;padding-right:20px}
 @media(max-width:620px){.cfoot{flex-direction:column;align-items:stretch;gap:13px}
   .cbtns .btn{flex:1;padding-left:14px;padding-right:14px}}
+/* v14: màn hẹp → thẻ quay lại dạng DỌC, ảnh trên chữ dưới */
+@media(max-width:700px){
+  .card{grid-template-columns:1fr}
+  .cimg{aspect-ratio:1/1;max-height:240px}
+}
 .b-buy{background:var(--navy);color:#fff}
 .b-buy:hover:not(:disabled){background:var(--navy-deep);transform:translateY(-2px);box-shadow:0 10px 24px rgba(24,40,78,.28)}
 .b-more{border:2px solid rgba(24,40,78,.18);color:var(--navy);background:var(--cream)}
@@ -1079,7 +1084,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .card .b-more{border-color:rgba(255,255,255,.32);color:#fff;background:transparent}
 .card .b-more:hover{border-color:#fff;background:rgba(255,255,255,.1)}
 
-.invite{display:flex;align-items:center;gap:16px;padding:6px 2px;grid-column:1/-1;order:3}
+.invite{display:flex;align-items:center;gap:16px;padding:2px;grid-column:1/-1}
 .invite .msc{width:62px;height:62px;flex-shrink:0;overflow:visible;background:rgba(255,255,255,.08);border-radius:14px}
 .invite .msc img{width:100%;height:100%;object-fit:contain}
 .invite p{font-family:'Nunito';font-weight:800;font-size:clamp(16px,1.9vw,23px);color:#fff;line-height:1.35}
