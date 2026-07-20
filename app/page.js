@@ -96,7 +96,6 @@ const DEFAULTS = {
   heroBtn1Link: '#sp',
   heroMicro: 'Giao Hà Nội trong 24h · Đổi trả 7 ngày',
   heroImage: '',
-  heroMascot: '/mascots/pet-04.png',
   heroSkuName: 'Misty Fresh',
   heroVideo: '',
   heroShowVideo: false,
@@ -105,10 +104,10 @@ const DEFAULTS = {
   heroBg: '',
   // Độ đậm lớp phủ navy trên ảnh nền (0-1). Cao hơn = chữ dễ đọc hơn.
   heroBgDim: 0.72,
-  // Tem tròn nổi cạnh chai. Bỏ trống l1/l2 = ẩn tem.
-  heroStamp: { l1: 'Không hương liệu', l2: 'Không kích ứng', img: '' },
   // Ảnh lõi refill nép sau chai chính trong hero. Bỏ trống = ẩn.
   heroRefillImage: '',
+  // Bố cục kéo-thả từ admin: {main:{l,w}, refill:{l,w}} theo %.
+  heroLayout: null,
   // Thanh tin cậy dưới hero. icon dùng tên Tabler (ti-truck...), bỏ trống = ẩn cả thanh.
   heroTrust: [
     { icon: 'truck',         t: 'Giao Hà Nội 24h' },
@@ -150,7 +149,7 @@ const DEFAULTS = {
   ],
 
   tmKicker: 'Ba mẹ pet nói gì',
-  tmTitle: 'Hàng nghìn ba mẹ pet đã tin dùng Hanapet',
+  tmTitle: 'Ba mẹ nói gì về xịt khử mùi top sàn TMĐT?',
   testimonials: [
     { who: '@minhchau.pet',   pet: 'Sen của Miu — mèo Anh lông ngắn', quote: 'Xịt xong nằm ngủ luôn, không né như mọi lần.', embed: '', thumb: '' },
     { who: '@nhatlinh_corgi', pet: 'Sen của Bơ — Corgi 2 tuổi',       quote: 'Mùa mưa không tắm được, cứu tinh thật sự.',    embed: '', thumb: '' },
@@ -184,15 +183,15 @@ const DEFAULTS = {
   labelDetail: 'Chi tiết',
 
   abKicker: 'Về Hanapet',
-  abTitle: 'Chúng tớ chỉ làm hai thứ — và làm cho tới.',
+  abTitle: 'Chúng mình chỉ làm hai thứ — và làm cho tới.',
   abBody1: 'Hanapet bắt đầu từ một câu hỏi đơn giản: vì sao chăm bé cưng lại phiền đến vậy? Bé sợ nước, nhà không có chỗ, mùa đông thì lạnh.',
-  abBody2: 'Thay vì bày ra ba mươi món, chúng tớ chọn hai. Công thức thử đi thử lại trên chính những bé cưng ở nhà trước khi bán cho ai.',
+  abBody2: 'Thay vì bày ra ba mươi món, chúng mình chọn hai. Công thức thử đi thử lại trên chính những bé cưng ở nhà trước khi bán cho ai.',
   abBtn: 'Xem sản phẩm →',
   abImage: '',
   facts: [
     { t: 'HOCl',           s: 'Chất cơ thể tự tạo để diệt khuẩn. Không cồn, không paraben.' },
     { t: 'Thử tại nhà',    s: 'Mỗi công thức dùng thật ít nhất 8 tuần trước khi lên kệ.' },
-    { t: 'Đổi trả 7 ngày', s: 'Bé không hợp? Nhắn tớ, đổi hoặc hoàn tiền.' },
+    { t: 'Đổi trả 7 ngày', s: 'Bé không hợp? Nhắn shop, đổi hoặc hoàn tiền.' },
   ],
 
   // Anh mascot thoc dau khi bam mua. Sua duoc trong admin.
@@ -217,7 +216,7 @@ const DEFAULTS = {
   txtCOD: 'Thanh toán khi nhận hàng (COD)',
   txtCODNote: 'Trả tiền mặt cho shipper khi nhận. Kiểm tra hàng trước khi thanh toán.',
   txtOrderOk: 'Đặt hàng thành công!',
-  txtOrderOkBody: 'Cảm ơn ngài đã tin tưởng Hanapet. Tớ sẽ gọi xác nhận trong ít phút nữa.',
+  txtOrderOkBody: 'Cảm ơn bạn đã tin tưởng Hanapet. Tụi mình sẽ gọi xác nhận trong ít phút nữa.',
   trustPoints: [
     'Đổi trả trong 7 ngày',
     'Giao Hà Nội trong 24h',
@@ -225,6 +224,20 @@ const DEFAULTS = {
   ],
 
   footerText: '© 2026 Hanapet · hana.pet.vn · Hà Nội',
+
+  /* Chân trang 3 cột: thương hiệu / điều khoản / Bộ Công Thương. */
+  logoWhite: '/logo-white.png',
+  footerDesc: 'Sạch thơm cho bé, an tâm cho cả nhà. Hai sản phẩm, làm cho tới.',
+  footerLines: ['Hà Nội, Việt Nam', 'hana.pet.vn'],
+  footerCol2Title: 'Điều khoản',
+  footerLinks: [
+    { t: 'Chính sách đổi trả', href: '#' },
+    { t: 'Chính sách bảo mật', href: '#' },
+    { t: 'Điều khoản sử dụng', href: '#' },
+  ],
+  footerCol3Title: 'Chứng nhận',
+  footerBctImg: '',
+  footerBctHref: 'http://online.gov.vn',
 };
 
 /* ---------- placeholder khi chưa có ảnh ---------- */
@@ -491,25 +504,16 @@ export default function Home() {
 
           {/* Anh hero RIENG, khong muon anh san pham nua. De trong thi hien
               o net dut nhac upload trong admin. */}
-          <div className="hero-main">
+          {/* Bố cục kéo-thả từ admin (heroLayout) đè lên vị trí mặc định. */}
+          <div className="hero-main"
+               style={S.heroLayout?.main ? { left: S.heroLayout.main.l + '%', width: S.heroLayout.main.w + '%' } : undefined}>
             <Img src={S.heroImage} alt={S.heroSkuName}
                  text="ẢNH HERO|tải lên trong admin" dark />
           </div>
 
-          <div className="hero-refill">
+          <div className="hero-refill"
+               style={S.heroLayout?.refill ? { left: S.heroLayout.refill.l + '%', width: S.heroLayout.refill.w + '%' } : undefined}>
             <Img src={S.heroRefillImage} text="ẢNH REFILL|tải lên trong admin" dark />
-          </div>
-
-          {(S.heroStamp?.l1 || S.heroStamp?.l2 || S.heroStamp?.img) && (
-            <div className="hero-stamp">
-              {S.heroStamp.img
-                ? <img src={S.heroStamp.img} alt={S.heroStamp.l1 || ''} />
-                : <span>{S.heroStamp.l1}<b>✓</b>{S.heroStamp.l2}</span>}
-            </div>
-          )}
-
-          <div className="mascot-hero">
-            <Img src={S.heroMascot} text="MASCOT|cún H" dark />
           </div>
 
           {S.heroShowVideo && (
@@ -521,7 +525,7 @@ export default function Home() {
 
         <div className="wave">
           <svg viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
-            <path fill="#f6f4ef" d="M0,64 C240,120 480,16 720,48 C960,80 1200,112 1440,56 L1440,120 L0,120 Z" />
+            <path fill="#101c38" d="M0,64 C240,120 480,16 720,48 C960,80 1200,112 1440,56 L1440,120 L0,120 Z" />
           </svg>
         </div>
       </header>
@@ -610,7 +614,7 @@ export default function Home() {
           <article className="card">
             <div className="cimg light"
                  style={{ background: `linear-gradient(160deg,${sc.c1 || '#dbe4f4'},${sc.c2 || '#b3c4e2'})` }}>
-              {S.wbsBadge && <span className="badge badge-mint">{S.wbsBadge}</span>}
+              {S.wbsBadge && <span className="badge">{S.wbsBadge}</span>}
               <Img src={(scV && scV.img) || sc.image || wbsProd.img} alt={wbsProd.name}
                    text={`ẢNH THẬT|chai Waterless Bubble|(${sc.name || 'mùi'})`} />
             </div>
@@ -774,7 +778,37 @@ export default function Home() {
                           && window.history.state?.hpModal) window.history.back();
                     }} />
 
-      <footer ref={footRef}>{S.footerText}</footer>
+      <footer ref={footRef}>
+        <div className="foot-in">
+          <div>
+            <div className="f-brand">
+              {(S.logoWhite || S.logo) && <img src={S.logoWhite || S.logo} alt={S.brandName} />}
+              <b>{S.brandName}</b>
+            </div>
+            <p className="f-desc">{S.footerDesc}</p>
+            <div className="f-lines">
+              {(S.footerLines || []).map((l, i) => <span key={i}>{l}</span>)}
+            </div>
+          </div>
+          <div>
+            <h4>{S.footerCol2Title}</h4>
+            <ul className="f-links">
+              {(S.footerLinks || []).map((l, i) => (
+                <li key={i}><a href={l.href || '#'}>{l.t}</a></li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h4>{S.footerCol3Title}</h4>
+            <a className="f-bct" href={S.footerBctHref || '#'} target="_blank" rel="noreferrer">
+              {S.footerBctImg
+                ? <img src={S.footerBctImg} alt="Đã thông báo Bộ Công Thương" />
+                : <span className="f-bct-ph">DẤU BỘ CÔNG THƯƠNG<br/>tải lên trong admin</span>}
+            </a>
+          </div>
+        </div>
+        <div className="f-bottom">{S.footerText}</div>
+      </footer>
 
       {/* ---------------- THANH MUA ---------------- */}
       {mfProd && (
@@ -806,7 +840,7 @@ export default function Home() {
 function Styles() {
   return (
     <style jsx global>{`
-:root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440;--mint:#8fd4c8;--nav-h:78px}
+:root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440;--nav-h:78px}
 *{box-sizing:border-box;margin:0;padding:0}
 /* Nền mép: navy ở trên (dưới hero), kem ở dưới — không để lộ dải trắng
    khi màn hình rất rộng hoặc khi cuộn quá đà (overscroll). */
@@ -826,14 +860,20 @@ button{font:inherit}
 nav{position:fixed;top:0;left:0;right:0;z-index:50;padding:0 5vw;height:var(--nav-h);
   background:var(--navy);border-bottom:1px solid rgba(255,255,255,.09)}
 .nav-in{max-width:1180px;height:100%;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
-.brand{display:flex;align-items:center;gap:10px;color:#fff;font-family:'Nunito';font-weight:900;font-size:20px}
+.brand{display:flex;align-items:center;gap:10px;color:#fff;font-family:'Nunito';font-weight:900;font-size:20px;
+  text-decoration:none;transition:.2s}
+.brand:hover{opacity:.85}
 .brand .mark{width:34px;height:34px;border-radius:10px;background:#fff;overflow:hidden}
 .brand .mark-img{width:34px;height:34px;object-fit:contain;background:#fff;border-radius:10px;padding:5px}
 .navlinks{display:flex;gap:24px;font-size:14px;font-weight:700;align-items:center}
-.navlinks a{color:rgba(255,255,255,.82);text-decoration:none}
+.navlinks a{color:rgba(255,255,255,.82);text-decoration:none;position:relative;transition:.2s}
 .navlinks a:hover{color:#fff}
+.navlinks a:not(.navcart)::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:2px;
+  background:#fff;border-radius:2px;transform:scaleX(0);transition:transform .22s cubic-bezier(.2,.7,.3,1)}
+.navlinks a:not(.navcart):hover::after{transform:scaleX(1)}
 .navcart{background:#fff;color:var(--navy)!important;padding:8px 19px;border-radius:999px;font-weight:800;
-  border:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-size:14px}
+  border:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-size:14px;transition:.2s}
+.navcart:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.28)}
 .navcart em{font-style:normal;background:var(--navy);color:#fff;border-radius:999px;min-width:20px;height:20px;
   display:grid;place-items:center;font-size:11.5px;font-weight:800;padding:0 5px}
 @media(max-width:760px){.navlinks a:not(.navcart){display:none}}
@@ -856,13 +896,13 @@ nav{position:fixed;top:0;left:0;right:0;z-index:50;padding:0 5vw;height:var(--na
 .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:800;letter-spacing:.1em;
   text-transform:uppercase;color:rgba(255,255,255,.8);margin-bottom:clamp(12px,2vh,20px);
   background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);padding:6px 14px;border-radius:999px}
-.eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--mint);flex-shrink:0}
+.eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:#fff;flex-shrink:0}
 h1{font-size:clamp(40px,min(6.6vw,9.4vh),94px);line-height:.97;margin-bottom:clamp(10px,1.7vh,16px);color:#fff}
 h1 .l2{display:block}
 .support{font-family:'Nunito';font-weight:700;font-size:clamp(16px,1.5vw,21px);color:rgba(255,255,255,.66);margin-bottom:clamp(16px,3vh,32px)}
 .bens{list-style:none;display:flex;flex-direction:column;gap:clamp(7px,1.2vh,11px);margin:0 0 clamp(18px,3vh,32px)}
 .bens li{display:flex;gap:11px;align-items:flex-start;font-size:15.5px;font-weight:600;color:rgba(255,255,255,.86);line-height:1.45;max-width:40ch}
-.bens li::before{content:"";flex-shrink:0;width:19px;height:19px;border-radius:50%;margin-top:1px;background:var(--mint);
+.bens li::before{content:"";flex-shrink:0;width:19px;height:19px;border-radius:50%;margin-top:1px;background:#fff;
   -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 6L9 17l-5-5' stroke='black' stroke-width='3.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/13px no-repeat;
   mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 6L9 17l-5-5' stroke='black' stroke-width='3.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/13px no-repeat}
 
@@ -882,12 +922,12 @@ h1 .l2{display:block}
 .shot{position:relative;height:clamp(380px,min(56vw,72vh),580px);
   margin-left:clamp(-30px,-1.5vw,0px);margin-right:clamp(-30px,-2vw,0px)}
 .glow{position:absolute;left:8%;bottom:7%;width:clamp(260px,30vw,370px);aspect-ratio:1;border-radius:50%;
-  background:radial-gradient(circle,rgba(143,212,200,.22),transparent 66%);
+  background:radial-gradient(circle,rgba(255,255,255,.16),transparent 66%);
   filter:blur(20px);opacity:0;animation:gin 2.2s ease-out .5s forwards;z-index:1}
 @keyframes gin{to{opacity:1}}
 
-.hero-main{position:absolute;left:-2%;bottom:0;z-index:3;
-  width:52%;height:100%;
+.hero-main{position:absolute;left:-4%;bottom:0;z-index:3;
+  width:58%;height:100%;
   display:grid;place-items:end center;align-content:end;
   opacity:0;transform:translateY(44px) scale(.95);
   animation:pin 1.7s cubic-bezier(.16,.7,.22,1) .55s forwards;transition:transform .35s}
@@ -900,41 +940,21 @@ h1 .l2{display:block}
 /* Refill ĐỨNG CẠNH chai chính, CÙNG khung cùng chân — chai nào ngắn hơn
    thì tự trông thấp hơn, không ép bằng CSS. */
 .hero-refill{position:absolute;left:46%;bottom:0;z-index:2;
-  width:52%;height:100%;
+  width:58%;height:100%;
   display:grid;place-items:end center;align-content:end;
   opacity:0;transform:translateY(36px);animation:pin 1.6s cubic-bezier(.16,.7,.22,1) 1.0s forwards}
 .hero-refill img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
   filter:drop-shadow(0 18px 32px rgba(0,0,0,.36))}
 
-/* Mascot góc dưới-phải — KHÔNG đặt bên trái, tránh đè lên nút mua. */
-/* Tem tròn — nội dung sửa trong config, để trống thì ẩn. */
-.hero-stamp{position:absolute;left:-6%;top:11%;z-index:5;
-  width:clamp(84px,10.5vw,122px);aspect-ratio:1;border-radius:50%;
-  background:var(--mint);border:3px solid #fff;box-shadow:0 10px 26px rgba(0,0,0,.3);
-  display:grid;place-items:center;text-align:center;padding:8px;overflow:hidden;
-  opacity:0;transform:scale(.7) rotate(-12deg);
-  animation:stampin .8s cubic-bezier(.2,1.5,.4,1) 1.35s forwards}
-@keyframes stampin{to{opacity:1;transform:scale(1) rotate(-7deg)}}
-.hero-stamp img{width:100%;height:100%;object-fit:contain;border-radius:50%}
-.hero-stamp span{font-size:clamp(9px,1.05vw,11px);font-weight:800;color:#0f3b34;line-height:1.32}
-.hero-stamp b{display:block;font-size:clamp(15px,1.8vw,20px);margin:1px 0;line-height:1}
-@media(max-width:620px){.hero-stamp{left:-1%;top:10%;width:clamp(66px,17vw,86px)}}
 
-.mascot-hero{position:absolute;right:-5%;bottom:0;z-index:4;
-  width:clamp(96px,12vw,148px);aspect-ratio:1;overflow:visible;
-  opacity:0;animation:rise 1.3s ease-out 1.6s forwards}
-.mascot-hero img{width:100%;height:100%;object-fit:contain;border:0;background:none;
-  filter:drop-shadow(0 12px 22px rgba(0,0,0,.34))}
-@media(max-width:900px){.mascot-hero{display:none}}
-
-.trustbar-w{background:var(--cream);padding:0 5vw}
-.trustbar{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);
-  border-bottom:1px solid rgba(24,40,78,.1)}
+/* Thanh tin cậy bản navy đậm — nối liền hero (wave cũng đổ #101c38). */
+.trustbar-w{background:var(--navy-deep);padding:0 5vw}
+.trustbar{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
 .trustbar span{display:flex;align-items:center;justify-content:center;gap:9px;
-  padding:18px 10px;font-size:13.5px;font-weight:800;color:var(--navy);text-align:center;
-  border-left:1px solid rgba(24,40,78,.1)}
+  padding:18px 10px;font-size:13.5px;font-weight:800;color:rgba(255,255,255,.86);text-align:center;
+  border-left:1px solid rgba(255,255,255,.14)}
 .trustbar span:first-child{border-left:0}
-.tb-ic{width:20px;height:20px;flex-shrink:0;background:var(--navy);opacity:.5;
+.tb-ic{width:20px;height:20px;flex-shrink:0;background:#fff;opacity:.8;
   -webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
   -webkit-mask-position:center;mask-position:center}
 .tb-truck{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='7' cy='17' r='2'/%3E%3Ccircle cx='17' cy='17' r='2'/%3E%3Cpath d='M5 17H3V6a1 1 0 0 1 1-1h9v12m-4 0h6m4 0h2v-6h-8m0-5h5l3 5'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='7' cy='17' r='2'/%3E%3Ccircle cx='17' cy='17' r='2'/%3E%3Cpath d='M5 17H3V6a1 1 0 0 1 1-1h9v12m-4 0h6m4 0h2v-6h-8m0-5h5l3 5'/%3E%3C/svg%3E")}
@@ -945,7 +965,7 @@ h1 .l2{display:block}
 @media(max-width:900px){.trustbar{grid-template-columns:repeat(2,1fr)}
   .trustbar span{font-size:12.5px;padding:14px 8px}
   .trustbar span:nth-child(3){border-left:0}
-  .trustbar span:nth-child(-n+2){border-bottom:1px solid rgba(24,40,78,.1)}}
+  .trustbar span:nth-child(-n+2){border-bottom:1px solid rgba(255,255,255,.14)}}
 @media(max-width:400px){.trustbar span{font-size:11.5px;gap:6px}.tb-ic{width:16px;height:16px}}
 .tvc{position:relative;z-index:3;width:clamp(122px,14.5vw,192px);aspect-ratio:9/16;border-radius:18px;overflow:hidden;
   background:linear-gradient(165deg,#22345d,#141f3d);border:1px solid rgba(255,255,255,.2);box-shadow:0 26px 60px rgba(0,0,0,.42);
@@ -960,8 +980,8 @@ h1 .l2{display:block}
 .wave svg{width:100%;height:clamp(44px,5vw,78px);display:block}
 @media(max-width:900px){.hero{grid-template-columns:1fr;padding:calc(var(--nav-h) + 30px) 6vw 52px}
   .shot{height:clamp(340px,86vw,460px);margin:24px 0 0}
-  .hero-main{left:-1%;width:53%;height:100%}
-  .hero-refill{left:47%;bottom:0;width:53%;height:100%}
+  .hero-main{left:-3%;width:58%;height:100%}
+  .hero-refill{left:45%;bottom:0;width:58%;height:100%}
   .glow{left:6%;bottom:7%;width:min(68vw,310px)}}
 
 section{padding:clamp(48px,5.5vw,76px) 5vw}
@@ -970,28 +990,27 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .shead h2{font-size:clamp(26px,3.2vw,40px);line-height:1.1;margin-bottom:10px;color:var(--navy)}
 .shead p{color:rgba(27,36,64,.68);font-size:16px;line-height:1.65}
 
+/* Khu SẢN PHẨM: nền navy + thẻ kính mờ (trộn phương án 1 và 3, bỏ mint). */
+#sp{background:var(--navy)}
+#sp .kicker{color:rgba(255,255,255,.6);opacity:1}
+#sp .shead h2{color:#fff}
+#sp .shead p{color:rgba(255,255,255,.68)}
+
 .grid{display:grid;grid-template-columns:1fr;gap:clamp(16px,2vw,22px);max-width:1180px;margin:0 auto}
-.card{background:#fffdf9;border-radius:16px;overflow:hidden;border:1px solid rgba(24,40,78,.13);
-  box-shadow:0 2px 10px rgba(24,40,78,.05);transition:.28s cubic-bezier(.2,.7,.3,1);display:flex;flex-direction:column}
-.card.star{border-color:rgba(24,40,78,.3)}
-.card:hover{transform:translateY(-6px);box-shadow:0 20px 46px rgba(24,40,78,.16)}
+@media(min-width:760px){.grid{grid-template-columns:1fr 1fr}}
+/* Thẻ kính mờ trên navy, ô ảnh DỌC 3/4 nằm trên. */
+.card{background:rgba(255,255,255,.055);border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.17);
+  backdrop-filter:blur(6px);transition:.28s cubic-bezier(.2,.7,.3,1);display:flex;flex-direction:column}
+.card.star{border-color:rgba(255,255,255,.4)}
+.card:hover{transform:translateY(-6px);border-color:rgba(255,255,255,.36);box-shadow:0 22px 50px rgba(0,0,0,.32)}
 .cimg{position:relative;aspect-ratio:3/4;overflow:hidden;transition:background .45s;
   display:grid;place-items:center;padding:22px}
 /* Ảnh LUÔN nằm gọn trong khung, không kéo giãn theo chiều cao cột chữ */
-.cimg img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain}
-@media(min-width:1080px){
-  .card{flex-direction:row;align-items:stretch}
-  /* aspect-ratio giữ nguyên 3/4 → ô ảnh tự cao theo chiều rộng của nó,
-     KHÔNG ăn theo chiều cao cột chữ. Cột chữ dài thì tự cuộn/giãn riêng. */
-  /* Panel anh CHAM MEP the — mang mau lien khoi, khong con o anh nho noi
-     tren nen trang. WBS doi mau panel theo mui (inline style tu sc.c1/c2). */
-  .card .cimg{flex:0 0 clamp(250px,29%,310px);aspect-ratio:auto;align-self:stretch;
-    border-radius:0;margin:0;padding:26px}
-  .card .cbody{flex:1;justify-content:center;padding:24px 30px}
-}
+.cimg img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
+  transition:transform .3s cubic-bezier(.2,.7,.3,1)}
+.card:hover .cimg img{transform:translateY(-6px) scale(1.03)}
 .badge{position:absolute;top:14px;left:14px;background:#fff;color:var(--navy);font-size:11px;font-weight:800;
   letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.14);z-index:2}
-.badge-mint{background:var(--mint);color:#0f3b34}
 .cbody{padding:20px;display:flex;flex-direction:column;gap:10px;flex:1}
 .cbody h3{font-size:20px;color:var(--navy);line-height:1.25}
 .cdesc{font-size:14.5px;color:rgba(27,36,64,.66);line-height:1.6}
@@ -1033,15 +1052,38 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 @media(max-width:620px){.cfoot{flex-direction:column;align-items:stretch;gap:13px}
   .cbtns .btn{flex:1;padding-left:14px;padding-right:14px}}
 .b-buy{background:var(--navy);color:#fff}
-.b-buy:hover:not(:disabled){background:var(--navy-deep)}
+.b-buy:hover:not(:disabled){background:var(--navy-deep);transform:translateY(-2px);box-shadow:0 10px 24px rgba(24,40,78,.28)}
 .b-more{border:2px solid rgba(24,40,78,.18);color:var(--navy);background:var(--cream)}
-.b-more:hover{border-color:var(--navy)}
+.b-more:hover{border-color:var(--navy);background:#fff;transform:translateY(-2px)}
 
-.invite{display:flex;align-items:center;gap:16px;padding:6px 2px}
-.invite .msc{width:62px;height:62px;flex-shrink:0;overflow:visible}
+/* ── Bên trong thẻ kính (nền navy): chỉ navy & trắng ── */
+.card .cbody h3{color:#fff}
+.card .cdesc{color:rgba(255,255,255,.7)}
+.card .optlabel{color:rgba(255,255,255,.6);opacity:1}
+.card .chip{border-color:rgba(255,255,255,.3);background:transparent;color:#fff}
+.card .chip:hover{border-color:#fff;background:rgba(255,255,255,.1)}
+.card .chip.on{background:#fff;color:var(--navy);border-color:#fff}
+.card .scent{border-color:rgba(255,255,255,.28);color:#fff}
+.card .scent:hover{border-color:#fff;background:rgba(255,255,255,.08)}
+.card .scent.on{background:rgba(255,255,255,.14);border-color:#fff;box-shadow:none}
+.card .price{color:#fff}
+.card .was{color:rgba(255,255,255,.4)}
+.card .save{color:#fff;background:rgba(255,255,255,.14)}
+.card .stock{color:rgba(255,255,255,.8)}
+.card .stock::before{background:#fff}
+.card .stock.out{color:rgba(255,255,255,.5)}
+.card .stock.out::before{background:rgba(255,255,255,.5)}
+.card .cfoot{border-top-color:rgba(255,255,255,.16);flex-direction:column;align-items:stretch;gap:12px}
+.card .cbtns .b-buy{flex:1;background:#fff;color:var(--navy)}
+.card .cbtns .b-buy:hover:not(:disabled){background:#fff;box-shadow:0 12px 26px rgba(0,0,0,.3)}
+.card .b-more{border-color:rgba(255,255,255,.32);color:#fff;background:transparent}
+.card .b-more:hover{border-color:#fff;background:rgba(255,255,255,.1)}
+
+.invite{display:flex;align-items:center;gap:16px;padding:6px 2px;grid-column:1/-1;order:3}
+.invite .msc{width:62px;height:62px;flex-shrink:0;overflow:visible;background:rgba(255,255,255,.08);border-radius:14px}
 .invite .msc img{width:100%;height:100%;object-fit:contain}
-.invite p{font-family:'Nunito';font-weight:800;font-size:clamp(16px,1.9vw,23px);color:var(--navy);line-height:1.35}
-.invite .arrow{flex:1;height:1px;background:linear-gradient(90deg,rgba(24,40,78,.22),transparent);min-width:20px}
+.invite p{font-family:'Nunito';font-weight:800;font-size:clamp(16px,1.9vw,23px);color:#fff;line-height:1.35}
+.invite .arrow{flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.3),transparent);min-width:20px}
 @media(max-width:720px){.invite .arrow{display:none}}
 
 .tmo{background:var(--cream);padding-top:clamp(40px,4.5vw,58px);padding-bottom:clamp(44px,5vw,66px);overflow:hidden}
@@ -1072,7 +1114,8 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .tmeta .pet{font-size:12px;color:rgba(27,36,64,.55);font-weight:600}
 .tmeta .quote{font-size:13px;color:rgba(27,36,64,.72);line-height:1.5;margin-top:3px}
 .tstats{max-width:1180px;margin:clamp(20px,2.5vw,30px) auto 0;display:flex;gap:clamp(20px,4vw,54px);flex-wrap:wrap;
-  padding-top:22px;border-top:1px solid rgba(24,40,78,.12)}
+  padding-top:22px;border-top:1px solid rgba(24,40,78,.12);justify-content:center;text-align:center}
+.tstat{transition:.2s}
 .tstat b{display:block;font-family:'Nunito';font-weight:900;font-size:clamp(22px,2.6vw,30px);color:var(--navy)}
 .tstat span{font-size:13px;color:rgba(27,36,64,.58);font-weight:600}
 
@@ -1091,7 +1134,8 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
   56%{transform:translateX(-50%) translateY(-2px) rotate(-5deg)}
   72%{opacity:1;transform:translateX(-50%) translateY(0) rotate(3deg)}
   100%{opacity:0;transform:translateX(-50%) translateY(20px) rotate(0)}}
-.pop{position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);background:var(--navy);color:#fff;
+/* Bong bóng nằm TRÊN đầu mascot (mascot cao 62px) — không đè lên nhau. */
+.pop{position:absolute;left:50%;bottom:calc(100% + 56px);transform:translateX(-50%);background:var(--navy);color:#fff;
   font-size:11.5px;font-weight:800;padding:5px 12px;border-radius:999px;white-space:nowrap;pointer-events:none;z-index:6;
   opacity:0;animation:popup 1.15s cubic-bezier(.24,.86,.3,1) forwards}
 @keyframes popup{
@@ -1113,6 +1157,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .bb-price b{font-family:'Nunito';font-weight:900;font-size:17px;color:var(--navy)}
 .bb-price s{font-size:12.5px;color:rgba(27,36,64,.4)}
 .buybar .btn{padding:13px 22px;font-size:14px;flex-shrink:0}
+.buybar .btn:hover:not(:disabled){transform:translateY(-2px)}
 @media(max-width:520px){.bb-img{display:none}.buybar .btn{padding:13px 18px}}
 
 .combo{background:var(--navy);color:#fff;position:relative;overflow:hidden}
@@ -1168,11 +1213,29 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .fact span{font-size:14px;color:rgba(255,255,255,.64);line-height:1.5}
 @media(max-width:820px){.about-in{grid-template-columns:1fr}}
 
-footer{background:var(--navy-deep);color:rgba(255,255,255,.5);padding:26px 5vw 92px;font-size:13px}
+/* Chân trang 3 cột: thương hiệu / điều khoản / dấu Bộ Công Thương. */
+footer{background:var(--navy-deep);color:rgba(255,255,255,.55);padding:clamp(40px,5vw,60px) 5vw 96px;font-size:13.5px}
+.foot-in{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:clamp(24px,4vw,60px)}
+.foot-in h4{font-family:'Nunito';font-weight:900;font-size:14.5px;color:#fff;margin-bottom:14px}
+.f-brand{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.f-brand img{width:34px;height:34px;object-fit:contain}
+.f-brand b{font-family:'Nunito';font-weight:900;font-size:19px;color:#fff}
+.f-desc{line-height:1.7;max-width:38ch}
+.f-lines{margin-top:12px;display:flex;flex-direction:column;gap:6px;line-height:1.6}
+.f-links{list-style:none;display:flex;flex-direction:column;gap:9px}
+.f-links a{color:rgba(255,255,255,.62);text-decoration:none;transition:.2s}
+.f-links a:hover{color:#fff;padding-left:3px}
+.f-bct{display:inline-block;margin-top:2px}
+.f-bct img{width:150px;height:auto}
+.f-bct-ph{width:150px;aspect-ratio:38/14;border:1px dashed rgba(255,255,255,.3);border-radius:8px;
+  display:grid;place-items:center;font-size:10px;font-weight:800;color:rgba(255,255,255,.45);text-align:center;line-height:1.5}
+.f-bottom{max-width:1180px;margin:26px auto 0;padding-top:18px;border-top:1px solid rgba(255,255,255,.12);
+  text-align:center;font-size:12.5px;color:rgba(255,255,255,.42)}
+@media(max-width:760px){.foot-in{grid-template-columns:1fr}}
 
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
-  .rv,.hero-main,.hero-refill,.hero-stamp,.tvc,.glow,.mascot-hero{opacity:1!important;transform:none!important;animation:none!important}
+  .rv,.hero-main,.hero-refill,.tvc,.glow{opacity:1!important;transform:none!important;animation:none!important}
   .peek,.pop{display:none}
 }
     `}</style>

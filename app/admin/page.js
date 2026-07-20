@@ -1390,7 +1390,7 @@ export default function AdminPage() {
   ]
   // Sub-tabs inside grouped tabs
   const SUBTABS = {
-    home:  [['all','📝 Nội dung trang chủ'],['hero','Hero (cũ)'],['layout','Bố cục'],['banners','Banner'],['trust','Trust Bar'],['flash','Flash Bar'],['popup','Popup']],
+    home:  [['all','📝 Nội dung trang chủ'],['layout','Bố cục'],['banners','Banner'],['trust','Trust Bar'],['flash','Flash Bar'],['popup','Popup']],
     brand: [['brandmain','Thương hiệu'],['about','Giới thiệu'],['footer','Footer'],['socials','Mạng xã hội'],['favicon','Favicon']],
     promo: [['vouchers','Mã giảm giá'],['categories','Danh mục']],
   }
@@ -1412,67 +1412,181 @@ export default function AdminPage() {
   /* ── Tab: TRANG CHU (moi) ─────────────────────────────────────────────
      Sua TOAN BO noi dung trang chu. Ghi thang vao site_config key='home'
      — dung key ma app/page.js doc. Cac tab cu van giu nguyen, khong dung. */
+/* 3 ô nhập dùng chung của tab Trang chủ.
+   PHẢI đặt ở đây, NGOÀI TabHome. Nếu định nghĩa bên trong, mỗi lần gõ 1 chữ
+   React coi là component MỚI -> input mất con trỏ, gõ được 1 ký tự rồi dừng. */
+function HLines({ value, onChange, label, hint }) {
+  const arr = Array.isArray(value) ? value : [];
+  return (
+    <div style={{ marginBottom:14 }}>
+      <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:6 }}>{label}</div>
+      {arr.map((v,i)=>(
+        <div key={i} style={{ display:"flex",gap:7,marginBottom:6 }}>
+          <input value={v} onChange={e=>{const n=[...arr];n[i]=e.target.value;onChange(n);}}
+                 style={{ flex:1,fontFamily:FONT_B,fontSize:13,padding:"8px 10px",border:"2px solid #dbe2f1",borderRadius:9 }} />
+          <button onClick={()=>onChange(arr.filter((_,j)=>j!==i))}
+                  style={{ background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"5px 12px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>🗑</button>
+        </div>
+      ))}
+      <button onClick={()=>onChange([...arr,''])}
+              style={{ background:"#18284e",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ dòng</button>
+      {hint && <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:6 }}>{hint}</div>}
+    </div>
+  );
+}
+
+function HRows({ value, onChange, label, cols, blank, hint, folder='home', idKey='r' }) {
+  const arr = Array.isArray(value) ? value : [];
+  const upd = (i,f,v)=>onChange(arr.map((r,j)=>j===i?{...r,[f]:v}:r));
+  return (
+    <div style={{ marginBottom:16,padding:14,background:"#f7f8fc",borderRadius:12,border:"2px solid #dbe2f1" }}>
+      <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:10 }}>{label}</div>
+      {arr.map((r,i)=>(
+        <div key={i} style={{ background:"#fff",borderRadius:10,padding:11,marginBottom:9,border:"1px solid #e6ebf5" }}>
+          <div style={{ display:"flex",justifyContent:"flex-end",marginBottom:6 }}>
+            <button onClick={()=>onChange(arr.filter((_,j)=>j!==i))}
+                    style={{ background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"5px 12px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>🗑</button>
+          </div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:9 }}>
+            {cols.map(([f,lbl,kind])=>(
+              kind==='img'
+                ? <div key={f} style={{ gridColumn:"1 / -1" }}>
+                    <ImgUp current={r[f]||''} onUpload={v=>upd(i,f,v)} label={lbl}
+                           aspect="100%" folder={folder} entityId={idKey+'-'+i+'-'+f} />
+                  </div>
+                : <Field key={f} label={lbl} value={r[f]||''} onChange={v=>upd(i,f,v)}
+                         span={kind==='full'?'full':undefined} />
+            ))}
+          </div>
+        </div>
+      ))}
+      <button onClick={()=>onChange([...arr,{...blank}])}
+              style={{ background:"#18284e",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ mục</button>
+      {hint && <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:8,lineHeight:1.6 }}>{hint}</div>}
+    </div>
+  );
+}
+
+/* Kéo-thả bố cục hero. Đơn giản: kéo để đổi chỗ, kéo mép phải để đổi
+   độ rộng. Số đo lưu theo % nên co giãn đúng trên mọi màn hình.
+   Thả ra gần mốc thì TỰ HÍT vào (căn giữa / chạm đáy / bằng chai kia). */
+const HERO_DEFAULT = { main: { l: -4, w: 58 }, refill: { l: 46, w: 58 } };
+const SNAP = 1.6; /* % — trong khoảng này thì hít vào mốc */
+
+function HeroLayout({ value, onChange, imgMain, imgRefill }) {
+  const box = useRef(null);
+  const [drag, setDrag] = useState(null);
+  const L = { main: { ...HERO_DEFAULT.main, ...(value?.main || {}) },
+              refill: { ...HERO_DEFAULT.refill, ...(value?.refill || {}) } };
+
+  const pct = (px) => (px / (box.current?.offsetWidth || 1)) * 100;
+
+  /* các mốc để hít vào */
+  const snapTo = (v, marks) => {
+    for (const m of marks) if (Math.abs(v - m) < SNAP) return m;
+    return Math.round(v * 10) / 10;
+  };
+
+  const start = (which, mode) => (e) => {
+    e.preventDefault();
+    const p = e.touches ? e.touches[0] : e;
+    setDrag({ which, mode, x: p.clientX, l: L[which].l, w: L[which].w });
+  };
+
+  useEffect(() => {
+    if (!drag) return;
+    const move = (e) => {
+      const p = e.touches ? e.touches[0] : e;
+      const d = pct(p.clientX - drag.x);
+      const other = drag.which === 'main' ? L.refill : L.main;
+      const next = { ...L };
+      if (drag.mode === 'move') {
+        const raw = drag.l + d;
+        next[drag.which] = { ...L[drag.which],
+          l: snapTo(raw, [0, other.l, 50 - L[drag.which].w / 2, 100 - L[drag.which].w]) };
+      } else {
+        const raw = Math.max(15, Math.min(100, drag.w + d));
+        next[drag.which] = { ...L[drag.which], l: L[drag.which].l, w: snapTo(raw, [other.w, 50, 58]) };
+      }
+      onChange(next);
+    };
+    const up = () => setDrag(null);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('touchmove', move, { passive: false });
+    window.addEventListener('mouseup', up);
+    window.addEventListener('touchend', up);
+    return () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('mouseup', up);
+      window.removeEventListener('touchend', up);
+    };
+  }, [drag, L.main.l, L.main.w, L.refill.l, L.refill.w]);
+
+  const Piece = ({ k, img, label, z }) => (
+    <div onMouseDown={start(k, 'move')} onTouchStart={start(k, 'move')}
+         style={{ position:'absolute', bottom:0, left:L[k].l+'%', width:L[k].w+'%', height:'100%',
+                  zIndex:z, cursor:'grab', display:'grid', placeItems:'end center',
+                  alignContent:'end', touchAction:'none',
+                  outline: drag?.which===k ? '2px solid #fff' : '2px dashed rgba(255,255,255,.35)',
+                  outlineOffset:-2, borderRadius:10 }}>
+      {img
+        ? <img src={img} alt="" draggable={false}
+               style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', pointerEvents:'none' }} />
+        : <div style={{ width:'70%', height:'78%', background:'rgba(255,255,255,.12)', borderRadius:8,
+                        display:'grid', placeItems:'center', fontFamily:FONT_T, fontSize:11,
+                        color:'rgba(255,255,255,.6)', textAlign:'center', padding:6 }}>{label}</div>}
+      <span style={{ position:'absolute', top:6, left:6, background:'rgba(0,0,0,.55)', color:'#fff',
+                     fontFamily:FONT_T, fontSize:10, fontWeight:700, padding:'3px 7px', borderRadius:5,
+                     pointerEvents:'none' }}>{label}</span>
+      <span onMouseDown={start(k, 'size')} onTouchStart={start(k, 'size')}
+            title="Kéo để đổi độ rộng"
+            style={{ position:'absolute', right:-7, top:'50%', marginTop:-16, width:14, height:32,
+                     borderRadius:7, background:'#fff', border:'2px solid #18284e',
+                     cursor:'ew-resize', touchAction:'none' }} />
+    </div>
+  );
+
+  return (
+    <div>
+      <div ref={box} style={{ position:'relative', width:'100%', aspectRatio:'16/9', background:'#18284e',
+                              borderRadius:12, overflow:'hidden', userSelect:'none', marginBottom:10 }}>
+        {/* vạch giữa để căn */}
+        <div style={{ position:'absolute', left:'50%', top:0, bottom:0, width:1,
+                      background:'rgba(255,255,255,.18)', pointerEvents:'none' }} />
+        <Piece k="main"   img={imgMain}   label="Chai chính" z={3} />
+        <Piece k="refill" img={imgRefill} label="Lõi refill" z={2} />
+      </div>
+      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+        <button onClick={()=>onChange(null)}
+                style={{ fontFamily:FONT_T, fontSize:12, padding:'7px 14px', borderRadius:8,
+                         border:'2px solid #dbe2f1', background:'#fff', color:'#5f6c8f', cursor:'pointer' }}>
+          Về mặc định
+        </button>
+        <span style={{ fontFamily:FONT_B, fontSize:11, color:'#8a93ad' }}>
+          Kéo ảnh để đổi chỗ · kéo nút trắng bên phải để đổi độ rộng · thả gần mốc sẽ tự hít vào
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function HBox({ title, children }) {
+  return (
+    <div style={{ marginTop:16,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
+      <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:10 }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
   const TabHome = () => {
     const [h, setH] = useState({ ...(S.home[0] || {}) });
     const [grp, setGrp] = useState('hero');
     const set  = (k, v) => setH(x => ({ ...x, [k]: v }));
 
-    /* danh sach chuoi: heroBenefits, trustPoints, cartCheers */
-    const Lines = ({ k, label, hint }) => {
-      const arr = Array.isArray(h[k]) ? h[k] : [];
-      return (
-        <div style={{ marginBottom:14 }}>
-          <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:6 }}>{label}</div>
-          {arr.map((v,i)=>(
-            <div key={i} style={{ display:"flex",gap:7,marginBottom:6 }}>
-              <input value={v} onChange={e=>{const n=[...arr];n[i]=e.target.value;set(k,n);}}
-                     style={{ flex:1,fontFamily:FONT_B,fontSize:13,padding:"8px 10px",border:"2px solid #dbe2f1",borderRadius:9 }} />
-              <DelBtn onClick={()=>set(k, arr.filter((_,j)=>j!==i))} />
-            </div>
-          ))}
-          <AddBtn onClick={()=>set(k,[...arr,''])} label="dòng" />
-          {hint && <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:6 }}>{hint}</div>}
-        </div>
-      );
-    };
 
-    /* danh sach object: heroTrust, tmStats, testimonials, comboTiers, facts, wbsScents, cartPets */
-    const Rows = ({ k, label, cols, blank, hint }) => {
-      const arr = Array.isArray(h[k]) ? h[k] : [];
-      const upd = (i,f,v)=>{const n=arr.map((r,j)=>j===i?{...r,[f]:v}:r);set(k,n);};
-      return (
-        <div style={{ marginBottom:16,padding:14,background:"#f7f8fc",borderRadius:12,border:"2px solid #dbe2f1" }}>
-          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:10 }}>{label}</div>
-          {arr.map((r,i)=>(
-            <div key={i} style={{ background:"#fff",borderRadius:10,padding:11,marginBottom:9,border:"1px solid #e6ebf5" }}>
-              <div style={{ display:"flex",justifyContent:"flex-end",marginBottom:6 }}>
-                <DelBtn onClick={()=>set(k, arr.filter((_,j)=>j!==i))} />
-              </div>
-              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:9 }}>
-                {cols.map(([f,lbl,kind])=>(
-                  kind==='img'
-                    ? <div key={f} style={{ gridColumn:"1 / -1" }}>
-                        <ImgUp current={r[f]||''} onUpload={v=>upd(i,f,v)} label={lbl}
-                               aspect="100%" folder="home" entityId={k+'-'+i+'-'+f} />
-                      </div>
-                    : <Field key={f} label={lbl} value={r[f]||''} onChange={v=>upd(i,f,v)}
-                             span={kind==='full'?'full':undefined} />
-                ))}
-              </div>
-            </div>
-          ))}
-          <AddBtn onClick={()=>set(k,[...arr,{...blank}])} label="mục" />
-          {hint && <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:8,lineHeight:1.6 }}>{hint}</div>}
-        </div>
-      );
-    };
 
-    const Box = ({ title, children }) => (
-      <div style={{ marginTop:16,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
-        <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:10 }}>{title}</div>
-        {children}
-      </div>
-    );
 
     const GROUPS = [
       ['hero','Hero'], ['sp','Sản phẩm'], ['tm','Đánh giá'],
@@ -1503,7 +1617,7 @@ export default function AdminPage() {
             <Field label="Tiêu đề dòng 2" value={h.heroTitle2||''} onChange={v=>set('heroTitle2',v)} />
           </div>
           <Field label="Câu đỡ dưới tiêu đề" value={h.heroSupport||''} onChange={v=>set('heroSupport',v)} span="full" />
-          <Lines k="heroBenefits" label="Các gạch đầu dòng" />
+          <HLines value={h.heroBenefits} onChange={v=>set('heroBenefits',v)} label="Các gạch đầu dòng" />
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
             <Field label="Chữ nút mua" value={h.heroBtn1||''} onChange={v=>set('heroBtn1',v)} />
             <Field label="Nút mua trỏ tới" value={h.heroBtn1Link||''} onChange={v=>set('heroBtn1Link',v)} />
@@ -1512,21 +1626,22 @@ export default function AdminPage() {
             Viết <code>{'{gia}'}</code> trong chữ nút sẽ tự thay bằng giá thật của sản phẩm.
           </div>
           <Field label="Dòng chữ nhỏ dưới nút" value={h.heroMicro||''} onChange={v=>set('heroMicro',v)} span="full" />
+          <Field label="Tên sản phẩm trong hero (mô tả ảnh)" value={h.heroSkuName||''} onChange={v=>set('heroSkuName',v)} span="full" />
 
-          <Box title="🧴 Ảnh hero (ảnh RIÊNG, không dùng ảnh sản phẩm)">
+          <HBox title="🧴 Ảnh hero (ảnh RIÊNG, không dùng ảnh sản phẩm)">
             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
               <ImgUp current={h.heroImage||''} onUpload={v=>set('heroImage',v)} label="Chai chính (trái)"
                      aspect="130%" folder="home" entityId="hero-main" hint="PNG nền trong suốt" />
               <ImgUp current={h.heroRefillImage||''} onUpload={v=>set('heroRefillImage',v)} label="Lõi refill (phải)"
                      aspect="130%" folder="home" entityId="hero-refill" hint="PNG nền trong suốt" />
-            </div>
-            <div style={{ marginTop:12 }}>
-              <ImgUp current={h.heroMascot||''} onUpload={v=>set('heroMascot',v)} label="Mascot góc dưới-phải"
-                     aspect="100%" folder="home" entityId="hero-mascot" hint="PNG nền trong suốt" />
-            </div>
-          </Box>
+            </div>          </HBox>
 
-          <Box title="🖼 Ảnh nền hero">
+          <HBox title="✋ Bố cục hero — kéo thả">
+            <HeroLayout value={h.heroLayout} onChange={v=>set('heroLayout',v)}
+                        imgMain={h.heroImage||''} imgRefill={h.heroRefillImage||''} />
+          </HBox>
+
+          <HBox title="🖼 Ảnh nền hero">
             <ImgUp current={h.heroBg||''} onUpload={v=>set('heroBg',v)} label="Ảnh nền"
                    aspect="56%" folder="home" entityId="hero-bg" hint="Để trống = nền navy trơn" />
             <div style={{ marginTop:10 }}>
@@ -1535,33 +1650,19 @@ export default function AdminPage() {
             <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:6 }}>
               Ảnh càng sáng thì để số càng cao (0.72 là vừa) cho chữ trắng đọc được.
             </div>
-          </Box>
+          </HBox>
 
-          <Box title="⭕ Tem tròn cạnh chai">
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
-              <Field label="Dòng trên" value={h.heroStamp?.l1||''} onChange={v=>set('heroStamp',{...(h.heroStamp||{}),l1:v})} />
-              <Field label="Dòng dưới" value={h.heroStamp?.l2||''} onChange={v=>set('heroStamp',{...(h.heroStamp||{}),l2:v})} />
-            </div>
-            <div style={{ marginTop:10 }}>
-              <ImgUp current={h.heroStamp?.img||''} onUpload={v=>set('heroStamp',{...(h.heroStamp||{}),img:v})}
-                     label="Hoặc dùng ảnh tem" aspect="100%" folder="home" entityId="hero-stamp" />
-            </div>
-            <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:6 }}>
-              Xoá trống cả 3 ô → ẩn tem.
-            </div>
-          </Box>
-
-          <Rows k="heroTrust" label="✅ Thanh tin cậy dưới hero (4 ô)"
+          <HRows idKey="heroTrust" value={h.heroTrust} onChange={v=>set('heroTrust',v)} label="✅ Thanh tin cậy dưới hero (4 ô)"
                 cols={[['icon','Icon'],['t','Chữ']]} blank={{icon:'check',t:''}}
                 hint="Icon chọn: truck · shield-check · refresh · star · check" />
 
-          <Box title="🎬 Video TVC">
+          <HBox title="🎬 Video TVC">
             <Field label="Link video" value={h.heroVideo||''} onChange={v=>set('heroVideo',v)} span="full" />
             <label style={{ display:"flex",gap:8,alignItems:"center",marginTop:10,fontFamily:FONT_B,fontSize:13,color:"#5f6c8f",cursor:"pointer" }}>
               <input type="checkbox" checked={!!h.heroShowVideo} onChange={e=>set('heroShowVideo',e.target.checked)} />
               Hiện TVC trong hero
             </label>
-          </Box>
+          </HBox>
         </>)}
 
         {grp==='sp' && (<>
@@ -1569,7 +1670,7 @@ export default function AdminPage() {
           <Field label="Tiêu đề mục" value={h.spTitle||''} onChange={v=>set('spTitle',v)} span="full" />
           <Field label="Mô tả mục" value={h.spSub||''} onChange={v=>set('spSub',v)} span="full" />
 
-          <Box title="🧴 Misty Fresh">
+          <HBox title="🧴 Misty Fresh">
             <Field label="Từ khoá khớp sản phẩm trong tab Sản phẩm" value={h.mfKey||''} onChange={v=>set('mfKey',v)} span="full" />
             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
               <Field label="Nhãn góc" value={h.mfBadge||''} onChange={v=>set('mfBadge',v)} />
@@ -1583,17 +1684,17 @@ export default function AdminPage() {
               <ImgUp current={h.mfImage||''} onUpload={v=>set('mfImage',v)} label="Ảnh dự phòng"
                      aspect="130%" folder="home" entityId="mf-img" hint="Trống = dùng ảnh trong tab Sản phẩm" />
             </div>
-          </Box>
+          </HBox>
 
-          <Box title="💬 Dòng mời gọi giữa 2 thẻ">
+          <HBox title="💬 Dòng mời gọi giữa 2 thẻ">
             <Field label="Câu chữ" value={h.inviteText||''} onChange={v=>set('inviteText',v)} span="full" />
             <div style={{ marginTop:10 }}>
               <ImgUp current={h.inviteMascot||''} onUpload={v=>set('inviteMascot',v)} label="Mascot nhỏ"
                      aspect="100%" folder="home" entityId="invite-mascot" />
             </div>
-          </Box>
+          </HBox>
 
-          <Box title="🫧 Waterless Bubble Shampoo">
+          <HBox title="🫧 Waterless Bubble Shampoo">
             <Field label="Từ khoá khớp sản phẩm" value={h.wbsKey||''} onChange={v=>set('wbsKey',v)} span="full" />
             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
               <Field label="Nhãn góc" value={h.wbsBadge||''} onChange={v=>set('wbsBadge',v)} />
@@ -1603,9 +1704,9 @@ export default function AdminPage() {
               <Field label="Tên hiện trên thẻ" value={h.wbsName||''} onChange={v=>set('wbsName',v)} span="full" />
               <Field label="Mô tả" value={h.wbsDesc||''} onChange={v=>set('wbsDesc',v)} rows={3} span="full" />
             </div>
-          </Box>
+          </HBox>
 
-          <Rows k="wbsScents" label="🎨 Các mùi (tên phải TRÙNG phân loại trong tab Sản phẩm)"
+          <HRows idKey="wbsScents" value={h.wbsScents} onChange={v=>set('wbsScents',v)} label="🎨 Các mùi (tên phải TRÙNG phân loại trong tab Sản phẩm)"
                 cols={[['name','Tên mùi'],['dot','Màu chấm (#hex)'],['c1','Màu nền 1 (#hex)'],['c2','Màu nền 2 (#hex)'],['image','Ảnh chai theo mùi','img']]}
                 blank={{name:'',dot:'#cccccc',c1:'#eeeeee',c2:'#dddddd',image:'',icon:''}}
                 hint="Màu nền là mảng màu sau chai, tự đổi khi khách bấm chọn mùi." />
@@ -1614,11 +1715,11 @@ export default function AdminPage() {
         {grp==='tm' && (<>
           <Field label="Kicker" value={h.tmKicker||''} onChange={v=>set('tmKicker',v)} span="full" />
           <Field label="Tiêu đề" value={h.tmTitle||''} onChange={v=>set('tmTitle',v)} span="full" />
-          <Rows k="testimonials" label="💬 Đánh giá khách"
+          <HRows idKey="testimonials" value={h.testimonials} onChange={v=>set('testimonials',v)} label="💬 Đánh giá khách"
                 cols={[['who','Tên tài khoản'],['pet','Bé nhà ai'],['quote','Câu nói','full'],['embed','Link TikTok / video','full'],['thumb','Ảnh bìa','img']]}
                 blank={{who:'',pet:'',quote:'',embed:'',thumb:''}}
                 hint="Chưa gắn link video thì thẻ hiện câu nói trên nền navy." />
-          <Rows k="tmStats" label="📊 Các con số"
+          <HRows idKey="tmStats" value={h.tmStats} onChange={v=>set('tmStats',v)} label="📊 Các con số"
                 cols={[['n','Con số'],['l','Chú thích']]} blank={{n:'',l:''}} />
         </>)}
 
@@ -1627,7 +1728,7 @@ export default function AdminPage() {
           <Field label="Tiêu đề" value={h.cbTitle||''} onChange={v=>set('cbTitle',v)} span="full" />
           <Field label="Mô tả" value={h.cbSub||''} onChange={v=>set('cbSub',v)} span="full" />
           <Field label="Chữ nút" value={h.cbBtn||''} onChange={v=>set('cbBtn',v)} span="full" />
-          <Rows k="comboTiers" label="📦 Các gói combo"
+          <HRows idKey="comboTiers" value={h.comboTiers} onChange={v=>set('comboTiers',v)} label="📦 Các gói combo"
                 cols={[['key','Từ khoá khớp sản phẩm'],['flag','Nhãn nổi bật'],['image','Ảnh gói','img']]}
                 blank={{key:'',flag:'',best:false,image:'',items:[]}}
                 hint="Mỗi gói phải là 1 sản phẩm trong tab Sản phẩm (có giá + tồn kho). Ở đây chỉ khai báo gói nào khớp sản phẩm nào." />
@@ -1643,12 +1744,12 @@ export default function AdminPage() {
             <ImgUp current={h.abImage||''} onUpload={v=>set('abImage',v)} label="Ảnh phần giới thiệu"
                    aspect="62%" folder="home" entityId="about-img" />
           </div>
-          <Rows k="facts" label="🔢 Các con số"
+          <HRows idKey="facts" value={h.facts} onChange={v=>set('facts',v)} label="🔢 Các con số"
                 cols={[['t','Con số'],['s','Chú thích','full']]} blank={{t:'',s:''}} />
         </>)}
 
         {grp==='txt' && (<>
-          <Box title="🏷 Thương hiệu & menu">
+          <HBox title="🏷 Thương hiệu & menu">
             <Field label="Tên thương hiệu" value={h.brandName||''} onChange={v=>set('brandName',v)} span="full" />
             <div style={{ marginTop:10 }}>
               <ImgUp current={h.logo||''} onUpload={v=>set('logo',v)} label="Logo"
@@ -1659,9 +1760,9 @@ export default function AdminPage() {
               <Field label="Menu 2" value={h.navAbout||''} onChange={v=>set('navAbout',v)} />
               <Field label="Menu giỏ" value={h.navCart||''} onChange={v=>set('navCart',v)} />
             </div>
-          </Box>
+          </HBox>
 
-          <Box title="🔘 Chữ trên nút">
+          <HBox title="🔘 Chữ trên nút">
             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:9 }}>
               {[['labelCart','Nút thêm giỏ'],['labelDetail','Nút chi tiết'],
                 ['buybarBtn','Nút thanh mua dưới'],['pmFullPage','Nút trong popup'],
@@ -1678,22 +1779,51 @@ export default function AdminPage() {
               <Field label="Ghi chú trả khi nhận" value={h.txtCODNote||''} onChange={v=>set('txtCODNote',v)} rows={2} span="full" />
               <Field label="Lời cảm ơn sau khi đặt" value={h.txtOrderOkBody||''} onChange={v=>set('txtOrderOkBody',v)} rows={2} span="full" />
             </div>
-          </Box>
+          </HBox>
 
-          <Box title="🖼 Ảnh thanh mua dưới cùng">
+          <HBox title="🖼 Ảnh thanh mua dưới cùng">
             <ImgUp current={h.buybarImage||''} onUpload={v=>set('buybarImage',v)} label="Ảnh nhỏ"
                    aspect="130%" folder="home" entityId="buybar-img" />
-          </Box>
+          </HBox>
 
-          <Lines k="trustPoints" label="✅ Điểm tin cậy (hiện trong popup sản phẩm)" />
-          <Field label="Chân trang" value={h.footerText||''} onChange={v=>set('footerText',v)} span="full" />
+          <HLines value={h.trustPoints} onChange={v=>set('trustPoints',v)} label="✅ Điểm tin cậy (hiện trong popup sản phẩm)" />
+
+          <HBox title="📄 Chân trang — cột 1: thương hiệu">
+            <ImgUp current={h.logoWhite||''} onUpload={v=>set('logoWhite',v)} label="Logo bản trắng"
+                   aspect="100%" folder="home" entityId="logo-white" hint="Nền chân trang là navy đậm" />
+            <div style={{ marginTop:10 }}>
+              <Field label="Câu giới thiệu ngắn" value={h.footerDesc||''} onChange={v=>set('footerDesc',v)} rows={2} span="full" />
+            </div>
+            <HLines value={h.footerLines} onChange={v=>set('footerLines',v)}
+                    label="Các dòng thông tin (địa chỉ, website…)" />
+          </HBox>
+
+          <HBox title="📄 Chân trang — cột 2: điều khoản">
+            <Field label="Tiêu đề cột" value={h.footerCol2Title||''} onChange={v=>set('footerCol2Title',v)} span="full" />
+            <HRows idKey="footerLinks" value={h.footerLinks} onChange={v=>set('footerLinks',v)}
+                   label="Các đường dẫn"
+                   cols={[['t','Chữ hiện ra'],['href','Đường dẫn']]} blank={{t:'',href:'#'}} />
+          </HBox>
+
+          <HBox title="📄 Chân trang — cột 3: Bộ Công Thương">
+            <Field label="Tiêu đề cột" value={h.footerCol3Title||''} onChange={v=>set('footerCol3Title',v)} span="full" />
+            <div style={{ marginTop:10 }}>
+              <ImgUp current={h.footerBctImg||''} onUpload={v=>set('footerBctImg',v)} label="Ảnh dấu đỏ"
+                     aspect="38%" folder="home" entityId="bct" hint="Tải từ trang online.gov.vn sau khi đăng ký" />
+            </div>
+            <div style={{ marginTop:10 }}>
+              <Field label="Bấm vào dấu thì mở trang nào" value={h.footerBctHref||''} onChange={v=>set('footerBctHref',v)} span="full" />
+            </div>
+          </HBox>
+
+          <Field label="Dòng bản quyền dưới cùng" value={h.footerText||''} onChange={v=>set('footerText',v)} span="full" />
         </>)}
 
         {grp==='pet' && (<>
-          <Rows k="cartPets" label="🐶 Mascot thò đầu khi bấm mua"
+          <HRows idKey="cartPets" value={h.cartPets} onChange={v=>set('cartPets',v)} label="🐶 Mascot thò đầu khi bấm mua"
                 cols={[['src','Đường dẫn ảnh','full']]} blank={{src:''}}
                 hint="Ảnh có sẵn: /mascots/pet-01.png tới /mascots/pet-10.png. Bấm mua sẽ chọn ngẫu nhiên 1 con." />
-          <Lines k="cartCheers" label="🎉 Câu cổ vũ hiện cùng mascot" />
+          <HLines value={h.cartCheers} onChange={v=>set('cartCheers',v)} label="🎉 Câu cổ vũ hiện cùng mascot" />
         </>)}
 
         <SaveBtn saved={saved} onSave={async ()=>{
@@ -1800,98 +1930,6 @@ export default function AdminPage() {
   };
 
   // ── Tab: Hero / Trang chủ ──
-  const TabHero = () => {
-    const [b,setB] = useState({...S.brand[0]});
-    const set = (k,v)=>setB(x=>({...x,[k]:v}));
-    return (
-      <div style={{ maxWidth:560 }}>
-        <SectionHeader title="🏠 Màn hình đầu trang (Hero)" />
-        <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:16 }}>Chỉnh chữ và nền của khu vực đầu tiên khách nhìn thấy. Để trống ô nào thì dùng mặc định.</div>
-
-        <Field label="Dòng nhỏ phía trên (eyebrow)" value={b.heroEyebrow||""} onChange={v=>set("heroEyebrow",v)} span="full" placeholder="🐾 Đồ dùng thú cưng cho chó & mèo" />
-        <Field label="Tiêu đề lớn" value={b.heroTitle||""} onChange={v=>set("heroTitle",v)} span="full" placeholder="Chăm sóc thú cưng cao cấp cùng Hanapet" />
-        <Field label="Mô tả ngắn dưới tiêu đề" value={b.heroSub||""} onChange={v=>set("heroSub",v)} span="full" placeholder="Khử mùi an toàn · Tắm gội thơm tho" />
-
-        <div style={{ marginTop:16,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
-          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:10 }}>🔠 Chữ trên các nút &amp; nhãn</div>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
-            <Field label="Nút hero 1" value={b.heroBtn1||""} onChange={v=>set("heroBtn1",v)} placeholder="Xịt khử mùi" />
-            <Field label="Nút hero 2" value={b.heroBtn2||""} onChange={v=>set("heroBtn2",v)} placeholder="Tắm gội thơm tho" />
-            <Field label="Nút thêm giỏ" value={b.labelAddCart||""} onChange={v=>set("labelAddCart",v)} placeholder="🛒 Thêm vào giỏ" />
-            <Field label="Nút chi tiết" value={b.labelDetail||""} onChange={v=>set("labelDetail",v)} placeholder="Chi tiết →" />
-            <Field label="Nhãn khối Misty" value={b.labelMisty||""} onChange={v=>set("labelMisty",v)} placeholder="Khử mùi an toàn" />
-            <Field label="Nhãn khối tắm gội" value={b.labelWbs||""} onChange={v=>set("labelWbs",v)} placeholder="Tắm gội thơm tho" />
-          </div>
-        </div>
-
-        <div style={{ marginTop:20,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
-          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:6 }}>🎬 Video nền (TVC)</div>
-          <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12,lineHeight:1.6 }}>Dán link video .mp4 để làm nền động cho hero (nền sẽ mờ nhẹ + phủ tối cho chữ dễ đọc). Để trống = nền xanh navy tĩnh với ảnh sản phẩm.</div>
-          <Field label="Link video .mp4" value={b.heroVideo||""} onChange={v=>set("heroVideo",v)} span="full" placeholder="https://.../tvc.mp4" />
-          <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:6 }}>Mẹo: upload video lên Supabase Storage (bucket public) hoặc dịch vụ như Cloudinary rồi dán link .mp4 vào đây. Nên nén dưới 10MB để tải nhanh.</div>
-        </div>
-
-        <div style={{ marginTop:20,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
-          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:6 }}>🧴 Ảnh 2 sản phẩm ở hero</div>
-          <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12,lineHeight:1.6 }}>2 ảnh nổi bên phải hero (chỉ hiện khi KHÔNG dùng video nền). Nên dùng ảnh PNG nền trong suốt. Để trống = dùng ảnh mặc định.</div>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
-            <ImgUp current={b.heroImg1} onUpload={v=>set("heroImg1",v)} label="Ảnh chai bên trái" aspect="120%" folder="brand" entityId="hero-img1" hint="PNG trong suốt, đứng" />
-            <ImgUp current={b.heroImg2} onUpload={v=>set("heroImg2",v)} label="Ảnh chai bên phải" aspect="120%" folder="brand" entityId="hero-img2" hint="PNG trong suốt, đứng" />
-          </div>
-        </div>
-
-        <div style={{ marginTop:16,padding:16,background:"#18284e",borderRadius:14 }}>
-          <div style={{ fontFamily:FONT_T,fontSize:11,color:"#8f9fe8",marginBottom:8 }}>XEM TRƯỚC</div>
-          <div style={{ fontFamily:FONT_B,fontSize:10,letterSpacing:2,color:"#8f9fe8",marginBottom:6 }}>{b.heroEyebrow||"🐾 Đồ dùng thú cưng cho chó & mèo"}</div>
-          <div style={{ fontFamily:FONT_T,fontWeight:900,fontSize:22,color:"#fff",lineHeight:1.1,marginBottom:6 }}>{b.heroTitle||"Chăm sóc thú cưng cao cấp cùng Hanapet"}</div>
-          <div style={{ fontFamily:FONT_B,fontSize:12,color:"rgba(255,255,255,0.8)" }}>{b.heroSub||"Khử mùi an toàn · Tắm gội thơm tho"}</div>
-        </div>
-
-        <div style={{ marginTop:16,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
-          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:10 }}>🔤 Phông chữ</div>
-          {[["fontTitle","Font tiêu đề (tên sản phẩm, heading)"],["fontBody","Font nội dung (mô tả, chữ thường)"]].map(([key,lbl])=>(
-            <div key={key} style={{ marginBottom:14 }}>
-              <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:6 }}>{lbl}</div>
-              <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
-                {FONT_CHOICES.map(([name,stack])=>{
-                  const cur=(b[key]||FONT_CHOICES[key==="fontTitle"?0:1][1])===stack;
-                  return <button key={name} onClick={()=>set(key,stack)} style={{ fontFamily:stack,background:cur?"#18284e":"#fff",color:cur?"#fff":"#18284e",border:"2px solid "+(cur?"#18284e":"#dbe2f1"),borderRadius:10,padding:"8px 14px",fontSize:15,fontWeight:700,cursor:"pointer" }}>{name}</button>;
-                })}
-                {b.customFontName&&(()=>{
-                  const stack=`'${b.customFontName}',sans-serif`; const cur=b[key]===stack;
-                  return <button onClick={()=>set(key,stack)} style={{ fontFamily:stack,background:cur?"#ff6a3d":"#fff",color:cur?"#fff":"#ff6a3d",border:"2px solid #ff6a3d",borderRadius:10,padding:"8px 14px",fontSize:15,fontWeight:700,cursor:"pointer" }}>★ {b.customFontName}</button>;
-                })()}
-              </div>
-            </div>
-          ))}
-          <div style={{ padding:14,background:"#18284e",borderRadius:10,marginTop:4 }}>
-            <div style={{ fontFamily:b.fontTitle||"'Nunito',sans-serif",fontWeight:800,fontSize:22,color:"#fff",marginBottom:4 }}>Misty Fresh</div>
-            <div style={{ fontFamily:b.fontBody||"'Nunito Sans',sans-serif",fontSize:13,color:"rgba(255,255,255,0.8)" }}>Xịt khử mùi khử khuẩn cho thú cưng — xem trước phông chữ.</div>
-          </div>
-          <div style={{ marginTop:12,padding:14,background:"#fff7f2",borderRadius:12,border:"2px dashed #ffcbb3" }}>
-            <div style={{ fontFamily:FONT_T,fontSize:12,color:"#c2410c",marginBottom:8 }}>★ Font riêng (ví dụ Avant Garde trên chai)</div>
-            <div className="hh-admin-grid2" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
-              <Field label="Tên font (tự đặt)" value={b.customFontName||""} onChange={v=>set("customFontName",v)} placeholder="VD: Avant Garde" />
-              <Field label="Link file font (.woff2 / .ttf / .otf)" value={b.customFontUrl||""} onChange={v=>set("customFontUrl",v)} placeholder="https://.../font.woff2" />
-            </div>
-            <div style={{ fontFamily:FONT_B,fontSize:11,color:"#a8927f",marginTop:8,lineHeight:1.6 }}>Upload file font lên Supabase Storage (bucket công khai) hoặc dịch vụ lưu file, rồi dán link vào đây. Điền cả 2 ô → nút "★ Tên font" sẽ hiện ở trên để chọn.</div>
-          </div>
-        </div>
-
-        <div style={{ marginTop:16,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
-          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:8 }}>✨ Độ chuyển động (hiệu ứng toàn trang)</div>
-          <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
-            {[["full","Nhẹ nhàng (đầy đủ)"],["soft","Vừa (bớt bay)"],["off","Tắt hiệu ứng"]].map(([k,lbl])=>(
-              <button key={k} onClick={()=>set("motion",k)} style={{ background:(b.motion||"full")===k?"#18284e":"#fff",color:(b.motion||"full")===k?"#fff":"#5f6c8f",border:"2px solid "+((b.motion||"full")===k?"#18284e":"#dbe2f1"),borderRadius:10,padding:"8px 14px",fontFamily:FONT_T,fontWeight:700,fontSize:12,cursor:"pointer" }}>{lbl}</button>
-            ))}
-          </div>
-          <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:8 }}>Điều chỉnh mức độ animation (chai lọ bay, khối nổi, chữ hiện dần). "Tắt" giúp web nhẹ và tĩnh hoàn toàn.</div>
-        </div>
-
-        <SaveBtn onSave={async ()=>{await setSupabaseConfig("brand", b); S.brand[1](b); flash();}} saved={saved} />
-      </div>
-    );
-  };
 
   // ── Tab: Banners ──
   const TabBanners = () => {
@@ -2683,7 +2721,6 @@ export default function AdminPage() {
         {tab==='products'   && <TabProducts />}
 
         {tab==='home' && (sub.home||'all')==='all'       && <TabHome />}
-        {tab==='home' && sub.home==='hero'               && <TabHero />}
         {tab==='home' && sub.home==='layout'             && <TabLayout />}
         {tab==='home' && sub.home==='banners'            && <TabBanners />}
         {tab==='home' && sub.home==='trust'              && <TabTrust />}
