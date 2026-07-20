@@ -11,6 +11,65 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
+
+/* ============================================================
+   NOI KEY CU  ->  KEY TRANG CHU
+   Admin dang ghi vao nhieu key rieng (brand, about, footer,
+   trustBar, socials...) tu thoi trang chu CU. Trang chu moi doc
+   key 'home'. Ham nay DICH cac key cu sang ten truong trang chu
+   dung, de moi tab admin cu VAN chay, khong phai viet lai admin.
+
+   Thu tu uu tien:  DEFAULTS  <  key cu  <  key 'home'
+   -> Sua o tab "Trang chu" luon thang the, khong bao gio bi key cu de len.
+   ============================================================ */
+function bridgeLegacy(cfg) {
+  const out = {};
+  const put = (k, v) => { if (v !== undefined && v !== null && v !== '') out[k] = v; };
+
+  const brand = cfg.brand || {};
+  put('brandName', brand.name);
+  put('logo',      brand.logoImg);
+
+  /* Tab Hero cu: heroTitle 1 dong -> trang chu tach 2 dong.
+     Co dau phay thi cat sau dau phay, khong thi de ca cum o dong 1. */
+  put('heroEyebrow', brand.heroEyebrow);
+  if (brand.heroTitle) {
+    const i = String(brand.heroTitle).indexOf(',');
+    if (i > 0) {
+      put('heroTitle1', brand.heroTitle.slice(0, i + 1).trim());
+      put('heroTitle2', brand.heroTitle.slice(i + 1).trim());
+    } else {
+      put('heroTitle1', brand.heroTitle);
+      put('heroTitle2', '');
+    }
+  }
+  put('heroSupport',     brand.heroSub);
+  put('heroBtn1',        brand.heroBtn1);
+  put('heroImage',       brand.heroImg1);
+  put('heroRefillImage', brand.heroImg2);
+  put('heroVideo',       brand.heroVideo);
+  put('labelCart',       brand.labelAddCart);
+  put('labelDetail',     brand.labelDetail);
+  put('mfBadge',         brand.labelMisty);
+  put('wbsBadge',        brand.labelWbs);
+
+  const about = cfg.about || {};
+  put('abTitle', about.heading);
+  put('abBody1', about.body);
+  put('abImage', about.img);
+
+  const footer = cfg.footer || {};
+  put('footerText', footer.tagline2);
+
+  /* Trust bar cu la [{title, sub, icon}] -> thanh tin cay [{icon, t}] */
+  const tb = cfg.trustBar ?? cfg.trustbar;
+  if (Array.isArray(tb) && tb.length) {
+    out.heroTrust = tb.map(x => ({ icon: x.icon || 'check', t: x.title || x.sub || '' }))
+                      .filter(x => x.t);
+  }
+  return out;
+}
+
 /* ============================================================
    DEFAULTS — chỉ dùng khi Supabase chưa có dữ liệu.
    Admin panel ghi vào site_config (key='home') sẽ ghi đè hết.
@@ -239,12 +298,16 @@ export default function Home() {
     let alive = true;
     (async () => {
       try {
+        /* Lay HET site_config, khong chi key 'home' — de con doc duoc
+           cac key cu ma admin dang ghi vao. */
         const [cfgRes, prods] = await Promise.all([
-          supabase.from('site_config').select('value').eq('key', 'home').maybeSingle(),
+          supabase.from('site_config').select('key,value'),
           fetchProducts(),
         ]);
         if (!alive) return;
-        if (cfgRes?.data?.value) setS({ ...DEFAULTS, ...cfgRes.data.value });
+        const rows = cfgRes?.data || [];
+        const cfg  = Object.fromEntries(rows.map(r => [r.key, r.value]));
+        setS({ ...DEFAULTS, ...bridgeLegacy(cfg), ...(cfg.home || {}) });
         setProducts(prods);
       } catch (e) {
         console.warn('load:', e?.message);
@@ -255,10 +318,9 @@ export default function Home() {
     return () => { alive = false; };
   }, []);
 
-  /* nav solid + thanh mua */
+  /* thanh mua (nav khong doi mau nua — luon navy) */
   useEffect(() => {
     const onScroll = () => {
-      document.getElementById('nav')?.classList.toggle('solid', window.scrollY > 60);
       const hh = heroRef.current?.offsetHeight || 600;
       const ft = footRef.current?.getBoundingClientRect().top ?? 9999;
       setBarOn(window.scrollY > hh * 0.72 && ft > window.innerHeight);
@@ -427,16 +489,16 @@ export default function Home() {
         <div className="shot">
           <div className="glow" />
 
+          {/* Anh hero RIENG, khong muon anh san pham nua. De trong thi hien
+              o net dut nhac upload trong admin. */}
           <div className="hero-main">
-            <Img src={S.heroImage || mfProd?.img} alt={S.heroSkuName}
-                 text="CHAI XỊT|MISTY FRESH" dark />
+            <Img src={S.heroImage} alt={S.heroSkuName}
+                 text="ẢNH HERO|tải lên trong admin" dark />
           </div>
 
-          {(S.heroRefillImage || mfProd?.img) && (
-            <div className="hero-refill">
-              <Img src={S.heroRefillImage} text="LÕI|REFILL" dark />
-            </div>
-          )}
+          <div className="hero-refill">
+            <Img src={S.heroRefillImage} text="ẢNH REFILL|tải lên trong admin" dark />
+          </div>
 
           {(S.heroStamp?.l1 || S.heroStamp?.l2 || S.heroStamp?.img) && (
             <div className="hero-stamp">
@@ -744,7 +806,7 @@ export default function Home() {
 function Styles() {
   return (
     <style jsx global>{`
-:root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440;--mint:#8fd4c8;--nav-h:68px}
+:root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440;--mint:#8fd4c8;--nav-h:78px}
 *{box-sizing:border-box;margin:0;padding:0}
 /* Nền mép: navy ở trên (dưới hero), kem ở dưới — không để lộ dải trắng
    khi màn hình rất rộng hoặc khi cuộn quá đà (overscroll). */
@@ -759,16 +821,18 @@ button{font:inherit}
 .ph-dark{color:rgba(255,255,255,.52)}
 .ph span{display:block}
 
-nav{position:fixed;top:0;left:0;right:0;z-index:50;padding:0 5vw;transition:.3s;height:var(--nav-h)}
+/* Nav DONG CUNG mau navy, KHONG doi mau khi cuon nua (Tung yeu cau).
+   Cao them cho logo + nut gio khong cham vien. */
+nav{position:fixed;top:0;left:0;right:0;z-index:50;padding:0 5vw;height:var(--nav-h);
+  background:var(--navy);border-bottom:1px solid rgba(255,255,255,.09)}
 .nav-in{max-width:1180px;height:100%;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
-nav.solid{background:rgba(16,28,56,.95);backdrop-filter:blur(10px)}
 .brand{display:flex;align-items:center;gap:10px;color:#fff;font-family:'Nunito';font-weight:900;font-size:20px}
-.brand .mark{width:36px;height:36px;border-radius:11px;background:#fff;overflow:hidden}
-.brand .mark-img{width:38px;height:38px;object-fit:contain;background:#fff;border-radius:11px;padding:4px}
+.brand .mark{width:34px;height:34px;border-radius:10px;background:#fff;overflow:hidden}
+.brand .mark-img{width:34px;height:34px;object-fit:contain;background:#fff;border-radius:10px;padding:5px}
 .navlinks{display:flex;gap:24px;font-size:14px;font-weight:700;align-items:center}
 .navlinks a{color:rgba(255,255,255,.82);text-decoration:none}
 .navlinks a:hover{color:#fff}
-.navcart{background:#fff;color:var(--navy)!important;padding:9px 20px;border-radius:999px;font-weight:800;
+.navcart{background:#fff;color:var(--navy)!important;padding:8px 19px;border-radius:999px;font-weight:800;
   border:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-size:14px}
 .navcart em{font-style:normal;background:var(--navy);color:#fff;border-radius:999px;min-width:20px;height:20px;
   display:grid;place-items:center;font-size:11.5px;font-weight:800;padding:0 5px}

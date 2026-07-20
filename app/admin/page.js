@@ -1314,6 +1314,7 @@ export default function AdminPage() {
   const flash = () => { setSaved(true); setTimeout(() => setSaved(false), 1800) }
 
   // ── Load all state (mirrors page.js S object) ──────────────────────────────
+  const [home,     setHome]     = useState({})
   const [brand,    setBrand]    = useState([{ primary:'#1b295b', secondary:'#ffffff', name:'Hanapet', tagline:'Làm bằng cả tấm lòng 🐾' }])
   const [banners,  setBanners]  = useState([])
   const [products, setProducts] = useState([])
@@ -1328,6 +1329,7 @@ export default function AdminPage() {
   const [orders,   setOrders]   = useState([])
 
   const S = {
+    home:[home,setHome],
     brand:[brand,setBrand], banners:[banners,setBanners], products:[products,setProducts],
     socials:[socials,setSocials], trustBar:[trustBar,setTrustBar], popup:[popup,setPopup],
     about:[about,setAbout], footer:[footer,setFooter], flashBar:[flashBar,setFlashBar],
@@ -1343,6 +1345,7 @@ export default function AdminPage() {
         const [cfg, prods, ords, categories] = await Promise.all([
           getAllConfigs(), getProducts(), getOrders(), getCategories()
         ])
+        if (cfg.home     !== undefined) setHome(cfg.home)
         if (cfg.brand    !== undefined) setBrand(cfg.brand)
         if (cfg.banners  !== undefined) setBanners(cfg.banners)
         if (cfg.socials  !== undefined) setSocials(cfg.socials)
@@ -1387,7 +1390,7 @@ export default function AdminPage() {
   ]
   // Sub-tabs inside grouped tabs
   const SUBTABS = {
-    home:  [['hero','Hero'],['layout','Bố cục'],['banners','Banner'],['trust','Trust Bar'],['flash','Flash Bar'],['popup','Popup']],
+    home:  [['all','📝 Nội dung trang chủ'],['hero','Hero (cũ)'],['layout','Bố cục'],['banners','Banner'],['trust','Trust Bar'],['flash','Flash Bar'],['popup','Popup']],
     brand: [['brandmain','Thương hiệu'],['about','Giới thiệu'],['footer','Footer'],['socials','Mạng xã hội'],['favicon','Favicon']],
     promo: [['vouchers','Mã giảm giá'],['categories','Danh mục']],
   }
@@ -1405,6 +1408,309 @@ export default function AdminPage() {
   const DelBtn = ({ onClick }) => (
     <button onClick={onClick} style={{ background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"5px 12px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>🗑</button>
   )
+
+  /* ── Tab: TRANG CHU (moi) ─────────────────────────────────────────────
+     Sua TOAN BO noi dung trang chu. Ghi thang vao site_config key='home'
+     — dung key ma app/page.js doc. Cac tab cu van giu nguyen, khong dung. */
+  const TabHome = () => {
+    const [h, setH] = useState({ ...(S.home[0] || {}) });
+    const [grp, setGrp] = useState('hero');
+    const set  = (k, v) => setH(x => ({ ...x, [k]: v }));
+
+    /* danh sach chuoi: heroBenefits, trustPoints, cartCheers */
+    const Lines = ({ k, label, hint }) => {
+      const arr = Array.isArray(h[k]) ? h[k] : [];
+      return (
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:6 }}>{label}</div>
+          {arr.map((v,i)=>(
+            <div key={i} style={{ display:"flex",gap:7,marginBottom:6 }}>
+              <input value={v} onChange={e=>{const n=[...arr];n[i]=e.target.value;set(k,n);}}
+                     style={{ flex:1,fontFamily:FONT_B,fontSize:13,padding:"8px 10px",border:"2px solid #dbe2f1",borderRadius:9 }} />
+              <DelBtn onClick={()=>set(k, arr.filter((_,j)=>j!==i))} />
+            </div>
+          ))}
+          <AddBtn onClick={()=>set(k,[...arr,''])} label="dòng" />
+          {hint && <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:6 }}>{hint}</div>}
+        </div>
+      );
+    };
+
+    /* danh sach object: heroTrust, tmStats, testimonials, comboTiers, facts, wbsScents, cartPets */
+    const Rows = ({ k, label, cols, blank, hint }) => {
+      const arr = Array.isArray(h[k]) ? h[k] : [];
+      const upd = (i,f,v)=>{const n=arr.map((r,j)=>j===i?{...r,[f]:v}:r);set(k,n);};
+      return (
+        <div style={{ marginBottom:16,padding:14,background:"#f7f8fc",borderRadius:12,border:"2px solid #dbe2f1" }}>
+          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:10 }}>{label}</div>
+          {arr.map((r,i)=>(
+            <div key={i} style={{ background:"#fff",borderRadius:10,padding:11,marginBottom:9,border:"1px solid #e6ebf5" }}>
+              <div style={{ display:"flex",justifyContent:"flex-end",marginBottom:6 }}>
+                <DelBtn onClick={()=>set(k, arr.filter((_,j)=>j!==i))} />
+              </div>
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:9 }}>
+                {cols.map(([f,lbl,kind])=>(
+                  kind==='img'
+                    ? <div key={f} style={{ gridColumn:"1 / -1" }}>
+                        <ImgUp current={r[f]||''} onUpload={v=>upd(i,f,v)} label={lbl}
+                               aspect="100%" folder="home" entityId={k+'-'+i+'-'+f} />
+                      </div>
+                    : <Field key={f} label={lbl} value={r[f]||''} onChange={v=>upd(i,f,v)}
+                             span={kind==='full'?'full':undefined} />
+                ))}
+              </div>
+            </div>
+          ))}
+          <AddBtn onClick={()=>set(k,[...arr,{...blank}])} label="mục" />
+          {hint && <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:8,lineHeight:1.6 }}>{hint}</div>}
+        </div>
+      );
+    };
+
+    const Box = ({ title, children }) => (
+      <div style={{ marginTop:16,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
+        <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:10 }}>{title}</div>
+        {children}
+      </div>
+    );
+
+    const GROUPS = [
+      ['hero','Hero'], ['sp','Sản phẩm'], ['tm','Đánh giá'],
+      ['cb','Combo'],  ['ab','Giới thiệu'], ['txt','Chữ & nút'], ['pet','Mascot'],
+    ];
+
+    return (
+      <div style={{ maxWidth:640 }}>
+        <SectionHeader title="🏠 Trang chủ — toàn bộ nội dung" />
+        <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:14,lineHeight:1.7 }}>
+          Mọi chữ, ảnh, giá hiển thị trên trang chủ đều sửa ở đây. Lưu vào <b>key &quot;home&quot;</b> —
+          đúng nơi trang chủ đọc. Để trống ô nào thì dùng mặc định.
+        </div>
+
+        <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:16 }}>
+          {GROUPS.map(([k,l])=>(
+            <button key={k} onClick={()=>setGrp(k)} style={{ padding:"7px 15px",borderRadius:999,
+              background:grp===k?"#18284e":"#fff",color:grp===k?"#fff":"#5f6c8f",
+              border:"2px solid "+(grp===k?"#18284e":"#dbe2f1"),fontFamily:FONT_T,fontWeight:700,
+              fontSize:12,cursor:"pointer" }}>{l}</button>
+          ))}
+        </div>
+
+        {grp==='hero' && (<>
+          <Field label="Dòng nhỏ trên cùng" value={h.heroEyebrow||''} onChange={v=>set('heroEyebrow',v)} span="full" />
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+            <Field label="Tiêu đề dòng 1" value={h.heroTitle1||''} onChange={v=>set('heroTitle1',v)} />
+            <Field label="Tiêu đề dòng 2" value={h.heroTitle2||''} onChange={v=>set('heroTitle2',v)} />
+          </div>
+          <Field label="Câu đỡ dưới tiêu đề" value={h.heroSupport||''} onChange={v=>set('heroSupport',v)} span="full" />
+          <Lines k="heroBenefits" label="Các gạch đầu dòng" />
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+            <Field label="Chữ nút mua" value={h.heroBtn1||''} onChange={v=>set('heroBtn1',v)} />
+            <Field label="Nút mua trỏ tới" value={h.heroBtn1Link||''} onChange={v=>set('heroBtn1Link',v)} />
+          </div>
+          <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginBottom:10 }}>
+            Viết <code>{'{gia}'}</code> trong chữ nút sẽ tự thay bằng giá thật của sản phẩm.
+          </div>
+          <Field label="Dòng chữ nhỏ dưới nút" value={h.heroMicro||''} onChange={v=>set('heroMicro',v)} span="full" />
+
+          <Box title="🧴 Ảnh hero (ảnh RIÊNG, không dùng ảnh sản phẩm)">
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
+              <ImgUp current={h.heroImage||''} onUpload={v=>set('heroImage',v)} label="Chai chính (trái)"
+                     aspect="130%" folder="home" entityId="hero-main" hint="PNG nền trong suốt" />
+              <ImgUp current={h.heroRefillImage||''} onUpload={v=>set('heroRefillImage',v)} label="Lõi refill (phải)"
+                     aspect="130%" folder="home" entityId="hero-refill" hint="PNG nền trong suốt" />
+            </div>
+            <div style={{ marginTop:12 }}>
+              <ImgUp current={h.heroMascot||''} onUpload={v=>set('heroMascot',v)} label="Mascot góc dưới-phải"
+                     aspect="100%" folder="home" entityId="hero-mascot" hint="PNG nền trong suốt" />
+            </div>
+          </Box>
+
+          <Box title="🖼 Ảnh nền hero">
+            <ImgUp current={h.heroBg||''} onUpload={v=>set('heroBg',v)} label="Ảnh nền"
+                   aspect="56%" folder="home" entityId="hero-bg" hint="Để trống = nền navy trơn" />
+            <div style={{ marginTop:10 }}>
+              <Field label="Độ đậm lớp phủ navy (0 → 1)" value={h.heroBgDim ?? ''} onChange={v=>set('heroBgDim', v===''?undefined:Number(v))} />
+            </div>
+            <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:6 }}>
+              Ảnh càng sáng thì để số càng cao (0.72 là vừa) cho chữ trắng đọc được.
+            </div>
+          </Box>
+
+          <Box title="⭕ Tem tròn cạnh chai">
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+              <Field label="Dòng trên" value={h.heroStamp?.l1||''} onChange={v=>set('heroStamp',{...(h.heroStamp||{}),l1:v})} />
+              <Field label="Dòng dưới" value={h.heroStamp?.l2||''} onChange={v=>set('heroStamp',{...(h.heroStamp||{}),l2:v})} />
+            </div>
+            <div style={{ marginTop:10 }}>
+              <ImgUp current={h.heroStamp?.img||''} onUpload={v=>set('heroStamp',{...(h.heroStamp||{}),img:v})}
+                     label="Hoặc dùng ảnh tem" aspect="100%" folder="home" entityId="hero-stamp" />
+            </div>
+            <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:6 }}>
+              Xoá trống cả 3 ô → ẩn tem.
+            </div>
+          </Box>
+
+          <Rows k="heroTrust" label="✅ Thanh tin cậy dưới hero (4 ô)"
+                cols={[['icon','Icon'],['t','Chữ']]} blank={{icon:'check',t:''}}
+                hint="Icon chọn: truck · shield-check · refresh · star · check" />
+
+          <Box title="🎬 Video TVC">
+            <Field label="Link video" value={h.heroVideo||''} onChange={v=>set('heroVideo',v)} span="full" />
+            <label style={{ display:"flex",gap:8,alignItems:"center",marginTop:10,fontFamily:FONT_B,fontSize:13,color:"#5f6c8f",cursor:"pointer" }}>
+              <input type="checkbox" checked={!!h.heroShowVideo} onChange={e=>set('heroShowVideo',e.target.checked)} />
+              Hiện TVC trong hero
+            </label>
+          </Box>
+        </>)}
+
+        {grp==='sp' && (<>
+          <Field label="Kicker" value={h.spKicker||''} onChange={v=>set('spKicker',v)} span="full" />
+          <Field label="Tiêu đề mục" value={h.spTitle||''} onChange={v=>set('spTitle',v)} span="full" />
+          <Field label="Mô tả mục" value={h.spSub||''} onChange={v=>set('spSub',v)} span="full" />
+
+          <Box title="🧴 Misty Fresh">
+            <Field label="Từ khoá khớp sản phẩm trong tab Sản phẩm" value={h.mfKey||''} onChange={v=>set('mfKey',v)} span="full" />
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
+              <Field label="Nhãn góc" value={h.mfBadge||''} onChange={v=>set('mfBadge',v)} />
+              <Field label="Nhãn ô chọn loại" value={h.mfOptLabel||''} onChange={v=>set('mfOptLabel',v)} />
+            </div>
+            <div style={{ marginTop:10 }}>
+              <Field label="Tên hiện trên thẻ" value={h.mfName||''} onChange={v=>set('mfName',v)} span="full" />
+              <Field label="Mô tả" value={h.mfDesc||''} onChange={v=>set('mfDesc',v)} rows={3} span="full" />
+            </div>
+            <div style={{ marginTop:10 }}>
+              <ImgUp current={h.mfImage||''} onUpload={v=>set('mfImage',v)} label="Ảnh dự phòng"
+                     aspect="130%" folder="home" entityId="mf-img" hint="Trống = dùng ảnh trong tab Sản phẩm" />
+            </div>
+          </Box>
+
+          <Box title="💬 Dòng mời gọi giữa 2 thẻ">
+            <Field label="Câu chữ" value={h.inviteText||''} onChange={v=>set('inviteText',v)} span="full" />
+            <div style={{ marginTop:10 }}>
+              <ImgUp current={h.inviteMascot||''} onUpload={v=>set('inviteMascot',v)} label="Mascot nhỏ"
+                     aspect="100%" folder="home" entityId="invite-mascot" />
+            </div>
+          </Box>
+
+          <Box title="🫧 Waterless Bubble Shampoo">
+            <Field label="Từ khoá khớp sản phẩm" value={h.wbsKey||''} onChange={v=>set('wbsKey',v)} span="full" />
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
+              <Field label="Nhãn góc" value={h.wbsBadge||''} onChange={v=>set('wbsBadge',v)} />
+              <Field label="Nhãn ô chọn mùi" value={h.wbsOptLabel||''} onChange={v=>set('wbsOptLabel',v)} />
+            </div>
+            <div style={{ marginTop:10 }}>
+              <Field label="Tên hiện trên thẻ" value={h.wbsName||''} onChange={v=>set('wbsName',v)} span="full" />
+              <Field label="Mô tả" value={h.wbsDesc||''} onChange={v=>set('wbsDesc',v)} rows={3} span="full" />
+            </div>
+          </Box>
+
+          <Rows k="wbsScents" label="🎨 Các mùi (tên phải TRÙNG phân loại trong tab Sản phẩm)"
+                cols={[['name','Tên mùi'],['dot','Màu chấm (#hex)'],['c1','Màu nền 1 (#hex)'],['c2','Màu nền 2 (#hex)'],['image','Ảnh chai theo mùi','img']]}
+                blank={{name:'',dot:'#cccccc',c1:'#eeeeee',c2:'#dddddd',image:'',icon:''}}
+                hint="Màu nền là mảng màu sau chai, tự đổi khi khách bấm chọn mùi." />
+        </>)}
+
+        {grp==='tm' && (<>
+          <Field label="Kicker" value={h.tmKicker||''} onChange={v=>set('tmKicker',v)} span="full" />
+          <Field label="Tiêu đề" value={h.tmTitle||''} onChange={v=>set('tmTitle',v)} span="full" />
+          <Rows k="testimonials" label="💬 Đánh giá khách"
+                cols={[['who','Tên tài khoản'],['pet','Bé nhà ai'],['quote','Câu nói','full'],['embed','Link TikTok / video','full'],['thumb','Ảnh bìa','img']]}
+                blank={{who:'',pet:'',quote:'',embed:'',thumb:''}}
+                hint="Chưa gắn link video thì thẻ hiện câu nói trên nền navy." />
+          <Rows k="tmStats" label="📊 Các con số"
+                cols={[['n','Con số'],['l','Chú thích']]} blank={{n:'',l:''}} />
+        </>)}
+
+        {grp==='cb' && (<>
+          <Field label="Kicker" value={h.cbKicker||''} onChange={v=>set('cbKicker',v)} span="full" />
+          <Field label="Tiêu đề" value={h.cbTitle||''} onChange={v=>set('cbTitle',v)} span="full" />
+          <Field label="Mô tả" value={h.cbSub||''} onChange={v=>set('cbSub',v)} span="full" />
+          <Field label="Chữ nút" value={h.cbBtn||''} onChange={v=>set('cbBtn',v)} span="full" />
+          <Rows k="comboTiers" label="📦 Các gói combo"
+                cols={[['key','Từ khoá khớp sản phẩm'],['flag','Nhãn nổi bật'],['image','Ảnh gói','img']]}
+                blank={{key:'',flag:'',best:false,image:'',items:[]}}
+                hint="Mỗi gói phải là 1 sản phẩm trong tab Sản phẩm (có giá + tồn kho). Ở đây chỉ khai báo gói nào khớp sản phẩm nào." />
+        </>)}
+
+        {grp==='ab' && (<>
+          <Field label="Kicker" value={h.abKicker||''} onChange={v=>set('abKicker',v)} span="full" />
+          <Field label="Tiêu đề" value={h.abTitle||''} onChange={v=>set('abTitle',v)} span="full" />
+          <Field label="Đoạn 1" value={h.abBody1||''} onChange={v=>set('abBody1',v)} rows={3} span="full" />
+          <Field label="Đoạn 2" value={h.abBody2||''} onChange={v=>set('abBody2',v)} rows={3} span="full" />
+          <Field label="Chữ nút" value={h.abBtn||''} onChange={v=>set('abBtn',v)} span="full" />
+          <div style={{ marginTop:12 }}>
+            <ImgUp current={h.abImage||''} onUpload={v=>set('abImage',v)} label="Ảnh phần giới thiệu"
+                   aspect="62%" folder="home" entityId="about-img" />
+          </div>
+          <Rows k="facts" label="🔢 Các con số"
+                cols={[['t','Con số'],['s','Chú thích','full']]} blank={{t:'',s:''}} />
+        </>)}
+
+        {grp==='txt' && (<>
+          <Box title="🏷 Thương hiệu & menu">
+            <Field label="Tên thương hiệu" value={h.brandName||''} onChange={v=>set('brandName',v)} span="full" />
+            <div style={{ marginTop:10 }}>
+              <ImgUp current={h.logo||''} onUpload={v=>set('logo',v)} label="Logo"
+                     aspect="100%" folder="home" entityId="logo" />
+            </div>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginTop:10 }}>
+              <Field label="Menu 1" value={h.navShop||''} onChange={v=>set('navShop',v)} />
+              <Field label="Menu 2" value={h.navAbout||''} onChange={v=>set('navAbout',v)} />
+              <Field label="Menu giỏ" value={h.navCart||''} onChange={v=>set('navCart',v)} />
+            </div>
+          </Box>
+
+          <Box title="🔘 Chữ trên nút">
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:9 }}>
+              {[['labelCart','Nút thêm giỏ'],['labelDetail','Nút chi tiết'],
+                ['buybarBtn','Nút thanh mua dưới'],['pmFullPage','Nút trong popup'],
+                ['txtCheckout','Thanh toán'],['txtViewCart','Xem giỏ hàng'],
+                ['txtPlaceOrder','Đặt hàng'],['txtInStock','Còn hàng'],
+                ['txtOutOfStock','Hết hàng'],['txtAddedToCart','Đã thêm vào giỏ'],
+                ['txtCartEmpty','Giỏ trống'],['txtSubtotal','Tạm tính'],
+                ['txtShipFee','Phí ship'],['txtTotal','Tổng cộng'],
+                ['txtCOD','Trả khi nhận'],['txtOrderOk','Đặt hàng xong']].map(([k,l])=>(
+                <Field key={k} label={l} value={h[k]||''} onChange={v=>set(k,v)} />
+              ))}
+            </div>
+            <div style={{ marginTop:10 }}>
+              <Field label="Ghi chú trả khi nhận" value={h.txtCODNote||''} onChange={v=>set('txtCODNote',v)} rows={2} span="full" />
+              <Field label="Lời cảm ơn sau khi đặt" value={h.txtOrderOkBody||''} onChange={v=>set('txtOrderOkBody',v)} rows={2} span="full" />
+            </div>
+          </Box>
+
+          <Box title="🖼 Ảnh thanh mua dưới cùng">
+            <ImgUp current={h.buybarImage||''} onUpload={v=>set('buybarImage',v)} label="Ảnh nhỏ"
+                   aspect="130%" folder="home" entityId="buybar-img" />
+          </Box>
+
+          <Lines k="trustPoints" label="✅ Điểm tin cậy (hiện trong popup sản phẩm)" />
+          <Field label="Chân trang" value={h.footerText||''} onChange={v=>set('footerText',v)} span="full" />
+        </>)}
+
+        {grp==='pet' && (<>
+          <Rows k="cartPets" label="🐶 Mascot thò đầu khi bấm mua"
+                cols={[['src','Đường dẫn ảnh','full']]} blank={{src:''}}
+                hint="Ảnh có sẵn: /mascots/pet-01.png tới /mascots/pet-10.png. Bấm mua sẽ chọn ngẫu nhiên 1 con." />
+          <Lines k="cartCheers" label="🎉 Câu cổ vũ hiện cùng mascot" />
+        </>)}
+
+        <SaveBtn saved={saved} onSave={async ()=>{
+          /* cartPets luu dang mang chuoi cho khop app/page.js */
+          const clean = { ...h };
+          if (Array.isArray(clean.cartPets)) {
+            clean.cartPets = clean.cartPets
+              .map(x => (typeof x === 'string' ? x : x?.src))
+              .filter(Boolean);
+          }
+          await setSupabaseConfig('home', clean);
+          S.home[1](clean);
+          flash();
+        }} />
+      </div>
+    );
+  };
 
   // ── Tab: Brand ──
   const TabBrand = () => {
@@ -2376,7 +2682,8 @@ export default function AdminPage() {
         {tab==='inventory'  && <TabInventory S={S} />}
         {tab==='products'   && <TabProducts />}
 
-        {tab==='home' && (sub.home||'hero')==='hero'     && <TabHero />}
+        {tab==='home' && (sub.home||'all')==='all'       && <TabHome />}
+        {tab==='home' && sub.home==='hero'               && <TabHero />}
         {tab==='home' && sub.home==='layout'             && <TabLayout />}
         {tab==='home' && sub.home==='banners'            && <TabBanners />}
         {tab==='home' && sub.home==='trust'              && <TabTrust />}
