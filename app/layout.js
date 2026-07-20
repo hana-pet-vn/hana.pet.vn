@@ -1,7 +1,26 @@
+import { CartProvider } from '../lib/cart';
+import CartDrawer from './_components/CartDrawer';
+
 export const metadata = {
-  title: 'Hanapet',
-  description: 'Hanapet — Đồ dùng và phụ kiện thú cưng tại Việt Nam 🐾',
-}
+  title: 'Hanapet — Xịt khử mùi & tắm khô cho thú cưng',
+  description: 'Hanapet — Misty Fresh xịt khử mùi HOCl và Waterless Bubble Shampoo. Giao Hà Nội trong 24h, đổi trả 7 ngày. 🐾',
+  metadataBase: new URL('https://hana.pet.vn'),
+  openGraph: {
+    title: 'Hanapet — Xịt khử mùi & tắm khô cho thú cưng',
+    description: 'Sạch mùi sau 30 giây. An toàn kể cả khi bé liếm phải.',
+    url: 'https://hana.pet.vn',
+    siteName: 'Hanapet',
+    locale: 'vi_VN',
+    type: 'website',
+  },
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: '#18284e',
+};
 
 export default function RootLayout({ children }) {
   return (
@@ -9,14 +28,22 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&family=Be+Vietnam+Pro:wght@400;600;700;800&family=Quicksand:wght@500;600;700&family=Baloo+2:wght@500;600;700;800&family=Montserrat:wght@500;600;700;800;900&family=Lexend:wght@400;600;700;800&family=Fredoka:wght@500;600;700&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap"
+          rel="stylesheet"
+        />
         <style>{`
-          * { -webkit-tap-highlight-color: transparent; }
-          html, body { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-          button, a, [role="button"] { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+          *{-webkit-tap-highlight-color:transparent}
+          html,body{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+          button,a,[role="button"]{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
         `}</style>
       </head>
-      <body style={{ margin: 0, padding: 0 }}>{children}</body>
+      <body style={{ margin: 0, padding: 0 }}>
+        <CartProvider>
+          {children}
+          <CartDrawer />
+        </CartProvider>
+      </body>
     </html>
-  )
+  );
 }

@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { useCart, vnd } from '../lib/cart';
+import { fetchProducts, matchProduct } from '../lib/catalog';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -28,13 +30,14 @@ const DEFAULTS = {
     'Xịt xong là xong — không cần lau, không cần tắm lại',
     'Diệt vi khuẩn gây mùi, không phủ mùi',
   ],
-  heroBtn1: 'Mua Misty Fresh — 245.000₫',
+  // Nút CTA hero: chữ ghép với giá thật lấy từ bảng products.
+  // {gia} sẽ được thay bằng giá rẻ nhất của sản phẩm chủ lực.
+  heroBtn1: 'Mua Misty Fresh — {gia}',
   heroBtn1Link: '#sp',
-  heroMicro: 'Giao Hà Nội trong 24h · Đổi trả 7 ngày · Có lõi refill 180.000₫',
+  heroMicro: 'Giao Hà Nội trong 24h · Đổi trả 7 ngày',
   heroImage: '',
   heroMascot: '',
   heroSkuName: 'Misty Fresh',
-  heroSkuPrice: '245.000₫',
   heroVideo: '',
   heroShowVideo: false,
 
@@ -42,28 +45,26 @@ const DEFAULTS = {
   spTitle: 'Chọn loại phù hợp với bé',
   spSub: 'Giá đổi theo lựa chọn — không cần mở thêm trang.',
 
+  // mfKey: khớp với sản phẩm trong bảng products (theo tên hoặc mã SP).
+  // Giá, giá gốc, tồn kho, danh sách phân loại → LẤY TỪ ADMIN, không ghi ở đây.
+  mfKey: 'misty',
   mfBadge: 'Bán chạy nhất',
   mfName: 'Misty Fresh — Xịt khử mùi HOCl',
   mfDesc: 'HOCl là chất cơ thể tự tạo ra để diệt khuẩn. Xịt lên lông, 30 giây sau hết mùi, bé liếm phải vẫn an toàn.',
   mfOptLabel: 'Chọn loại',
-  mfStock: 'Còn hàng · giao trong 24h',
   mfImage: '',
-  mfVariants: [
-    { name: 'Chai xịt 250ml', price: '245.000₫', was: '290.000₫', save: 'Rẻ hơn 15%' },
-    { name: 'Lõi refill', price: '180.000₫', was: '245.000₫', save: 'Rẻ hơn 27%' },
-  ],
 
   inviteText: 'Muốn cún thơm như vừa đi spa về?',
   inviteMascot: '',
 
+  // wbsKey: khớp với sản phẩm trong bảng products. Giá + tồn kho lấy từ admin.
+  // wbsScents chỉ giữ MÀU và ẢNH của từng mùi — tên mùi khớp với phân loại
+  // (variant) mà ngài tạo trong tab Sản phẩm.
+  wbsKey: 'bubble',
   wbsBadge: '5 mùi',
   wbsName: 'Waterless Bubble Shampoo',
   wbsDesc: 'Tắm khô dạng bọt, không cần nước — sạch thơm mà không stress. Đầu cọ massage silicone dịu da.',
   wbsOptLabel: 'Chọn mùi hương',
-  wbsStock: 'Còn hàng · giao trong 24h',
-  wbsPrice: '165.000₫',
-  wbsWas: '185.000₫',
-  wbsSave: 'Rẻ hơn 11%',
   wbsScents: [
     { name: 'Baby Powder',  c1: '#dbe4f4', c2: '#b3c4e2', dot: '#a9bfe0', icon: '', image: '' },
     { name: 'Lavender',     c1: '#ded4f2', c2: '#b9a8e2', dot: '#b49fe0', icon: '', image: '' },
@@ -91,12 +92,15 @@ const DEFAULTS = {
   cbTitle: 'Mua theo gói, rẻ hơn mua lẻ',
   cbSub: 'Ba gói cho ba kiểu dùng. Gói giữa được chọn nhiều nhất.',
   cbBtn: 'Chọn gói này',
+  // Mỗi gói combo là 1 SẢN PHẨM trong bảng products (ngài tạo trong tab
+  // Sản phẩm, đặt tên "Gói Thử"... rồi điền giá + kho). Ở đây chỉ khai báo
+  // gói nào khớp sản phẩm nào, gói nào nổi bật, và dòng mô tả gạch đầu dòng.
   comboTiers: [
-    { flag: '', best: false, name: 'Gói Thử', price: '245.000₫', was: '290.000₫', save: 'Rẻ hơn 15%', image: '',
+    { key: 'gói thử', flag: '', best: false, image: '',
       items: ['1 chai Misty Fresh 250ml', 'Dùng khoảng 1 tháng', 'Hợp bé mới thử lần đầu'] },
-    { flag: 'Được chọn nhiều nhất', best: true, name: 'Gói Quen Thuộc', price: '395.000₫', was: '535.000₫', save: 'Rẻ hơn 26%', image: '',
+    { key: 'quen thuộc', flag: 'Được chọn nhiều nhất', best: true, image: '',
       items: ['1 chai Misty Fresh 250ml', '1 lõi refill 250ml', 'Dùng khoảng 3 tháng', 'Tặng khăn lau Hanapet'] },
-    { flag: '', best: false, name: 'Gói Cả Nhà', price: '690.000₫', was: '1.025.000₫', save: 'Rẻ hơn 33%', image: '',
+    { key: 'cả nhà', flag: '', best: false, image: '',
       items: ['1 chai Misty Fresh 250ml', '3 lõi refill 250ml', 'Dùng khoảng 8 tháng', 'Hợp nhà nuôi 2 bé trở lên'] },
   ],
 
@@ -118,9 +122,30 @@ const DEFAULTS = {
   cartPets: [],
   cartCheers: ['Thơm rồi nè!', 'Hoan hô!', 'Yêu quá đi!', 'Ngoan lắm!'],
 
-  buybarName: 'Misty Fresh — Chai xịt 250ml',
   buybarBtn: 'Thêm giỏ',
   buybarImage: '',
+
+  // ---- Chữ dùng chung cho giỏ hàng / chi tiết / thanh toán ----
+  // (để đúng luật: không hard-code chữ trong JSX)
+  txtOutOfStock: 'Tạm hết hàng',
+  txtInStock: 'Còn hàng · giao trong 24h',
+  txtAddedToCart: 'Đã thêm vào giỏ',
+  txtCartEmpty: 'Giỏ hàng đang trống',
+  txtCheckout: 'Thanh toán',
+  txtViewCart: 'Xem giỏ hàng',
+  txtSubtotal: 'Tạm tính',
+  txtShipFee: 'Phí vận chuyển',
+  txtTotal: 'Tổng cộng',
+  txtPlaceOrder: 'Đặt hàng',
+  txtCOD: 'Thanh toán khi nhận hàng (COD)',
+  txtCODNote: 'Trả tiền mặt cho shipper khi nhận. Kiểm tra hàng trước khi thanh toán.',
+  txtOrderOk: 'Đặt hàng thành công!',
+  txtOrderOkBody: 'Cảm ơn ngài đã tin tưởng Hanapet. Tớ sẽ gọi xác nhận trong ít phút nữa.',
+  trustPoints: [
+    'Đổi trả trong 7 ngày',
+    'Giao Hà Nội trong 24h',
+    'An toàn cho bé, không cồn không paraben',
+  ],
 
   footerText: '© 2026 Hanapet · hana.pet.vn · Hà Nội',
 };
@@ -180,6 +205,7 @@ function VideoEmbed({ url, poster, label }) {
    ============================================================ */
 export default function Home() {
   const [S, setS] = useState(DEFAULTS);
+  const [products, setProducts] = useState([]);
   const [ready, setReady] = useState(false);
   const [mfSel, setMfSel] = useState(0);
   const [scent, setScent] = useState(0);
@@ -187,17 +213,22 @@ export default function Home() {
   const railRef = useRef(null);
   const heroRef = useRef(null);
   const footRef = useRef(null);
+  const { add, openDrawer, count } = useCart();
 
   /* nạp config từ Supabase */
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const { data } = await supabase
-          .from('site_config').select('value').eq('key', 'home').maybeSingle();
-        if (alive && data?.value) setS({ ...DEFAULTS, ...data.value });
+        const [cfgRes, prods] = await Promise.all([
+          supabase.from('site_config').select('value').eq('key', 'home').maybeSingle(),
+          fetchProducts(),
+        ]);
+        if (!alive) return;
+        if (cfgRes?.data?.value) setS({ ...DEFAULTS, ...cfgRes.data.value });
+        setProducts(prods);
       } catch (e) {
-        console.warn('site_config:', e?.message);
+        console.warn('load:', e?.message);
       } finally {
         if (alive) setReady(true);
       }
@@ -267,8 +298,60 @@ export default function Home() {
     return () => document.removeEventListener('click', onClick);
   }, [peek]);
 
-  const mf = S.mfVariants?.[mfSel] || {};
-  const sc = S.wbsScents?.[scent] || {};
+  /* ── Nối config với sản phẩm thật trong bảng products ────────────────────
+     Giá, giá gốc, tồn kho, danh sách phân loại đều lấy từ admin.
+     Nếu chưa nhập sản phẩm thì khối đó tự ẩn (không hiện giá ma). */
+  const mfProd = useMemo(() => matchProduct(products, S.mfKey, S.mfName), [products, S.mfKey, S.mfName]);
+  const wbsProd = useMemo(() => matchProduct(products, S.wbsKey, S.wbsName), [products, S.wbsKey, S.wbsName]);
+
+  // Misty: phân loại lấy thẳng từ sản phẩm
+  const mfVars = mfProd?.variants?.length ? mfProd.variants : (mfProd ? [null] : []);
+  const mfV = mfVars[Math.min(mfSel, mfVars.length - 1)] ?? null;
+  const mfPrice = mfV ? mfV.price : (mfProd?.price ?? 0);
+  const mfWas   = mfV ? mfV.original : (mfProd?.original ?? 0);
+  const mfStockN = mfV ? mfV.stock : (mfProd?.stock ?? 0);
+  const mfSave  = mfWas > mfPrice ? Math.round((1 - mfPrice / mfWas) * 100) : 0;
+
+  // WBS: mỗi mùi trong config ghép với phân loại cùng tên trong sản phẩm
+  const scents = useMemo(() => {
+    const list = S.wbsScents || [];
+    if (!wbsProd) return [];
+    return list.map(s => {
+      const v = (wbsProd.variants || []).find(
+        x => x.name.toLowerCase().trim() === String(s.name).toLowerCase().trim()
+      );
+      return { ...s, variant: v || null };
+    });
+  }, [S.wbsScents, wbsProd]);
+
+  const sc = scents[Math.min(scent, Math.max(0, scents.length - 1))] || {};
+  const scV = sc.variant;
+  const wbsPrice = scV ? scV.price : (wbsProd?.price ?? 0);
+  const wbsWas   = scV ? scV.original : (wbsProd?.original ?? 0);
+  const wbsStockN = scV ? scV.stock : (wbsProd?.stock ?? 0);
+  const wbsSave  = wbsWas > wbsPrice ? Math.round((1 - wbsPrice / wbsWas) * 100) : 0;
+
+  // Gói combo: mỗi gói là 1 sản phẩm riêng trong bảng products
+  const combos = useMemo(() => (S.comboTiers || [])
+    .map(t => ({ ...t, prod: matchProduct(products, t.key, t.name) }))
+    .filter(t => t.prod), [S.comboTiers, products]);
+
+  /* Thêm vào giỏ — hiệu ứng mascot vẫn chạy nhờ class .cta-buy */
+  const addToCart = (prod, variant, img) => {
+    if (!prod) return;
+    const stock = variant ? variant.stock : prod.stock;
+    if (stock <= 0) return;
+    add({
+      productId: prod.id,
+      variantId: variant ? variant.id : '',
+      name: prod.name,
+      variantName: variant ? variant.name : '',
+      price: variant ? variant.price : prod.price,
+      img: img || prod.img || '',
+    }, 1);
+    openDrawer();
+  };
+
   const railStep = () => (railRef.current?.querySelector('.tcard')?.offsetWidth || 220) + 16;
 
   return (
@@ -284,7 +367,9 @@ export default function Home() {
         <div className="navlinks">
           <a href="#sp">{S.navShop}</a>
           <a href="#about">{S.navAbout}</a>
-          <a href="/gio-hang" className="navcart">{S.navCart}</a>
+          <button type="button" className="navcart" onClick={openDrawer}>
+            {S.navCart}{count > 0 && <em>{count}</em>}
+          </button>
         </div>
       </nav>
 
@@ -303,7 +388,9 @@ export default function Home() {
           </ul>
 
           <div className="cta-row rv d4">
-            <a className="btn btn-primary cta-buy" href={S.heroBtn1Link || '#sp'}>{S.heroBtn1}</a>
+            <a className="btn btn-primary cta-buy" href={S.heroBtn1Link || '#sp'}>
+              {String(S.heroBtn1 || '').replace('{gia}', mfPrice ? vnd(mfPrice) : '')}
+            </a>
           </div>
           <p className="microcopy rv d5">{S.heroMicro}</p>
         </div>
@@ -316,11 +403,11 @@ export default function Home() {
 
           <div className="hero-main">
             <div className="mainimg">
-              <Img src={S.heroImage} alt={S.heroSkuName}
+              <Img src={S.heroImage || mfProd?.img} alt={S.heroSkuName}
                    text="ẢNH THẬT|chai Misty Fresh|+ pet AI-gen phía sau|PNG trong suốt" dark />
             </div>
-            <div className="nm">{S.heroSkuName}</div>
-            <div className="pr">{S.heroSkuPrice}</div>
+            <div className="nm">{mfProd?.name || S.heroSkuName}</div>
+            <div className="pr">{mfPrice ? vnd(mfPrice) : ''}</div>
           </div>
 
           {S.heroShowVideo && (
@@ -347,33 +434,46 @@ export default function Home() {
 
         <div className="grid">
           {/* MISTY */}
+          {mfProd && (
           <article className="card star">
             <div className="cimg" style={{ background: 'linear-gradient(160deg,#26396a,#18284e)' }}>
               {S.mfBadge && <span className="badge">{S.mfBadge}</span>}
-              <Img src={S.mfImage} alt={S.mfName} text="ẢNH THẬT|chai Misty Fresh" dark />
+              <Img src={(mfV && mfV.img) || mfProd.img || S.mfImage} alt={mfProd.name}
+                   text="ẢNH THẬT|chai Misty Fresh" dark />
             </div>
             <div className="cbody">
-              <h3>{S.mfName}</h3>
+              <h3>{S.mfName || mfProd.name}</h3>
               <p className="cdesc">{S.mfDesc}</p>
-              <div className="optlabel">{S.mfOptLabel}</div>
-              <div className="variants">
-                {(S.mfVariants || []).map((v, i) => (
-                  <button key={i} className={'chip' + (i === mfSel ? ' on' : '')}
-                          onClick={() => setMfSel(i)}>{v.name}</button>
-                ))}
-              </div>
+              {mfProd.variants.length > 0 && (
+                <>
+                  <div className="optlabel">{S.mfOptLabel}</div>
+                  <div className="variants">
+                    {mfProd.variants.map((v, i) => (
+                      <button key={v.id || i}
+                              className={'chip' + (i === mfSel ? ' on' : '') + (v.stock <= 0 ? ' out' : '')}
+                              onClick={() => setMfSel(i)}>{v.name}</button>
+                    ))}
+                  </div>
+                </>
+              )}
               <div className="pricerow">
-                <span className="price">{mf.price}</span>
-                {mf.was && <span className="was">{mf.was}</span>}
-                {mf.save && <span className="save">{mf.save}</span>}
+                <span className="price">{vnd(mfPrice)}</span>
+                {mfWas > mfPrice && <span className="was">{vnd(mfWas)}</span>}
+                {mfSave > 0 && <span className="save">Rẻ hơn {mfSave}%</span>}
               </div>
-              {S.mfStock && <div className="stock">{S.mfStock}</div>}
+              <div className={'stock' + (mfStockN <= 0 ? ' out' : '')}>
+                {mfStockN <= 0 ? S.txtOutOfStock : S.txtInStock}
+              </div>
               <div className="cbtns">
-                <a className="btn b-buy cta-buy" href="#">{S.labelCart}</a>
-                <a className="btn b-more" href="/san-pham/misty-fresh">{S.labelDetail}</a>
+                <button type="button" className="btn b-buy cta-buy" disabled={mfStockN <= 0}
+                        onClick={() => addToCart(mfProd, mfV, (mfV && mfV.img) || mfProd.img || S.mfImage)}>
+                  {mfStockN <= 0 ? S.txtOutOfStock : S.labelCart}
+                </button>
+                <a className="btn b-more" href={`/san-pham/${mfProd.slug}`}>{S.labelDetail}</a>
               </div>
             </div>
           </article>
+          )}
 
           {/* DÒNG MỜI GỌI */}
           <div className="invite">
@@ -385,39 +485,52 @@ export default function Home() {
           </div>
 
           {/* WBS */}
+          {wbsProd && (
           <article className="card">
             <div className="cimg light"
                  style={{ background: `linear-gradient(160deg,${sc.c1 || '#dbe4f4'},${sc.c2 || '#b3c4e2'})` }}>
               {S.wbsBadge && <span className="badge">{S.wbsBadge}</span>}
-              <Img src={sc.image} alt={S.wbsName}
+              <Img src={(scV && scV.img) || sc.image || wbsProd.img} alt={wbsProd.name}
                    text={`ẢNH THẬT|chai Waterless Bubble|(${sc.name || 'mùi'})`} />
             </div>
             <div className="cbody">
-              <h3>{S.wbsName}</h3>
+              <h3>{S.wbsName || wbsProd.name}</h3>
               <p className="cdesc">{S.wbsDesc}</p>
-              <div className="optlabel">{S.wbsOptLabel}</div>
-              <div className="scents">
-                {(S.wbsScents || []).map((s, i) => (
-                  <button key={i} className={'scent' + (i === scent ? ' on' : '')}
-                          onClick={() => setScent(i)}>
-                    {s.icon ? <img className="sic" src={s.icon} alt="" />
-                            : <i style={{ background: s.dot }} />}
-                    {s.name}
-                  </button>
-                ))}
-              </div>
+              {scents.length > 0 && (
+                <>
+                  <div className="optlabel">{S.wbsOptLabel}</div>
+                  <div className="scents">
+                    {scents.map((s, i) => (
+                      <button key={i}
+                              className={'scent' + (i === scent ? ' on' : '') +
+                                         (s.variant && s.variant.stock <= 0 ? ' out' : '')}
+                              onClick={() => setScent(i)}>
+                        {s.icon ? <img className="sic" src={s.icon} alt="" />
+                                : <i style={{ background: s.dot }} />}
+                        {s.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
               <div className="pricerow">
-                <span className="price">{S.wbsPrice}</span>
-                {S.wbsWas && <span className="was">{S.wbsWas}</span>}
-                {S.wbsSave && <span className="save">{S.wbsSave}</span>}
+                <span className="price">{vnd(wbsPrice)}</span>
+                {wbsWas > wbsPrice && <span className="was">{vnd(wbsWas)}</span>}
+                {wbsSave > 0 && <span className="save">Rẻ hơn {wbsSave}%</span>}
               </div>
-              {S.wbsStock && <div className="stock">{S.wbsStock}</div>}
+              <div className={'stock' + (wbsStockN <= 0 ? ' out' : '')}>
+                {wbsStockN <= 0 ? S.txtOutOfStock : S.txtInStock}
+              </div>
               <div className="cbtns">
-                <a className="btn b-buy cta-buy" href="#">{S.labelCart}</a>
-                <a className="btn b-more" href="/san-pham/waterless-bubble-shampoo">{S.labelDetail}</a>
+                <button type="button" className="btn b-buy cta-buy" disabled={wbsStockN <= 0}
+                        onClick={() => addToCart(wbsProd, scV, (scV && scV.img) || sc.image || wbsProd.img)}>
+                  {wbsStockN <= 0 ? S.txtOutOfStock : S.labelCart}
+                </button>
+                <a className="btn b-more" href={`/san-pham/${wbsProd.slug}`}>{S.labelDetail}</a>
               </div>
             </div>
           </article>
+          )}
         </div>
       </section>
 
@@ -461,7 +574,7 @@ export default function Home() {
       )}
 
       {/* ---------------- COMBO ---------------- */}
-      {(S.comboTiers || []).length > 0 && (
+      {combos.length > 0 && (
         <section className="combo" id="combo">
           <div className="combo-in">
             <div className="shead">
@@ -470,21 +583,30 @@ export default function Home() {
               <p>{S.cbSub}</p>
             </div>
             <div className="tiers">
-              {S.comboTiers.map((t, i) => (
-                <div className={'tier' + (t.best ? ' best' : '')} key={i}>
-                  {t.flag && <span className="tflag">{t.flag}</span>}
-                  <div className="timg">
-                    <Img src={t.image} alt={t.name} text={`ẢNH|${t.name}`} dark={!t.best} />
+              {combos.map((t, i) => {
+                const p = t.prod;
+                const save = p.original > p.price ? Math.round((1 - p.price / p.original) * 100) : 0;
+                return (
+                  <div className={'tier' + (t.best ? ' best' : '')} key={p.id || i}>
+                    {t.flag && <span className="tflag">{t.flag}</span>}
+                    <div className="timg">
+                      <Img src={t.image || p.img} alt={p.name} text={`ẢNH|${p.name}`} dark={!t.best} />
+                    </div>
+                    <h3>{p.name}</h3>
+                    <div className="tprice">
+                      {vnd(p.price)}{p.original > p.price && <s>{vnd(p.original)}</s>}
+                    </div>
+                    {save > 0 && <span className="tsave">Rẻ hơn {save}%</span>}
+                    <ul className="tlist">
+                      {(t.items || []).map((x, k) => <li key={k}>{x}</li>)}
+                    </ul>
+                    <button type="button" className="btn t-btn cta-buy" disabled={p.stock <= 0}
+                            onClick={() => addToCart(p, null, t.image || p.img)}>
+                      {p.stock <= 0 ? S.txtOutOfStock : S.cbBtn}
+                    </button>
                   </div>
-                  <h3>{t.name}</h3>
-                  <div className="tprice">{t.price}{t.was && <s>{t.was}</s>}</div>
-                  {t.save && <span className="tsave">{t.save}</span>}
-                  <ul className="tlist">
-                    {(t.items || []).map((x, k) => <li key={k}>{x}</li>)}
-                  </ul>
-                  <a className="btn t-btn cta-buy" href="#">{S.cbBtn}</a>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
@@ -514,18 +636,25 @@ export default function Home() {
       <footer ref={footRef}>{S.footerText}</footer>
 
       {/* ---------------- THANH MUA ---------------- */}
+      {mfProd && (
       <div className={'buybar' + (barOn ? ' show' : '')}>
         <div className="bb-img">
-          <Img src={S.buybarImage || S.mfImage} text="ẢNH|chai" dark />
+          <Img src={S.buybarImage || (mfV && mfV.img) || mfProd.img} text="ẢNH|chai" dark />
         </div>
         <div className="bb-txt">
-          <span className="bb-name">{S.buybarName}</span>
+          <span className="bb-name">
+            {mfProd.name}{mfV ? ` — ${mfV.name}` : ''}
+          </span>
           <span className="bb-price">
-            <b>{mf.price}</b>{mf.was && <s>{mf.was}</s>}
+            <b>{vnd(mfPrice)}</b>{mfWas > mfPrice && <s>{vnd(mfWas)}</s>}
           </span>
         </div>
-        <a className="btn b-buy cta-buy" href="#sp">{S.buybarBtn}</a>
+        <button type="button" className="btn b-buy cta-buy" disabled={mfStockN <= 0}
+                onClick={() => addToCart(mfProd, mfV, (mfV && mfV.img) || mfProd.img || S.mfImage)}>
+          {mfStockN <= 0 ? S.txtOutOfStock : S.buybarBtn}
+        </button>
       </div>
+      )}
     </>
   );
 }
@@ -536,9 +665,9 @@ export default function Home() {
 function Styles() {
   return (
     <style jsx global>{`
-:root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440}
+:root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440;--nav-h:68px}
 *{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
+html{scroll-behavior:smooth;scroll-padding-top:var(--nav-h)}
 body{font-family:'Nunito Sans',system-ui,sans-serif;color:var(--ink);background:var(--cream);-webkit-font-smoothing:antialiased}
 h1,h2,h3{font-family:'Nunito',system-ui,sans-serif;font-weight:900;letter-spacing:-.02em}
 img{display:block;max-width:100%}
@@ -549,7 +678,7 @@ button{font:inherit}
 .ph-dark{color:rgba(255,255,255,.52)}
 .ph span{display:block}
 
-nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:14px 5vw;transition:.3s}
+nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:14px 5vw;transition:.3s;height:var(--nav-h)}
 nav.solid{background:rgba(16,28,56,.95);backdrop-filter:blur(10px)}
 .brand{display:flex;align-items:center;gap:10px;color:#fff;font-family:'Nunito';font-weight:900;font-size:20px}
 .brand .mark{width:36px;height:36px;border-radius:11px;background:#fff;overflow:hidden}
@@ -557,28 +686,35 @@ nav.solid{background:rgba(16,28,56,.95);backdrop-filter:blur(10px)}
 .navlinks{display:flex;gap:24px;font-size:14px;font-weight:700;align-items:center}
 .navlinks a{color:rgba(255,255,255,.82);text-decoration:none}
 .navlinks a:hover{color:#fff}
-.navcart{background:#fff;color:var(--navy)!important;padding:9px 20px;border-radius:999px;font-weight:800}
+.navcart{background:#fff;color:var(--navy)!important;padding:9px 20px;border-radius:999px;font-weight:800;
+  border:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-size:14px}
+.navcart em{font-style:normal;background:var(--navy);color:#fff;border-radius:999px;min-width:20px;height:20px;
+  display:grid;place-items:center;font-size:11.5px;font-weight:800;padding:0 5px}
 @media(max-width:760px){.navlinks a:not(.navcart){display:none}}
 
-.hero{position:relative;min-height:100svh;background:var(--navy);color:#fff;overflow:hidden;
-  display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:clamp(20px,3vw,50px);padding:116px 5vw 140px}
+/* Bỏ min-height:100svh cứng. Trước đây 100svh + padding 116/140 làm hero cao
+   hơn màn hình trên máy rộng-thấp → nav che mất dòng eyebrow. */
+.hero{position:relative;background:var(--navy);color:#fff;overflow:hidden;
+  display:grid;grid-template-columns:1.05fr .95fr;align-items:center;gap:clamp(20px,3vw,50px);
+  padding:calc(var(--nav-h) + clamp(24px,4vh,52px)) 5vw clamp(70px,9vh,110px)}
 .hero::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 90% at 74% 46%,rgba(255,255,255,.18),transparent 62%)}
 .hero>*{position:relative;z-index:2}
 .rv{opacity:0;transform:translateY(22px);animation:rise .85s cubic-bezier(.22,.68,.24,1) forwards}
 @keyframes rise{to{opacity:1;transform:translateY(0)}}
 .d1{animation-delay:.05s}.d2{animation-delay:.18s}.d3{animation-delay:.3s}.d4{animation-delay:.42s}.d5{animation-delay:.54s}
 .eyebrow{display:inline-flex;align-items:center;gap:9px;font-size:12px;font-weight:800;letter-spacing:.16em;
-  text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:20px}
+  text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:clamp(12px,2vh,20px)}
 .eyebrow::before{content:"";width:26px;height:2px;background:#fff}
-h1{font-size:clamp(46px,6.8vw,94px);line-height:.95;margin-bottom:16px;color:#fff}
+h1{font-size:clamp(40px,min(6.6vw,9.4vh),94px);line-height:.97;margin-bottom:clamp(10px,1.7vh,16px);color:#fff}
 h1 .l2{display:block}
-.support{font-family:'Nunito';font-weight:700;font-size:clamp(16px,1.5vw,21px);color:rgba(255,255,255,.66);margin-bottom:32px}
-.bens{list-style:none;display:flex;flex-direction:column;gap:11px;margin:0 0 32px}
+.support{font-family:'Nunito';font-weight:700;font-size:clamp(16px,1.5vw,21px);color:rgba(255,255,255,.66);margin-bottom:clamp(16px,3vh,32px)}
+.bens{list-style:none;display:flex;flex-direction:column;gap:clamp(7px,1.2vh,11px);margin:0 0 clamp(18px,3vh,32px)}
 .bens li{display:flex;gap:11px;align-items:flex-start;font-size:15.5px;font-weight:600;color:rgba(255,255,255,.86);line-height:1.45;max-width:40ch}
 .bens li::before{content:"";flex-shrink:0;width:19px;height:19px;border-radius:50%;margin-top:1px;background:#fff;
   -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 6L9 17l-5-5' stroke='black' stroke-width='3.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/13px no-repeat;
   mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 6L9 17l-5-5' stroke='black' stroke-width='3.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/13px no-repeat}
 
+.btn:disabled{opacity:.45;cursor:not-allowed}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:16px 30px;border-radius:999px;
   font-weight:800;font-size:15.5px;text-decoration:none;border:2px solid transparent;cursor:pointer;transition:.22s cubic-bezier(.2,.7,.3,1)}
 .cta-row{display:flex;gap:13px;flex-wrap:wrap}
@@ -588,11 +724,11 @@ h1 .l2{display:block}
 .btn-ghost:hover{border-color:#fff;background:rgba(255,255,255,.09);transform:translateY(-2px)}
 .microcopy{font-size:13.5px;color:rgba(255,255,255,.55);margin-top:16px;font-weight:600;line-height:1.7}
 
-.shot{position:relative;height:clamp(360px,54vw,570px);display:flex;align-items:center;justify-content:center;gap:clamp(14px,2.6vw,34px)}
+.shot{position:relative;height:clamp(300px,min(46vw,60vh),570px);display:flex;align-items:center;justify-content:center;gap:clamp(14px,2.6vw,34px)}
 .glow{position:absolute;width:80%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.3),transparent 65%);
   filter:blur(34px);opacity:0;animation:gin 1.5s ease-out .35s forwards}
 @keyframes gin{to{opacity:1}}
-.hero-main{position:relative;z-index:3;width:clamp(190px,25vw,296px);text-align:center;
+.hero-main{position:relative;z-index:3;width:clamp(170px,min(24vw,30vh),296px);text-align:center;
   opacity:0;transform:translateY(44px) scale(.95);animation:pin 1.05s cubic-bezier(.2,.72,.24,1) .4s forwards;transition:transform .35s}
 @keyframes pin{to{opacity:1;transform:translateY(0) scale(1)}}
 .hero-main:hover{transform:translateY(-10px)}
@@ -616,30 +752,31 @@ h1 .l2{display:block}
 .play::after{content:"";position:absolute;inset:0;margin:auto;width:0;height:0;
   border-left:15px solid var(--navy);border-top:10px solid transparent;border-bottom:10px solid transparent;margin-left:20px}
 .wave{position:absolute;bottom:-1px;left:0;width:100%;line-height:0;z-index:4}
-.wave svg{width:100%;height:clamp(60px,7vw,110px);display:block}
-@media(max-width:900px){.hero{grid-template-columns:1fr;padding:104px 6vw 112px}.shot{height:auto;margin-top:26px}}
+.wave svg{width:100%;height:clamp(44px,5vw,78px);display:block}
+@media(max-width:900px){.hero{grid-template-columns:1fr;padding:calc(var(--nav-h) + 30px) 6vw 100px}.shot{height:auto;margin-top:26px}.hero-main{width:min(62vw,270px)}}
 
-section{padding:clamp(66px,8vw,110px) 5vw}
-.shead{max-width:640px;margin-bottom:42px}
+section{padding:clamp(48px,5.5vw,76px) 5vw}
+.shead{max-width:640px;margin-bottom:clamp(24px,3vw,34px)}
 .kicker{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--navy);opacity:.55;margin-bottom:12px}
-.shead h2{font-size:clamp(28px,3.6vw,46px);line-height:1.1;margin-bottom:14px;color:var(--navy)}
+.shead h2{font-size:clamp(26px,3.2vw,40px);line-height:1.1;margin-bottom:10px;color:var(--navy)}
 .shead p{color:rgba(27,36,64,.68);font-size:16px;line-height:1.65}
 
-.grid{display:grid;grid-template-columns:1fr;gap:26px;max-width:1180px}
+.grid{display:grid;grid-template-columns:1fr;gap:clamp(16px,2vw,22px);max-width:1180px}
 .card{background:#fff;border-radius:24px;overflow:hidden;border:1px solid rgba(24,40,78,.1);
   box-shadow:0 2px 10px rgba(24,40,78,.05);transition:.28s cubic-bezier(.2,.7,.3,1);display:flex;flex-direction:column}
 .card.star{border:2px solid var(--navy)}
 .card:hover{transform:translateY(-6px);box-shadow:0 20px 46px rgba(24,40,78,.16)}
 .cimg{position:relative;aspect-ratio:3/4;overflow:hidden;transition:background .45s}
+.cimg img{padding:6%}
 .cimg img{width:100%;height:100%;object-fit:contain}
 @media(min-width:1080px){
   .card{flex-direction:row;align-items:stretch}
-  .card .cimg{flex:0 0 42%;aspect-ratio:auto}
-  .card .cbody{flex:1;justify-content:center;padding:30px 28px}
+  .card .cimg{flex:0 0 38%;aspect-ratio:auto;min-height:300px;max-height:380px}
+  .card .cbody{flex:1;justify-content:center;padding:26px 28px}
 }
 .badge{position:absolute;top:14px;left:14px;background:#fff;color:var(--navy);font-size:11px;font-weight:800;
   letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.14);z-index:2}
-.cbody{padding:22px;display:flex;flex-direction:column;gap:12px;flex:1}
+.cbody{padding:20px;display:flex;flex-direction:column;gap:10px;flex:1}
 .cbody h3{font-size:20px;color:var(--navy);line-height:1.25}
 .cdesc{font-size:14.5px;color:rgba(27,36,64,.66);line-height:1.6}
 .optlabel{font-size:12.5px;font-weight:800;color:var(--navy);opacity:.6}
@@ -648,6 +785,7 @@ section{padding:clamp(66px,8vw,110px) 5vw}
   cursor:pointer;transition:.2s;background:#fff;color:var(--navy)}
 .chip:hover{border-color:var(--navy)}
 .chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.chip.out,.scent.out{opacity:.45}
 .scents{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .scent{display:flex;align-items:center;gap:9px;padding:9px 13px;border-radius:999px;background:rgba(24,40,78,.05);
   border:1.5px solid transparent;cursor:pointer;transition:.2s;font-size:13.5px;font-weight:700;color:var(--navy);text-align:left}
@@ -661,10 +799,12 @@ section{padding:clamp(66px,8vw,110px) 5vw}
 .save{font-size:12px;font-weight:800;color:var(--navy);background:rgba(24,40,78,.09);padding:4px 9px;border-radius:6px}
 .stock{font-size:12px;color:#2e7d4f;font-weight:700;display:flex;align-items:center;gap:6px}
 .stock::before{content:"";width:7px;height:7px;border-radius:50%;background:#2e7d4f}
+.stock.out{color:#c25050}
+.stock.out::before{background:#c25050}
 .cbtns{display:flex;gap:9px}
 .cbtns .btn{flex:1;padding:14px 16px;font-size:14px}
 .b-buy{background:var(--navy);color:#fff}
-.b-buy:hover{background:var(--navy-deep)}
+.b-buy:hover:not(:disabled){background:var(--navy-deep)}
 .b-more{border:2px solid rgba(24,40,78,.18);color:var(--navy)}
 .b-more:hover{border-color:var(--navy)}
 
@@ -675,9 +815,9 @@ section{padding:clamp(66px,8vw,110px) 5vw}
 .invite .arrow{flex:1;height:1px;background:linear-gradient(90deg,rgba(24,40,78,.22),transparent);min-width:20px}
 @media(max-width:720px){.invite .arrow{display:none}}
 
-.tmo{background:var(--cream);padding-top:clamp(50px,6vw,74px);padding-bottom:clamp(60px,7vw,92px);overflow:hidden}
-.tmo-head{max-width:1180px;margin:0 auto clamp(24px,3vw,34px);display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
-.tmo-head h2{font-size:clamp(24px,3vw,38px);line-height:1.14;color:var(--navy)}
+.tmo{background:var(--cream);padding-top:clamp(40px,4.5vw,58px);padding-bottom:clamp(44px,5vw,66px);overflow:hidden}
+.tmo-head{max-width:1180px;margin:0 auto clamp(18px,2.2vw,26px);display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.tmo-head h2{font-size:clamp(22px,2.6vw,32px);line-height:1.14;color:var(--navy)}
 .tmo-head .kicker{margin-bottom:10px}
 .tarrows{display:flex;gap:9px}
 .tarrows button{width:44px;height:44px;border-radius:50%;border:1.5px solid rgba(24,40,78,.2);background:#fff;
@@ -685,10 +825,10 @@ section{padding:clamp(66px,8vw,110px) 5vw}
 .tarrows button:hover{border-color:var(--navy);background:var(--navy);color:#fff}
 .trail{max-width:1180px;margin:0 auto;display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 2px 16px;scrollbar-width:none}
 .trail::-webkit-scrollbar{display:none}
-.tcard{flex:0 0 clamp(196px,23vw,252px);scroll-snap-align:start;border-radius:20px;overflow:hidden;background:#fff;
+.tcard{flex:0 0 clamp(168px,17vw,208px);scroll-snap-align:start;border-radius:20px;overflow:hidden;background:#fff;
   border:1px solid rgba(24,40,78,.1);box-shadow:0 3px 14px rgba(24,40,78,.07);transition:.26s cubic-bezier(.2,.7,.3,1);display:flex;flex-direction:column}
 .tcard:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(24,40,78,.17)}
-.tvid{position:relative;aspect-ratio:9/16;overflow:hidden;background:linear-gradient(165deg,#22345d,#141f3d)}
+.tvid{position:relative;aspect-ratio:3/4;overflow:hidden;background:linear-gradient(165deg,#22345d,#141f3d)}
 .tvid iframe,.tvid video,.tvid img{width:100%;height:100%;border:0;object-fit:cover}
 .tvid .play{width:48px;height:48px}
 .tvid .play::after{border-left:14px solid var(--navy);border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:18px}
@@ -743,12 +883,12 @@ section{padding:clamp(66px,8vw,110px) 5vw}
 .combo{background:var(--navy);color:#fff;position:relative;overflow:hidden}
 .combo::before{content:"";position:absolute;inset:0;background:radial-gradient(58% 76% at 50% 0%,rgba(255,255,255,.13),transparent 66%)}
 .combo-in{position:relative;z-index:2;max-width:1180px;margin:0 auto}
-.combo .shead{margin-bottom:40px}
+.combo .shead{margin-bottom:clamp(22px,2.6vw,30px)}
 .combo .kicker{color:rgba(255,255,255,.62);opacity:1}
 .combo .shead h2{color:#fff}
 .combo .shead p{color:rgba(255,255,255,.72)}
 .tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:18px;align-items:stretch}
-.tier{background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.18);border-radius:22px;padding:26px 22px 24px;
+.tier{background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.18);border-radius:22px;padding:22px 20px 20px;
   display:flex;flex-direction:column;gap:12px;transition:.26s cubic-bezier(.2,.7,.3,1);position:relative}
 .tier:hover{background:rgba(255,255,255,.11);transform:translateY(-5px)}
 .tier.best{background:#fff;color:var(--ink);border-color:#fff;transform:scale(1.045);z-index:2;box-shadow:0 26px 60px rgba(0,0,0,.34)}
@@ -758,7 +898,7 @@ section{padding:clamp(66px,8vw,110px) 5vw}
   font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:6px 15px;border-radius:999px;border:2px solid #fff;white-space:nowrap}
 .tier h3{font-size:19px;color:#fff}
 .tier.best h3{color:var(--navy)}
-.timg{aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:rgba(255,255,255,.08);border:1px dashed rgba(255,255,255,.26)}
+.timg{aspect-ratio:16/10;border-radius:14px;overflow:hidden;background:rgba(255,255,255,.08);border:1px dashed rgba(255,255,255,.26)}
 .timg img{width:100%;height:100%;object-fit:contain}
 .tier.best .timg{background:rgba(24,40,78,.05);border-color:rgba(24,40,78,.2)}
 .tprice{font-family:'Nunito';font-weight:900;font-size:30px;color:#fff;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
@@ -783,7 +923,7 @@ section{padding:clamp(66px,8vw,110px) 5vw}
 .about .kicker{color:rgba(255,255,255,.66);opacity:1}
 .about h2{font-size:clamp(28px,3.6vw,46px);line-height:1.12;margin-bottom:20px;color:#fff}
 .about p{color:rgba(255,255,255,.76);font-size:16.5px;line-height:1.75;margin-bottom:16px;max-width:52ch}
-.about-img{aspect-ratio:4/3;border-radius:20px;overflow:hidden;background:rgba(255,255,255,.07);
+.about-img{aspect-ratio:16/10;border-radius:20px;overflow:hidden;background:rgba(255,255,255,.07);
   border:1px dashed rgba(255,255,255,.28);margin-bottom:22px}
 .about-img img{width:100%;height:100%;object-fit:cover}
 .about .btn{margin-top:12px}
@@ -793,7 +933,7 @@ section{padding:clamp(66px,8vw,110px) 5vw}
 .fact span{font-size:14px;color:rgba(255,255,255,.64);line-height:1.5}
 @media(max-width:820px){.about-in{grid-template-columns:1fr}}
 
-footer{background:var(--navy-deep);color:rgba(255,255,255,.5);padding:32px 5vw 96px;font-size:13px}
+footer{background:var(--navy-deep);color:rgba(255,255,255,.5);padding:26px 5vw 92px;font-size:13px}
 
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
