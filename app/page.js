@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useCart, vnd } from '../lib/cart';
 import { fetchProducts, matchProduct } from '../lib/catalog';
+import ProductModal from './_components/ProductModal';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -41,6 +42,7 @@ const DEFAULTS = {
   heroVideo: '',
   heroShowVideo: false,
   // Ảnh nền cả khối hero. Bỏ trống = nền navy trơn như cũ.
+  pmFullPage: 'Xem trang đầy đủ',
   heroBg: '',
   // Độ đậm lớp phủ navy trên ảnh nền (0-1). Cao hơn = chữ dễ đọc hơn.
   heroBgDim: 0.72,
@@ -224,6 +226,7 @@ export default function Home() {
   const [ready, setReady] = useState(false);
   const [mfSel, setMfSel] = useState(0);
   const [scent, setScent] = useState(0);
+  const [modalSlug, setModalSlug] = useState(null);
   const [barOn, setBarOn] = useState(false);
   const railRef = useRef(null);
   const heroRef = useRef(null);
@@ -374,6 +377,7 @@ export default function Home() {
       <Styles />
 
       <nav id="nav">
+        <div className="nav-in">
         <div className="brand">
           {S.logo ? <img className="mark-img" src={S.logo} alt={S.brandName} />
                   : <span className="mark"><Ph text="LOGO" /></span>}
@@ -385,6 +389,7 @@ export default function Home() {
           <button type="button" className="navcart" onClick={openDrawer}>
             {S.navCart}{count > 0 && <em>{count}</em>}
           </button>
+        </div>
         </div>
       </nav>
 
@@ -514,7 +519,9 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="cbtns">
-                  <a className="btn b-more" href={`/san-pham/${mfProd.slug}`}>{S.labelDetail}</a>
+                  <a className="btn b-more" href={`/san-pham/${mfProd.slug}`}
+                     onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+                                     e.preventDefault(); setModalSlug(mfProd.slug); }}>{S.labelDetail}</a>
                   <button type="button" className="btn b-buy cta-buy" disabled={mfStockN <= 0}
                           onClick={() => addToCart(mfProd, mfV, (mfV && mfV.img) || mfProd.img || S.mfImage)}>
                     {mfStockN <= 0 ? S.txtOutOfStock : S.labelCart}
@@ -577,7 +584,9 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="cbtns">
-                  <a className="btn b-more" href={`/san-pham/${wbsProd.slug}`}>{S.labelDetail}</a>
+                  <a className="btn b-more" href={`/san-pham/${wbsProd.slug}`}
+                     onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+                                     e.preventDefault(); setModalSlug(wbsProd.slug); }}>{S.labelDetail}</a>
                   <button type="button" className="btn b-buy cta-buy" disabled={wbsStockN <= 0}
                           onClick={() => addToCart(wbsProd, scV, (scV && scV.img) || sc.image || wbsProd.img)}>
                     {wbsStockN <= 0 ? S.txtOutOfStock : S.labelCart}
@@ -694,6 +703,13 @@ export default function Home() {
         </div>
       </section>
 
+      <ProductModal slug={modalSlug} S={S}
+                    onClose={fromPop => {
+                      setModalSlug(null);
+                      if (!fromPop && typeof window !== 'undefined'
+                          && window.history.state?.hpModal) window.history.back();
+                    }} />
+
       <footer ref={footRef}>{S.footerText}</footer>
 
       {/* ---------------- THANH MUA ---------------- */}
@@ -728,8 +744,10 @@ function Styles() {
     <style jsx global>{`
 :root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440;--mint:#8fd4c8;--nav-h:68px}
 *{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth;scroll-padding-top:var(--nav-h)}
-body{font-family:'Nunito Sans',system-ui,sans-serif;color:var(--ink);background:var(--cream);-webkit-font-smoothing:antialiased}
+/* Nền mép: navy ở trên (dưới hero), kem ở dưới — không để lộ dải trắng
+   khi màn hình rất rộng hoặc khi cuộn quá đà (overscroll). */
+html{scroll-behavior:smooth;scroll-padding-top:var(--nav-h);background:var(--navy);overscroll-behavior-y:none}
+body{font-family:'Nunito Sans',system-ui,sans-serif;color:var(--ink);background:var(--cream);-webkit-font-smoothing:antialiased;overflow-x:hidden}
 h1,h2,h3{font-family:'Nunito',system-ui,sans-serif;font-weight:900;letter-spacing:-.02em}
 img{display:block;max-width:100%}
 button{font:inherit}
@@ -739,7 +757,8 @@ button{font:inherit}
 .ph-dark{color:rgba(255,255,255,.52)}
 .ph span{display:block}
 
-nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:14px 5vw;transition:.3s;height:var(--nav-h)}
+nav{position:fixed;top:0;left:0;right:0;z-index:50;padding:0 5vw;transition:.3s;height:var(--nav-h)}
+.nav-in{max-width:1180px;height:100%;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
 nav.solid{background:rgba(16,28,56,.95);backdrop-filter:blur(10px)}
 .brand{display:flex;align-items:center;gap:10px;color:#fff;font-family:'Nunito';font-weight:900;font-size:20px}
 .brand .mark{width:36px;height:36px;border-radius:11px;background:#fff;overflow:hidden}
@@ -760,7 +779,7 @@ nav.solid{background:rgba(16,28,56,.95);backdrop-filter:blur(10px)}
 .hero-bg img{width:100%;height:100%;object-fit:cover;display:block}
 .hero-bg-dim{position:absolute;inset:0;background:var(--navy)}
 .hero{position:relative;background:var(--navy);color:#fff;overflow:hidden;
-  display:grid;grid-template-columns:minmax(0,1fr) clamp(320px,40%,470px);align-items:center;gap:0;max-width:1180px;margin:0 auto;
+  display:grid;grid-template-columns:minmax(0,1fr) clamp(360px,46%,560px);align-items:center;gap:0;max-width:1180px;margin:0 auto;
   padding:calc(var(--nav-h) + clamp(24px,4vh,52px)) 5vw clamp(46px,5.4vw,80px)}
 .hero::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 90% at 74% 46%,rgba(255,255,255,.18),transparent 62%)}
 .hero>*{position:relative;z-index:2}
@@ -794,15 +813,15 @@ h1 .l2{display:block}
 /* Cột hình hero: chai KHÔNG nằm trong khung. Chai chính chạm đáy,
    lõi refill nhỏ hơn nép sau bên phải, mascot ngồi góc dưới-phải.
    Cả cụm lùi trái để không tạo khoảng trống giữa chữ và ảnh. */
-.shot{position:relative;height:clamp(340px,min(50vw,64vh),520px);
-  margin-left:clamp(-40px,-2vw,0px);margin-right:0}
-.glow{position:absolute;left:14%;bottom:8%;width:clamp(230px,27vw,330px);aspect-ratio:1;border-radius:50%;
+.shot{position:relative;height:clamp(380px,min(56vw,72vh),580px);
+  margin-left:clamp(-30px,-1.5vw,0px);margin-right:clamp(-30px,-2vw,0px)}
+.glow{position:absolute;left:8%;bottom:7%;width:clamp(260px,30vw,370px);aspect-ratio:1;border-radius:50%;
   background:radial-gradient(circle,rgba(143,212,200,.22),transparent 66%);
   filter:blur(20px);opacity:0;animation:gin 2.2s ease-out .5s forwards;z-index:1}
 @keyframes gin{to{opacity:1}}
 
-.hero-main{position:absolute;left:2%;bottom:0;z-index:3;
-  width:44%;height:100%;
+.hero-main{position:absolute;left:-2%;bottom:0;z-index:3;
+  width:52%;height:100%;
   display:grid;place-items:end center;align-content:end;
   opacity:0;transform:translateY(44px) scale(.95);
   animation:pin 1.7s cubic-bezier(.16,.7,.22,1) .55s forwards;transition:transform .35s}
@@ -814,8 +833,8 @@ h1 .l2{display:block}
 
 /* Refill ĐỨNG CẠNH chai chính, CÙNG khung cùng chân — chai nào ngắn hơn
    thì tự trông thấp hơn, không ép bằng CSS. */
-.hero-refill{position:absolute;left:50%;bottom:0;z-index:2;
-  width:44%;height:100%;
+.hero-refill{position:absolute;left:46%;bottom:0;z-index:2;
+  width:52%;height:100%;
   display:grid;place-items:end center;align-content:end;
   opacity:0;transform:translateY(36px);animation:pin 1.6s cubic-bezier(.16,.7,.22,1) 1.0s forwards}
 .hero-refill img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
@@ -823,7 +842,7 @@ h1 .l2{display:block}
 
 /* Mascot góc dưới-phải — KHÔNG đặt bên trái, tránh đè lên nút mua. */
 /* Tem tròn — nội dung sửa trong config, để trống thì ẩn. */
-.hero-stamp{position:absolute;left:-3%;top:15%;z-index:5;
+.hero-stamp{position:absolute;left:-6%;top:11%;z-index:5;
   width:clamp(84px,10.5vw,122px);aspect-ratio:1;border-radius:50%;
   background:var(--mint);border:3px solid #fff;box-shadow:0 10px 26px rgba(0,0,0,.3);
   display:grid;place-items:center;text-align:center;padding:8px;overflow:hidden;
@@ -835,7 +854,7 @@ h1 .l2{display:block}
 .hero-stamp b{display:block;font-size:clamp(15px,1.8vw,20px);margin:1px 0;line-height:1}
 @media(max-width:620px){.hero-stamp{left:-1%;top:10%;width:clamp(66px,17vw,86px)}}
 
-.mascot-hero{position:absolute;right:-2%;bottom:1%;z-index:4;
+.mascot-hero{position:absolute;right:-5%;bottom:0;z-index:4;
   width:clamp(68px,8.5vw,104px);aspect-ratio:1;overflow:hidden;border-radius:16px;
   background:rgba(255,255,255,.07);border:1px dashed rgba(255,255,255,.28);
   opacity:0;animation:rise 1.3s ease-out 1.6s forwards}
@@ -874,10 +893,10 @@ h1 .l2{display:block}
 .wave{position:absolute;bottom:-1px;left:0;width:100%;line-height:0;z-index:1;pointer-events:none}
 .wave svg{width:100%;height:clamp(44px,5vw,78px);display:block}
 @media(max-width:900px){.hero{grid-template-columns:1fr;padding:calc(var(--nav-h) + 30px) 6vw 52px}
-  .shot{height:clamp(330px,80vw,430px);margin:24px 0 0}
-  .hero-main{left:3%;width:45%;height:100%}
-  .hero-refill{left:51%;bottom:0;width:45%;height:100%}
-  .glow{left:12%;bottom:8%;width:min(64vw,290px)}}
+  .shot{height:clamp(340px,86vw,460px);margin:24px 0 0}
+  .hero-main{left:-1%;width:53%;height:100%}
+  .hero-refill{left:47%;bottom:0;width:53%;height:100%}
+  .glow{left:6%;bottom:7%;width:min(68vw,310px)}}
 
 section{padding:clamp(48px,5.5vw,76px) 5vw}
 .shead{max-width:640px;margin-bottom:clamp(24px,3vw,34px)}
