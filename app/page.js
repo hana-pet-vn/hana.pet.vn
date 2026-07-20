@@ -550,14 +550,19 @@ export default function Home() {
 
           <div className="trail" ref={railRef}>
             {S.testimonials.map((t, i) => (
-              <div className="tcard" key={i}>
-                <div className="tvid">
-                  <VideoEmbed url={t.embed} poster={t.thumb} label={`EMBED TIKTOK 9:16|${t.who}`} />
-                </div>
+              <div className={'tcard' + (t.embed ? '' : ' tquote')} key={i}>
+                {t.embed || t.thumb ? (
+                  <div className="tvid">
+                    <VideoEmbed url={t.embed} poster={t.thumb} label={`VIDEO|${t.who}`} />
+                  </div>
+                ) : (
+                  /* Chưa có video → hiện câu nói cho tử tế, không để ô trống */
+                  <div className="tsay"><p>{t.quote}</p></div>
+                )}
                 <div className="tmeta">
                   <span className="who">{t.who}</span>
                   <span className="pet">{t.pet}</span>
-                  {t.quote && <span className="quote">{t.quote}</span>}
+                  {t.embed && t.quote && <span className="quote">{t.quote}</span>}
                 </div>
               </div>
             ))}
@@ -766,13 +771,18 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
   box-shadow:0 2px 10px rgba(24,40,78,.05);transition:.28s cubic-bezier(.2,.7,.3,1);display:flex;flex-direction:column}
 .card.star{border:2px solid var(--navy)}
 .card:hover{transform:translateY(-6px);box-shadow:0 20px 46px rgba(24,40,78,.16)}
-.cimg{position:relative;aspect-ratio:3/4;overflow:hidden;transition:background .45s}
-.cimg img{padding:6%}
-.cimg img{width:100%;height:100%;object-fit:contain}
+.cimg{position:relative;aspect-ratio:3/4;overflow:hidden;transition:background .45s;
+  display:grid;place-items:center;padding:22px}
+/* Ảnh LUÔN nằm gọn trong khung, không kéo giãn theo chiều cao cột chữ */
+.cimg img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain}
 @media(min-width:1080px){
   .card{flex-direction:row;align-items:stretch}
-  .card .cimg{flex:0 0 38%;aspect-ratio:auto;min-height:300px;max-height:380px}
-  .card .cbody{flex:1;justify-content:center;padding:26px 28px}
+  /* aspect-ratio giữ nguyên 3/4 → ô ảnh tự cao theo chiều rộng của nó,
+     KHÔNG ăn theo chiều cao cột chữ. Cột chữ dài thì tự cuộn/giãn riêng. */
+  .card .cimg{flex:0 0 clamp(260px,30%,330px);aspect-ratio:3/4;align-self:center;
+    border-radius:20px;margin:14px 0 14px 14px}
+  .card.star .cimg{margin-left:12px}
+  .card .cbody{flex:1;justify-content:center;padding:24px 30px}
 }
 .badge{position:absolute;top:14px;left:14px;background:#fff;color:var(--navy);font-size:11px;font-weight:800;
   letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.14);z-index:2}
@@ -786,15 +796,16 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .chip:hover{border-color:var(--navy)}
 .chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .chip.out,.scent.out{opacity:.45}
-.scents{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.scent{display:flex;align-items:center;gap:9px;padding:9px 13px;border-radius:999px;background:rgba(24,40,78,.05);
-  border:1.5px solid transparent;cursor:pointer;transition:.2s;font-size:13.5px;font-weight:700;color:var(--navy);text-align:left}
+.scents{display:flex;flex-wrap:wrap;gap:7px}
+.scent{display:inline-flex;align-items:center;gap:7px;padding:7px 13px 7px 7px;border-radius:999px;
+  background:rgba(24,40,78,.05);border:1.5px solid transparent;cursor:pointer;transition:.2s;
+  font-size:13px;font-weight:700;color:var(--navy);white-space:nowrap}
 .scent:hover{background:rgba(24,40,78,.09)}
-.scent.on{background:#fff;border-color:var(--navy)}
-.scent i{width:24px;height:24px;border-radius:50%;flex-shrink:0;display:block}
-.scent .sic{width:24px;height:24px;flex-shrink:0;object-fit:contain}
-.pricerow{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:auto;padding-top:4px}
-.price{font-family:'Nunito';font-weight:900;font-size:27px;color:var(--navy)}
+.scent.on{background:#fff;border-color:var(--navy);box-shadow:0 2px 8px rgba(24,40,78,.12)}
+.scent i{width:20px;height:20px;border-radius:50%;flex-shrink:0;display:block}
+.scent .sic{width:22px;height:22px;flex-shrink:0;object-fit:contain;border-radius:50%}
+.pricerow{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-top:auto;padding-top:10px}
+.price{font-family:'Nunito';font-weight:900;font-size:29px;color:var(--navy);letter-spacing:-.02em}
 .was{font-size:15px;color:rgba(27,36,64,.36);text-decoration:line-through}
 .save{font-size:12px;font-weight:800;color:var(--navy);background:rgba(24,40,78,.09);padding:4px 9px;border-radius:6px}
 .stock{font-size:12px;color:#2e7d4f;font-weight:700;display:flex;align-items:center;gap:6px}
@@ -802,7 +813,8 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .stock.out{color:#c25050}
 .stock.out::before{background:#c25050}
 .cbtns{display:flex;gap:9px}
-.cbtns .btn{flex:1;padding:14px 16px;font-size:14px}
+.cbtns{margin-top:4px}
+.cbtns .btn{flex:1;padding:13px 16px;font-size:14px}
 .b-buy{background:var(--navy);color:#fff}
 .b-buy:hover:not(:disabled){background:var(--navy-deep)}
 .b-more{border:2px solid rgba(24,40,78,.18);color:var(--navy)}
@@ -825,10 +837,16 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .tarrows button:hover{border-color:var(--navy);background:var(--navy);color:#fff}
 .trail{max-width:1180px;margin:0 auto;display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 2px 16px;scrollbar-width:none}
 .trail::-webkit-scrollbar{display:none}
-.tcard{flex:0 0 clamp(168px,17vw,208px);scroll-snap-align:start;border-radius:20px;overflow:hidden;background:#fff;
+.tcard{flex:0 0 clamp(180px,18vw,224px);scroll-snap-align:start;border-radius:20px;overflow:hidden;background:#fff;
   border:1px solid rgba(24,40,78,.1);box-shadow:0 3px 14px rgba(24,40,78,.07);transition:.26s cubic-bezier(.2,.7,.3,1);display:flex;flex-direction:column}
 .tcard:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(24,40,78,.17)}
 .tvid{position:relative;aspect-ratio:3/4;overflow:hidden;background:linear-gradient(165deg,#22345d,#141f3d)}
+/* Thẻ chỉ có chữ (chưa gắn video) — cao vừa phải, không giả làm video */
+.tsay{background:var(--navy);color:#fff;padding:26px 20px 22px;display:flex;align-items:center;min-height:132px}
+.tsay p{font-family:'Nunito';font-weight:800;font-size:15px;line-height:1.45;letter-spacing:-.01em}
+.tsay::before{content:"\u201C";position:absolute;top:6px;left:16px;font-family:'Nunito';font-size:52px;
+  font-weight:900;color:rgba(255,255,255,.16);line-height:1;pointer-events:none}
+.tcard.tquote{position:relative}
 .tvid iframe,.tvid video,.tvid img{width:100%;height:100%;border:0;object-fit:cover}
 .tvid .play{width:48px;height:48px}
 .tvid .play::after{border-left:14px solid var(--navy);border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:18px}
