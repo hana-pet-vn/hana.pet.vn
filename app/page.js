@@ -40,6 +40,15 @@ const DEFAULTS = {
   heroSkuName: 'Misty Fresh',
   heroVideo: '',
   heroShowVideo: false,
+  // Ảnh lõi refill nép sau chai chính trong hero. Bỏ trống = ẩn.
+  heroRefillImage: '',
+  // Thanh tin cậy dưới hero. icon dùng tên Tabler (ti-truck...), bỏ trống = ẩn cả thanh.
+  heroTrust: [
+    { icon: 'truck',         t: 'Giao Hà Nội 24h' },
+    { icon: 'shield-check',  t: 'Không cồn, không paraben' },
+    { icon: 'refresh',       t: 'Đổi trả 7 ngày' },
+    { icon: 'star',          t: '4.9/5 trên Shopee' },
+  ],
 
   spKicker: 'Cửa hàng',
   spTitle: 'Chọn loại phù hợp với bé',
@@ -397,17 +406,20 @@ export default function Home() {
 
         <div className="shot">
           <div className="glow" />
-          <div className="mascot-hero">
-            <Img src={S.heroMascot} text="MASCOT|cún H vẫy đuôi|PNG trong suốt" dark />
-          </div>
+
+          {(S.heroRefillImage || mfProd?.img) && (
+            <div className="hero-refill">
+              <Img src={S.heroRefillImage} text="LÕI|REFILL" dark />
+            </div>
+          )}
 
           <div className="hero-main">
-            <div className="mainimg">
-              <Img src={S.heroImage || mfProd?.img} alt={S.heroSkuName}
-                   text="ẢNH THẬT|chai Misty Fresh|+ pet AI-gen phía sau|PNG trong suốt" dark />
-            </div>
-            <div className="nm">{mfProd?.name || S.heroSkuName}</div>
-            <div className="pr">{mfPrice ? vnd(mfPrice) : ''}</div>
+            <Img src={S.heroImage || mfProd?.img} alt={S.heroSkuName}
+                 text="ẢNH THẬT|chai Misty Fresh|PNG trong suốt" dark />
+          </div>
+
+          <div className="mascot-hero">
+            <Img src={S.heroMascot} text="MASCOT|cún H" dark />
           </div>
 
           {S.heroShowVideo && (
@@ -416,13 +428,18 @@ export default function Home() {
             </div>
           )}
         </div>
-
-        <div className="wave">
-          <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
-            <path fill="#f6f4ef" d="M0,64 C240,120 480,16 720,48 C960,80 1200,112 1440,56 L1440,120 L0,120 Z" />
-          </svg>
-        </div>
       </header>
+
+      {(S.heroTrust || []).length > 0 && (
+        <div className="trustbar">
+          {S.heroTrust.map((x, i) => (
+            <span key={i}>
+              <i className={'tb-ic tb-' + (x.icon || 'check')} aria-hidden="true" />
+              {x.t}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* ---------------- SẢN PHẨM ---------------- */}
       <section id="sp">
@@ -670,7 +687,7 @@ export default function Home() {
 function Styles() {
   return (
     <style jsx global>{`
-:root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440;--nav-h:68px}
+:root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440;--mint:#8fd4c8;--nav-h:68px}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth;scroll-padding-top:var(--nav-h)}
 body{font-family:'Nunito Sans',system-ui,sans-serif;color:var(--ink);background:var(--cream);-webkit-font-smoothing:antialiased}
@@ -687,7 +704,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:cent
 nav.solid{background:rgba(16,28,56,.95);backdrop-filter:blur(10px)}
 .brand{display:flex;align-items:center;gap:10px;color:#fff;font-family:'Nunito';font-weight:900;font-size:20px}
 .brand .mark{width:36px;height:36px;border-radius:11px;background:#fff;overflow:hidden}
-.brand .mark-img{width:38px;height:38px;object-fit:contain}
+.brand .mark-img{width:38px;height:38px;object-fit:contain;background:#fff;border-radius:11px;padding:4px}
 .navlinks{display:flex;gap:24px;font-size:14px;font-weight:700;align-items:center}
 .navlinks a{color:rgba(255,255,255,.82);text-decoration:none}
 .navlinks a:hover{color:#fff}
@@ -700,22 +717,24 @@ nav.solid{background:rgba(16,28,56,.95);backdrop-filter:blur(10px)}
 /* Bỏ min-height:100svh cứng. Trước đây 100svh + padding 116/140 làm hero cao
    hơn màn hình trên máy rộng-thấp → nav che mất dòng eyebrow. */
 .hero{position:relative;background:var(--navy);color:#fff;overflow:hidden;
-  display:grid;grid-template-columns:1.05fr .95fr;align-items:center;gap:clamp(20px,3vw,50px);
-  padding:calc(var(--nav-h) + clamp(24px,4vh,52px)) 5vw clamp(70px,9vh,110px)}
+  display:grid;grid-template-columns:minmax(0,1fr) clamp(280px,34%,380px);align-items:center;gap:0;
+  padding:calc(var(--nav-h) + clamp(24px,4vh,52px)) 5vw 0}
 .hero::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 90% at 74% 46%,rgba(255,255,255,.18),transparent 62%)}
 .hero>*{position:relative;z-index:2}
 .rv{opacity:0;transform:translateY(22px);animation:rise .85s cubic-bezier(.22,.68,.24,1) forwards}
 @keyframes rise{to{opacity:1;transform:translateY(0)}}
 .d1{animation-delay:.05s}.d2{animation-delay:.18s}.d3{animation-delay:.3s}.d4{animation-delay:.42s}.d5{animation-delay:.54s}
-.eyebrow{display:inline-flex;align-items:center;gap:9px;font-size:12px;font-weight:800;letter-spacing:.16em;
-  text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:clamp(12px,2vh,20px)}
-.eyebrow::before{content:"";width:26px;height:2px;background:#fff}
+/* Eyebrow dạng viên thuốc — gọn hơn gạch ngang, giống nhãn trên chai. */
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:800;letter-spacing:.1em;
+  text-transform:uppercase;color:rgba(255,255,255,.8);margin-bottom:clamp(12px,2vh,20px);
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);padding:6px 14px;border-radius:999px}
+.eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--mint);flex-shrink:0}
 h1{font-size:clamp(40px,min(6.6vw,9.4vh),94px);line-height:.97;margin-bottom:clamp(10px,1.7vh,16px);color:#fff}
 h1 .l2{display:block}
 .support{font-family:'Nunito';font-weight:700;font-size:clamp(16px,1.5vw,21px);color:rgba(255,255,255,.66);margin-bottom:clamp(16px,3vh,32px)}
 .bens{list-style:none;display:flex;flex-direction:column;gap:clamp(7px,1.2vh,11px);margin:0 0 clamp(18px,3vh,32px)}
 .bens li{display:flex;gap:11px;align-items:flex-start;font-size:15.5px;font-weight:600;color:rgba(255,255,255,.86);line-height:1.45;max-width:40ch}
-.bens li::before{content:"";flex-shrink:0;width:19px;height:19px;border-radius:50%;margin-top:1px;background:#fff;
+.bens li::before{content:"";flex-shrink:0;width:19px;height:19px;border-radius:50%;margin-top:1px;background:var(--mint);
   -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 6L9 17l-5-5' stroke='black' stroke-width='3.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/13px no-repeat;
   mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 6L9 17l-5-5' stroke='black' stroke-width='3.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/13px no-repeat}
 
@@ -729,24 +748,54 @@ h1 .l2{display:block}
 .btn-ghost:hover{border-color:#fff;background:rgba(255,255,255,.09);transform:translateY(-2px)}
 .microcopy{font-size:13.5px;color:rgba(255,255,255,.55);margin-top:16px;font-weight:600;line-height:1.7}
 
-.shot{position:relative;height:clamp(300px,min(46vw,60vh),570px);display:flex;align-items:center;justify-content:center;gap:clamp(14px,2.6vw,34px)}
-.glow{position:absolute;width:80%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.3),transparent 65%);
-  filter:blur(34px);opacity:0;animation:gin 1.5s ease-out .35s forwards}
+/* Cột hình hero: chai KHÔNG nằm trong khung. Chai chính chạm đáy,
+   lõi refill nhỏ hơn nép sau bên phải, mascot ngồi góc dưới-phải.
+   Cả cụm lùi trái để không tạo khoảng trống giữa chữ và ảnh. */
+.shot{position:relative;height:clamp(320px,min(46vw,60vh),470px);
+  margin-left:clamp(-56px,-3vw,0px);margin-right:clamp(-10px,-1vw,0px)}
+.glow{position:absolute;left:8%;bottom:11%;width:clamp(190px,22vw,268px);aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle,rgba(143,212,200,.22),transparent 66%);
+  filter:blur(20px);opacity:0;animation:gin 1.5s ease-out .35s forwards;z-index:1}
 @keyframes gin{to{opacity:1}}
-.hero-main{position:relative;z-index:3;width:clamp(170px,min(24vw,30vh),296px);text-align:center;
-  opacity:0;transform:translateY(44px) scale(.95);animation:pin 1.05s cubic-bezier(.2,.72,.24,1) .4s forwards;transition:transform .35s}
+
+.hero-main{position:absolute;left:6%;bottom:0;z-index:3;
+  width:clamp(180px,min(25vw,32vh),252px);aspect-ratio:auto;height:88%;
+  display:grid;place-items:end center;
+  opacity:0;transform:translateY(44px) scale(.95);
+  animation:pin 1.05s cubic-bezier(.2,.72,.24,1) .4s forwards;transition:transform .35s}
 @keyframes pin{to{opacity:1;transform:translateY(0) scale(1)}}
 .hero-main:hover{transform:translateY(-10px)}
-.mainimg{aspect-ratio:3/4;border-radius:20px;overflow:hidden;background:linear-gradient(160deg,#2b3f70,#16244a);
-  border:1px solid rgba(255,255,255,.2);margin-bottom:15px;box-shadow:0 30px 70px rgba(0,0,0,.4)}
-.mainimg img{width:100%;height:100%;object-fit:contain}
-.hero-main .nm{font-family:'Nunito';font-weight:900;font-size:clamp(18px,1.9vw,24px);color:#fff;margin-bottom:5px}
-.hero-main .pr{font-size:15px;font-weight:800;color:rgba(255,255,255,.78)}
-.mascot-hero{position:absolute;left:0;bottom:12%;z-index:3;width:clamp(72px,8vw,116px);aspect-ratio:1;overflow:hidden;
-  border-radius:16px;background:rgba(255,255,255,.08);border:1px dashed rgba(255,255,255,.3);
+/* Ảnh trần: không khung, không nền. Chỉ đổ bóng cho nổi khỏi nền navy. */
+.hero-main img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
+  filter:drop-shadow(0 26px 46px rgba(0,0,0,.42))}
+
+.hero-refill{position:absolute;right:2%;bottom:26%;z-index:2;
+  width:clamp(88px,12vw,132px);height:clamp(140px,19vw,206px);
+  display:grid;place-items:end center;
+  opacity:0;transform:translateY(36px);animation:pin 1s cubic-bezier(.2,.72,.24,1) .58s forwards}
+.hero-refill img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
+  filter:drop-shadow(0 18px 32px rgba(0,0,0,.36))}
+
+/* Mascot góc dưới-phải — KHÔNG đặt bên trái, tránh đè lên nút mua. */
+.mascot-hero{position:absolute;right:3%;bottom:2%;z-index:4;
+  width:clamp(60px,7.5vw,92px);aspect-ratio:1;overflow:hidden;border-radius:16px;
+  background:rgba(255,255,255,.07);border:1px dashed rgba(255,255,255,.28);
   opacity:0;animation:rise .9s ease-out .95s forwards}
-.mascot-hero img{width:100%;height:100%;object-fit:contain}
+.mascot-hero img{width:100%;height:100%;object-fit:contain;border:0;background:none}
 @media(max-width:900px){.mascot-hero{display:none}}
+
+.trustbar{background:var(--cream);display:flex;flex-wrap:wrap;justify-content:center;
+  gap:clamp(16px,3.2vw,40px);padding:16px 5vw;font-size:13px;font-weight:700;color:var(--navy)}
+.trustbar span{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.tb-ic{width:19px;height:19px;flex-shrink:0;background:var(--navy);opacity:.5;
+  -webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-position:center;mask-position:center}
+.tb-truck{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='7' cy='17' r='2'/%3E%3Ccircle cx='17' cy='17' r='2'/%3E%3Cpath d='M5 17H3V6a1 1 0 0 1 1-1h9v12m-4 0h6m4 0h2v-6h-8m0-5h5l3 5'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='7' cy='17' r='2'/%3E%3Ccircle cx='17' cy='17' r='2'/%3E%3Cpath d='M5 17H3V6a1 1 0 0 1 1-1h9v12m-4 0h6m4 0h2v-6h-8m0-5h5l3 5'/%3E%3C/svg%3E")}
+.tb-shield-check{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11.46 20.85a2 2 0 0 0 1.08 0C16.5 19.6 19 15.7 19 12V6.3a1 1 0 0 0-.7-.95l-6-1.9a1 1 0 0 0-.6 0l-6 1.9a1 1 0 0 0-.7.95V12c0 3.7 2.5 7.6 6.46 8.85'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11.46 20.85a2 2 0 0 0 1.08 0C16.5 19.6 19 15.7 19 12V6.3a1 1 0 0 0-.7-.95l-6-1.9a1 1 0 0 0-.6 0l-6 1.9a1 1 0 0 0-.7.95V12c0 3.7 2.5 7.6 6.46 8.85'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E")}
+.tb-refresh{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4'/%3E%3Cpath d='M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4'/%3E%3Cpath d='M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4'/%3E%3C/svg%3E")}
+.tb-star{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 17.75 5.83 21l1.18-6.88-5-4.87 6.9-1L12 2l3.09 6.26 6.9 1-5 4.87L18.17 21z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 17.75 5.83 21l1.18-6.88-5-4.87 6.9-1L12 2l3.09 6.26 6.9 1-5 4.87L18.17 21z'/%3E%3C/svg%3E")}
+.tb-check{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")}
+@media(max-width:560px){.trustbar{font-size:12px;gap:12px 18px}}
 .tvc{position:relative;z-index:3;width:clamp(122px,14.5vw,192px);aspect-ratio:9/16;border-radius:18px;overflow:hidden;
   background:linear-gradient(165deg,#22345d,#141f3d);border:1px solid rgba(255,255,255,.2);box-shadow:0 26px 60px rgba(0,0,0,.42);
   opacity:0;transform:translateY(40px) scale(.95);animation:pin 1.05s cubic-bezier(.2,.72,.24,1) .62s forwards;transition:transform .35s}
@@ -758,7 +807,10 @@ h1 .l2{display:block}
   border-left:15px solid var(--navy);border-top:10px solid transparent;border-bottom:10px solid transparent;margin-left:20px}
 .wave{position:absolute;bottom:-1px;left:0;width:100%;line-height:0;z-index:4}
 .wave svg{width:100%;height:clamp(44px,5vw,78px);display:block}
-@media(max-width:900px){.hero{grid-template-columns:1fr;padding:calc(var(--nav-h) + 30px) 6vw 100px}.shot{height:auto;margin-top:26px}.hero-main{width:min(62vw,270px)}}
+@media(max-width:900px){.hero{grid-template-columns:1fr;padding:calc(var(--nav-h) + 30px) 6vw 0}
+  .shot{height:clamp(300px,72vw,400px);margin:22px 0 0}
+  .hero-main{left:4%;width:min(56vw,236px)}
+  .hero-refill{right:6%;width:min(26vw,110px);height:min(38vw,170px)}}
 
 section{padding:clamp(48px,5.5vw,76px) 5vw}
 .shead{max-width:640px;margin-bottom:clamp(24px,3vw,34px)}
@@ -955,7 +1007,7 @@ footer{background:var(--navy-deep);color:rgba(255,255,255,.5);padding:26px 5vw 9
 
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
-  .rv,.hero-main,.tvc,.glow,.mascot-hero{opacity:1!important;transform:none!important}
+  .rv,.hero-main,.hero-refill,.tvc,.glow,.mascot-hero{opacity:1!important;transform:none!important}
   .peek,.pop{display:none}
 }
     `}</style>
