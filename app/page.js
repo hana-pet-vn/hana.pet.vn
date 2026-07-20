@@ -40,6 +40,12 @@ const DEFAULTS = {
   heroSkuName: 'Misty Fresh',
   heroVideo: '',
   heroShowVideo: false,
+  // Ảnh nền cả khối hero. Bỏ trống = nền navy trơn như cũ.
+  heroBg: '',
+  // Độ đậm lớp phủ navy trên ảnh nền (0-1). Cao hơn = chữ dễ đọc hơn.
+  heroBgDim: 0.72,
+  // Tem tròn nổi cạnh chai. Bỏ trống l1/l2 = ẩn tem.
+  heroStamp: { l1: 'Không hương liệu', l2: 'Không kích ứng', img: '' },
   // Ảnh lõi refill nép sau chai chính trong hero. Bỏ trống = ẩn.
   heroRefillImage: '',
   // Thanh tin cậy dưới hero. icon dùng tên Tabler (ti-truck...), bỏ trống = ẩn cả thanh.
@@ -384,6 +390,13 @@ export default function Home() {
 
       {/* ---------------- HERO ---------------- */}
       <header className="hero" ref={heroRef}>
+        {S.heroBg && (
+          <div className="hero-bg" aria-hidden="true">
+            <img src={S.heroBg} alt="" />
+            <div className="hero-bg-dim"
+                 style={{ opacity: S.heroBgDim ?? 0.72 }} />
+          </div>
+        )}
         <div>
           <span className="eyebrow rv d1">{S.heroEyebrow}</span>
           <h1 className="rv d1">
@@ -407,16 +420,24 @@ export default function Home() {
         <div className="shot">
           <div className="glow" />
 
+          <div className="hero-main">
+            <Img src={S.heroImage || mfProd?.img} alt={S.heroSkuName}
+                 text="CHAI XỊT|MISTY FRESH" dark />
+          </div>
+
           {(S.heroRefillImage || mfProd?.img) && (
             <div className="hero-refill">
               <Img src={S.heroRefillImage} text="LÕI|REFILL" dark />
             </div>
           )}
 
-          <div className="hero-main">
-            <Img src={S.heroImage || mfProd?.img} alt={S.heroSkuName}
-                 text="ẢNH THẬT|chai Misty Fresh|PNG trong suốt" dark />
-          </div>
+          {(S.heroStamp?.l1 || S.heroStamp?.l2 || S.heroStamp?.img) && (
+            <div className="hero-stamp">
+              {S.heroStamp.img
+                ? <img src={S.heroStamp.img} alt={S.heroStamp.l1 || ''} />
+                : <span>{S.heroStamp.l1}<b>✓</b>{S.heroStamp.l2}</span>}
+            </div>
+          )}
 
           <div className="mascot-hero">
             <Img src={S.heroMascot} text="MASCOT|cún H" dark />
@@ -428,16 +449,24 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        <div className="wave">
+          <svg viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
+            <path fill="#f6f4ef" d="M0,64 C240,120 480,16 720,48 C960,80 1200,112 1440,56 L1440,120 L0,120 Z" />
+          </svg>
+        </div>
       </header>
 
       {(S.heroTrust || []).length > 0 && (
-        <div className="trustbar">
+        <div className="trustbar-w">
+          <div className="trustbar">
           {S.heroTrust.map((x, i) => (
             <span key={i}>
               <i className={'tb-ic tb-' + (x.icon || 'check')} aria-hidden="true" />
               {x.t}
             </span>
           ))}
+          </div>
         </div>
       )}
 
@@ -473,20 +502,24 @@ export default function Home() {
                   </div>
                 </>
               )}
-              <div className="pricerow">
-                <span className="price">{vnd(mfPrice)}</span>
-                {mfWas > mfPrice && <span className="was">{vnd(mfWas)}</span>}
-                {mfSave > 0 && <span className="save">Rẻ hơn {mfSave}%</span>}
-              </div>
-              <div className={'stock' + (mfStockN <= 0 ? ' out' : '')}>
-                {mfStockN <= 0 ? S.txtOutOfStock : S.txtInStock}
-              </div>
-              <div className="cbtns">
-                <button type="button" className="btn b-buy cta-buy" disabled={mfStockN <= 0}
-                        onClick={() => addToCart(mfProd, mfV, (mfV && mfV.img) || mfProd.img || S.mfImage)}>
-                  {mfStockN <= 0 ? S.txtOutOfStock : S.labelCart}
-                </button>
-                <a className="btn b-more" href={`/san-pham/${mfProd.slug}`}>{S.labelDetail}</a>
+              <div className="cfoot">
+                <div className="cfoot-l">
+                  <div className="pricerow">
+                    <span className="price">{vnd(mfPrice)}</span>
+                    {mfWas > mfPrice && <span className="was">{vnd(mfWas)}</span>}
+                    {mfSave > 0 && <span className="save">Rẻ hơn {mfSave}%</span>}
+                  </div>
+                  <div className={'stock' + (mfStockN <= 0 ? ' out' : '')}>
+                    {mfStockN <= 0 ? S.txtOutOfStock : S.txtInStock}
+                  </div>
+                </div>
+                <div className="cbtns">
+                  <a className="btn b-more" href={`/san-pham/${mfProd.slug}`}>{S.labelDetail}</a>
+                  <button type="button" className="btn b-buy cta-buy" disabled={mfStockN <= 0}
+                          onClick={() => addToCart(mfProd, mfV, (mfV && mfV.img) || mfProd.img || S.mfImage)}>
+                    {mfStockN <= 0 ? S.txtOutOfStock : S.labelCart}
+                  </button>
+                </div>
               </div>
             </div>
           </article>
@@ -521,29 +554,35 @@ export default function Home() {
                       <button key={i}
                               className={'scent' + (i === scent ? ' on' : '') +
                                          (s.variant && s.variant.stock <= 0 ? ' out' : '')}
-                              onClick={() => setScent(i)}>
+                              onClick={() => setScent(i)}
+                              title={s.name} aria-label={s.name}
+                              aria-pressed={i === scent}>
                         {s.icon ? <img className="sic" src={s.icon} alt="" />
                                 : <i style={{ background: s.dot }} />}
-                        {s.name}
                       </button>
                     ))}
+                    <span className="scentname">{sc.name || ''}</span>
                   </div>
                 </>
               )}
-              <div className="pricerow">
-                <span className="price">{vnd(wbsPrice)}</span>
-                {wbsWas > wbsPrice && <span className="was">{vnd(wbsWas)}</span>}
-                {wbsSave > 0 && <span className="save">Rẻ hơn {wbsSave}%</span>}
-              </div>
-              <div className={'stock' + (wbsStockN <= 0 ? ' out' : '')}>
-                {wbsStockN <= 0 ? S.txtOutOfStock : S.txtInStock}
-              </div>
-              <div className="cbtns">
-                <button type="button" className="btn b-buy cta-buy" disabled={wbsStockN <= 0}
-                        onClick={() => addToCart(wbsProd, scV, (scV && scV.img) || sc.image || wbsProd.img)}>
-                  {wbsStockN <= 0 ? S.txtOutOfStock : S.labelCart}
-                </button>
-                <a className="btn b-more" href={`/san-pham/${wbsProd.slug}`}>{S.labelDetail}</a>
+              <div className="cfoot">
+                <div className="cfoot-l">
+                  <div className="pricerow">
+                    <span className="price">{vnd(wbsPrice)}</span>
+                    {wbsWas > wbsPrice && <span className="was">{vnd(wbsWas)}</span>}
+                    {wbsSave > 0 && <span className="save">Rẻ hơn {wbsSave}%</span>}
+                  </div>
+                  <div className={'stock' + (wbsStockN <= 0 ? ' out' : '')}>
+                    {wbsStockN <= 0 ? S.txtOutOfStock : S.txtInStock}
+                  </div>
+                </div>
+                <div className="cbtns">
+                  <a className="btn b-more" href={`/san-pham/${wbsProd.slug}`}>{S.labelDetail}</a>
+                  <button type="button" className="btn b-buy cta-buy" disabled={wbsStockN <= 0}
+                          onClick={() => addToCart(wbsProd, scV, (scV && scV.img) || sc.image || wbsProd.img)}>
+                    {wbsStockN <= 0 ? S.txtOutOfStock : S.labelCart}
+                  </button>
+                </div>
               </div>
             </div>
           </article>
@@ -716,9 +755,13 @@ nav.solid{background:rgba(16,28,56,.95);backdrop-filter:blur(10px)}
 
 /* Bỏ min-height:100svh cứng. Trước đây 100svh + padding 116/140 làm hero cao
    hơn màn hình trên máy rộng-thấp → nav che mất dòng eyebrow. */
+/* Ảnh nền hero (heroBg). Lớp phủ navy đè lên để chữ trắng vẫn đọc được. */
+.hero-bg{position:absolute;inset:0;z-index:0;pointer-events:none}
+.hero-bg img{width:100%;height:100%;object-fit:cover;display:block}
+.hero-bg-dim{position:absolute;inset:0;background:var(--navy)}
 .hero{position:relative;background:var(--navy);color:#fff;overflow:hidden;
-  display:grid;grid-template-columns:minmax(0,1fr) clamp(280px,34%,380px);align-items:center;gap:0;
-  padding:calc(var(--nav-h) + clamp(24px,4vh,52px)) 5vw 0}
+  display:grid;grid-template-columns:minmax(0,1fr) clamp(320px,40%,470px);align-items:center;gap:0;max-width:1180px;margin:0 auto;
+  padding:calc(var(--nav-h) + clamp(24px,4vh,52px)) 5vw clamp(46px,5.4vw,80px)}
 .hero::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 90% at 74% 46%,rgba(255,255,255,.18),transparent 62%)}
 .hero>*{position:relative;z-index:2}
 .rv{opacity:0;transform:translateY(22px);animation:rise .85s cubic-bezier(.22,.68,.24,1) forwards}
@@ -751,43 +794,62 @@ h1 .l2{display:block}
 /* Cột hình hero: chai KHÔNG nằm trong khung. Chai chính chạm đáy,
    lõi refill nhỏ hơn nép sau bên phải, mascot ngồi góc dưới-phải.
    Cả cụm lùi trái để không tạo khoảng trống giữa chữ và ảnh. */
-.shot{position:relative;height:clamp(320px,min(46vw,60vh),470px);
-  margin-left:clamp(-56px,-3vw,0px);margin-right:clamp(-10px,-1vw,0px)}
-.glow{position:absolute;left:8%;bottom:11%;width:clamp(190px,22vw,268px);aspect-ratio:1;border-radius:50%;
+.shot{position:relative;height:clamp(340px,min(50vw,64vh),520px);
+  margin-left:clamp(-40px,-2vw,0px);margin-right:0}
+.glow{position:absolute;left:14%;bottom:8%;width:clamp(230px,27vw,330px);aspect-ratio:1;border-radius:50%;
   background:radial-gradient(circle,rgba(143,212,200,.22),transparent 66%);
-  filter:blur(20px);opacity:0;animation:gin 1.5s ease-out .35s forwards;z-index:1}
+  filter:blur(20px);opacity:0;animation:gin 2.2s ease-out .5s forwards;z-index:1}
 @keyframes gin{to{opacity:1}}
 
-.hero-main{position:absolute;left:6%;bottom:0;z-index:3;
-  width:clamp(180px,min(25vw,32vh),252px);aspect-ratio:auto;height:88%;
-  display:grid;place-items:end center;
+.hero-main{position:absolute;left:2%;bottom:0;z-index:3;
+  width:44%;height:100%;
+  display:grid;place-items:end center;align-content:end;
   opacity:0;transform:translateY(44px) scale(.95);
-  animation:pin 1.05s cubic-bezier(.2,.72,.24,1) .4s forwards;transition:transform .35s}
+  animation:pin 1.7s cubic-bezier(.16,.7,.22,1) .55s forwards;transition:transform .35s}
 @keyframes pin{to{opacity:1;transform:translateY(0) scale(1)}}
 .hero-main:hover{transform:translateY(-10px)}
 /* Ảnh trần: không khung, không nền. Chỉ đổ bóng cho nổi khỏi nền navy. */
 .hero-main img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
   filter:drop-shadow(0 26px 46px rgba(0,0,0,.42))}
 
-.hero-refill{position:absolute;right:2%;bottom:26%;z-index:2;
-  width:clamp(88px,12vw,132px);height:clamp(140px,19vw,206px);
-  display:grid;place-items:end center;
-  opacity:0;transform:translateY(36px);animation:pin 1s cubic-bezier(.2,.72,.24,1) .58s forwards}
+/* Refill ĐỨNG CẠNH chai chính, CÙNG khung cùng chân — chai nào ngắn hơn
+   thì tự trông thấp hơn, không ép bằng CSS. */
+.hero-refill{position:absolute;left:50%;bottom:0;z-index:2;
+  width:44%;height:100%;
+  display:grid;place-items:end center;align-content:end;
+  opacity:0;transform:translateY(36px);animation:pin 1.6s cubic-bezier(.16,.7,.22,1) 1.0s forwards}
 .hero-refill img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
   filter:drop-shadow(0 18px 32px rgba(0,0,0,.36))}
 
 /* Mascot góc dưới-phải — KHÔNG đặt bên trái, tránh đè lên nút mua. */
-.mascot-hero{position:absolute;right:3%;bottom:2%;z-index:4;
-  width:clamp(60px,7.5vw,92px);aspect-ratio:1;overflow:hidden;border-radius:16px;
+/* Tem tròn — nội dung sửa trong config, để trống thì ẩn. */
+.hero-stamp{position:absolute;left:-3%;top:15%;z-index:5;
+  width:clamp(84px,10.5vw,122px);aspect-ratio:1;border-radius:50%;
+  background:var(--mint);border:3px solid #fff;box-shadow:0 10px 26px rgba(0,0,0,.3);
+  display:grid;place-items:center;text-align:center;padding:8px;overflow:hidden;
+  opacity:0;transform:scale(.7) rotate(-12deg);
+  animation:stampin .8s cubic-bezier(.2,1.5,.4,1) 1.35s forwards}
+@keyframes stampin{to{opacity:1;transform:scale(1) rotate(-7deg)}}
+.hero-stamp img{width:100%;height:100%;object-fit:contain;border-radius:50%}
+.hero-stamp span{font-size:clamp(9px,1.05vw,11px);font-weight:800;color:#0f3b34;line-height:1.32}
+.hero-stamp b{display:block;font-size:clamp(15px,1.8vw,20px);margin:1px 0;line-height:1}
+@media(max-width:620px){.hero-stamp{left:-1%;top:10%;width:clamp(66px,17vw,86px)}}
+
+.mascot-hero{position:absolute;right:-2%;bottom:1%;z-index:4;
+  width:clamp(68px,8.5vw,104px);aspect-ratio:1;overflow:hidden;border-radius:16px;
   background:rgba(255,255,255,.07);border:1px dashed rgba(255,255,255,.28);
-  opacity:0;animation:rise .9s ease-out .95s forwards}
+  opacity:0;animation:rise 1.3s ease-out 1.6s forwards}
 .mascot-hero img{width:100%;height:100%;object-fit:contain;border:0;background:none}
 @media(max-width:900px){.mascot-hero{display:none}}
 
-.trustbar{background:var(--cream);display:flex;flex-wrap:wrap;justify-content:center;
-  gap:clamp(16px,3.2vw,40px);padding:16px 5vw;font-size:13px;font-weight:700;color:var(--navy)}
-.trustbar span{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
-.tb-ic{width:19px;height:19px;flex-shrink:0;background:var(--navy);opacity:.5;
+.trustbar-w{background:var(--cream);padding:0 5vw}
+.trustbar{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);
+  border-bottom:1px solid rgba(24,40,78,.1)}
+.trustbar span{display:flex;align-items:center;justify-content:center;gap:9px;
+  padding:18px 10px;font-size:13.5px;font-weight:800;color:var(--navy);text-align:center;
+  border-left:1px solid rgba(24,40,78,.1)}
+.trustbar span:first-child{border-left:0}
+.tb-ic{width:20px;height:20px;flex-shrink:0;background:var(--navy);opacity:.5;
   -webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
   -webkit-mask-position:center;mask-position:center}
 .tb-truck{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='7' cy='17' r='2'/%3E%3Ccircle cx='17' cy='17' r='2'/%3E%3Cpath d='M5 17H3V6a1 1 0 0 1 1-1h9v12m-4 0h6m4 0h2v-6h-8m0-5h5l3 5'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='7' cy='17' r='2'/%3E%3Ccircle cx='17' cy='17' r='2'/%3E%3Cpath d='M5 17H3V6a1 1 0 0 1 1-1h9v12m-4 0h6m4 0h2v-6h-8m0-5h5l3 5'/%3E%3C/svg%3E")}
@@ -795,7 +857,11 @@ h1 .l2{display:block}
 .tb-refresh{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4'/%3E%3Cpath d='M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4'/%3E%3Cpath d='M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4'/%3E%3C/svg%3E")}
 .tb-star{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 17.75 5.83 21l1.18-6.88-5-4.87 6.9-1L12 2l3.09 6.26 6.9 1-5 4.87L18.17 21z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 17.75 5.83 21l1.18-6.88-5-4.87 6.9-1L12 2l3.09 6.26 6.9 1-5 4.87L18.17 21z'/%3E%3C/svg%3E")}
 .tb-check{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")}
-@media(max-width:560px){.trustbar{font-size:12px;gap:12px 18px}}
+@media(max-width:900px){.trustbar{grid-template-columns:repeat(2,1fr)}
+  .trustbar span{font-size:12.5px;padding:14px 8px}
+  .trustbar span:nth-child(3){border-left:0}
+  .trustbar span:nth-child(-n+2){border-bottom:1px solid rgba(24,40,78,.1)}}
+@media(max-width:400px){.trustbar span{font-size:11.5px;gap:6px}.tb-ic{width:16px;height:16px}}
 .tvc{position:relative;z-index:3;width:clamp(122px,14.5vw,192px);aspect-ratio:9/16;border-radius:18px;overflow:hidden;
   background:linear-gradient(165deg,#22345d,#141f3d);border:1px solid rgba(255,255,255,.2);box-shadow:0 26px 60px rgba(0,0,0,.42);
   opacity:0;transform:translateY(40px) scale(.95);animation:pin 1.05s cubic-bezier(.2,.72,.24,1) .62s forwards;transition:transform .35s}
@@ -805,12 +871,13 @@ h1 .l2{display:block}
   background:rgba(255,255,255,.94);cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:2}
 .play::after{content:"";position:absolute;inset:0;margin:auto;width:0;height:0;
   border-left:15px solid var(--navy);border-top:10px solid transparent;border-bottom:10px solid transparent;margin-left:20px}
-.wave{position:absolute;bottom:-1px;left:0;width:100%;line-height:0;z-index:4}
+.wave{position:absolute;bottom:-1px;left:0;width:100%;line-height:0;z-index:1;pointer-events:none}
 .wave svg{width:100%;height:clamp(44px,5vw,78px);display:block}
-@media(max-width:900px){.hero{grid-template-columns:1fr;padding:calc(var(--nav-h) + 30px) 6vw 0}
-  .shot{height:clamp(300px,72vw,400px);margin:22px 0 0}
-  .hero-main{left:4%;width:min(56vw,236px)}
-  .hero-refill{right:6%;width:min(26vw,110px);height:min(38vw,170px)}}
+@media(max-width:900px){.hero{grid-template-columns:1fr;padding:calc(var(--nav-h) + 30px) 6vw 52px}
+  .shot{height:clamp(330px,80vw,430px);margin:24px 0 0}
+  .hero-main{left:3%;width:45%;height:100%}
+  .hero-refill{left:51%;bottom:0;width:45%;height:100%}
+  .glow{left:12%;bottom:8%;width:min(64vw,290px)}}
 
 section{padding:clamp(48px,5.5vw,76px) 5vw}
 .shead{max-width:640px;margin-bottom:clamp(24px,3vw,34px)}
@@ -818,10 +885,10 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .shead h2{font-size:clamp(26px,3.2vw,40px);line-height:1.1;margin-bottom:10px;color:var(--navy)}
 .shead p{color:rgba(27,36,64,.68);font-size:16px;line-height:1.65}
 
-.grid{display:grid;grid-template-columns:1fr;gap:clamp(16px,2vw,22px);max-width:1180px}
-.card{background:#fff;border-radius:24px;overflow:hidden;border:1px solid rgba(24,40,78,.1);
+.grid{display:grid;grid-template-columns:1fr;gap:clamp(16px,2vw,22px);max-width:1180px;margin:0 auto}
+.card{background:#fff;border-radius:16px;overflow:hidden;border:1px solid rgba(24,40,78,.13);
   box-shadow:0 2px 10px rgba(24,40,78,.05);transition:.28s cubic-bezier(.2,.7,.3,1);display:flex;flex-direction:column}
-.card.star{border:2px solid var(--navy)}
+.card.star{border-color:rgba(24,40,78,.3)}
 .card:hover{transform:translateY(-6px);box-shadow:0 20px 46px rgba(24,40,78,.16)}
 .cimg{position:relative;aspect-ratio:3/4;overflow:hidden;transition:background .45s;
   display:grid;place-items:center;padding:22px}
@@ -831,8 +898,8 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
   .card{flex-direction:row;align-items:stretch}
   /* aspect-ratio giữ nguyên 3/4 → ô ảnh tự cao theo chiều rộng của nó,
      KHÔNG ăn theo chiều cao cột chữ. Cột chữ dài thì tự cuộn/giãn riêng. */
-  .card .cimg{flex:0 0 clamp(260px,30%,330px);aspect-ratio:3/4;align-self:center;
-    border-radius:20px;margin:14px 0 14px 14px}
+  .card .cimg{flex:0 0 clamp(236px,28%,300px);aspect-ratio:3/4;align-self:center;
+    border-radius:12px;margin:14px 0 14px 14px}
   .card.star .cimg{margin-left:12px}
   .card .cbody{flex:1;justify-content:center;padding:24px 30px}
 }
@@ -848,13 +915,16 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .chip:hover{border-color:var(--navy)}
 .chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .chip.out,.scent.out{opacity:.45}
-.scents{display:flex;flex-wrap:wrap;gap:7px}
-.scent{display:inline-flex;align-items:center;gap:7px;padding:7px 13px 7px 7px;border-radius:999px;
+.scents{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.scent{display:inline-flex;align-items:center;justify-content:center;padding:0;width:36px;height:36px;border-radius:50%;
   background:rgba(24,40,78,.05);border:1.5px solid transparent;cursor:pointer;transition:.2s;
   font-size:13px;font-weight:700;color:var(--navy);white-space:nowrap}
 .scent:hover{background:rgba(24,40,78,.09)}
 .scent.on{background:#fff;border-color:var(--navy);box-shadow:0 2px 8px rgba(24,40,78,.12)}
-.scent i{width:20px;height:20px;border-radius:50%;flex-shrink:0;display:block}
+.scent i{width:100%;height:100%;border-radius:50%;flex-shrink:0;display:block}
+.scent .sic{width:100%;height:100%;border-radius:50%;object-fit:cover}
+.scent.on{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--navy);border-color:transparent}
+.scentname{font-size:13.5px;font-weight:800;color:var(--navy);margin-left:6px;align-self:center}
 .scent .sic{width:22px;height:22px;flex-shrink:0;object-fit:contain;border-radius:50%}
 .pricerow{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-top:auto;padding-top:10px}
 .price{font-family:'Nunito';font-weight:900;font-size:29px;color:var(--navy);letter-spacing:-.02em}
@@ -864,9 +934,14 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .stock::before{content:"";width:7px;height:7px;border-radius:50%;background:#2e7d4f}
 .stock.out{color:#c25050}
 .stock.out::before{background:#c25050}
-.cbtns{display:flex;gap:9px}
-.cbtns{margin-top:4px}
-.cbtns .btn{flex:1;padding:13px 16px;font-size:14px}
+.cfoot{margin-top:auto;padding-top:15px;border-top:1px solid rgba(24,40,78,.11);
+  display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.cfoot-l{display:flex;flex-direction:column;gap:7px;min-width:0}
+.cbtns{display:flex;gap:9px;flex-shrink:0}
+.cbtns .btn{padding:13px 18px;font-size:14px;white-space:nowrap}
+.cbtns .b-buy{padding-left:26px;padding-right:26px}
+@media(max-width:620px){.cfoot{flex-direction:column;align-items:stretch;gap:13px}
+  .cbtns .btn{flex:1;padding-left:14px;padding-right:14px}}
 .b-buy{background:var(--navy);color:#fff}
 .b-buy:hover:not(:disabled){background:var(--navy-deep)}
 .b-more{border:2px solid rgba(24,40,78,.18);color:var(--navy)}
@@ -1007,7 +1082,7 @@ footer{background:var(--navy-deep);color:rgba(255,255,255,.5);padding:26px 5vw 9
 
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
-  .rv,.hero-main,.hero-refill,.tvc,.glow,.mascot-hero{opacity:1!important;transform:none!important}
+  .rv,.hero-main,.hero-refill,.hero-stamp,.tvc,.glow,.mascot-hero{opacity:1!important;transform:none!important;animation:none!important}
   .peek,.pop{display:none}
 }
     `}</style>

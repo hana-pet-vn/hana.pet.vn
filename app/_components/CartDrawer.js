@@ -103,13 +103,17 @@ export default function CartDrawer() {
       </aside>
 
       <style jsx global>{`
-.hp-scrim{position:fixed;inset:0;background:rgba(12,20,40,.5);backdrop-filter:blur(2px);z-index:900;
-  opacity:0;pointer-events:none;transition:opacity .28s}
+/* Man mo NHAT va KHONG blur: khach van thay mascot nhay + the SP phia sau.
+   Delay 420ms de hieu ung mascot kip chay xong roi drawer moi truot ra. */
+.hp-scrim{position:fixed;inset:0;background:rgba(12,20,40,.28);z-index:900;
+  opacity:0;pointer-events:none;transition:opacity .5s ease .42s}
 .hp-scrim.on{opacity:1;pointer-events:auto}
+.hp-scrim:not(.on){transition:opacity .3s ease 0s}
 .hp-drawer{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);background:#fff;z-index:901;
-  display:flex;flex-direction:column;transform:translateX(100%);transition:transform .32s cubic-bezier(.2,.7,.3,1);
+  display:flex;flex-direction:column;transform:translateX(100%);transition:transform .62s cubic-bezier(.18,.72,.24,1) .42s;
   box-shadow:-10px 0 40px rgba(24,40,78,.2);font-family:'Nunito Sans',system-ui,sans-serif}
 .hp-drawer.on{transform:translateX(0)}
+.hp-drawer:not(.on){transition:transform .34s cubic-bezier(.4,0,.7,.5) 0s}
 .hp-drawer header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;
   border-bottom:1px solid rgba(24,40,78,.1)}
 .hp-drawer header b{font-family:'Nunito';font-weight:900;font-size:19px;color:#18284e}
