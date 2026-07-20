@@ -37,7 +37,7 @@ const DEFAULTS = {
   heroBtn1Link: '#sp',
   heroMicro: 'Giao Hà Nội trong 24h · Đổi trả 7 ngày',
   heroImage: '',
-  heroMascot: '',
+  heroMascot: '/mascots/pet-04.png',
   heroSkuName: 'Misty Fresh',
   heroVideo: '',
   heroShowVideo: false,
@@ -72,7 +72,7 @@ const DEFAULTS = {
   mfImage: '',
 
   inviteText: 'Muốn cún thơm như vừa đi spa về?',
-  inviteMascot: '',
+  inviteMascot: '/mascots/pet-09.png',
 
   // wbsKey: khớp với sản phẩm trong bảng products. Giá + tồn kho lấy từ admin.
   // wbsScents chỉ giữ MÀU và ẢNH của từng mùi — tên mùi khớp với phân loại
@@ -136,7 +136,8 @@ const DEFAULTS = {
     { t: 'Đổi trả 7 ngày', s: 'Bé không hợp? Nhắn tớ, đổi hoặc hoàn tiền.' },
   ],
 
-  cartPets: [],
+  // Anh mascot thoc dau khi bam mua. Sua duoc trong admin.
+  cartPets: ['/mascots/pet-01.png','/mascots/pet-02.png','/mascots/pet-03.png','/mascots/pet-04.png','/mascots/pet-05.png','/mascots/pet-06.png','/mascots/pet-07.png','/mascots/pet-08.png','/mascots/pet-09.png','/mascots/pet-10.png'],
   cartCheers: ['Thơm rồi nè!', 'Hoan hô!', 'Yêu quá đi!', 'Ngoan lắm!'],
 
   buybarBtn: 'Thêm giỏ',
@@ -310,7 +311,8 @@ export default function Home() {
   useEffect(() => {
     const onClick = (e) => {
       const b = e.target.closest('.cta-buy');
-      if (b) peek(b);
+      /* KHONG chay hieu ung o hero: nut hero chi cuon xuong, chua them gio. */
+      if (b && !b.closest('header')) peek(b);
     };
     document.addEventListener('click', onClick);
     return () => document.removeEventListener('click', onClick);
@@ -546,7 +548,7 @@ export default function Home() {
           <article className="card">
             <div className="cimg light"
                  style={{ background: `linear-gradient(160deg,${sc.c1 || '#dbe4f4'},${sc.c2 || '#b3c4e2'})` }}>
-              {S.wbsBadge && <span className="badge">{S.wbsBadge}</span>}
+              {S.wbsBadge && <span className="badge badge-mint">{S.wbsBadge}</span>}
               <Img src={(scV && scV.img) || sc.image || wbsProd.img} alt={wbsProd.name}
                    text={`ẢNH THẬT|chai Waterless Bubble|(${sc.name || 'mùi'})`} />
             </div>
@@ -566,9 +568,9 @@ export default function Home() {
                               aria-pressed={i === scent}>
                         {s.icon ? <img className="sic" src={s.icon} alt="" />
                                 : <i style={{ background: s.dot }} />}
+                        <b>{s.name}</b>
                       </button>
                     ))}
-                    <span className="scentname">{sc.name || ''}</span>
                   </div>
                 </>
               )}
@@ -855,10 +857,10 @@ h1 .l2{display:block}
 @media(max-width:620px){.hero-stamp{left:-1%;top:10%;width:clamp(66px,17vw,86px)}}
 
 .mascot-hero{position:absolute;right:-5%;bottom:0;z-index:4;
-  width:clamp(68px,8.5vw,104px);aspect-ratio:1;overflow:hidden;border-radius:16px;
-  background:rgba(255,255,255,.07);border:1px dashed rgba(255,255,255,.28);
+  width:clamp(96px,12vw,148px);aspect-ratio:1;overflow:visible;
   opacity:0;animation:rise 1.3s ease-out 1.6s forwards}
-.mascot-hero img{width:100%;height:100%;object-fit:contain;border:0;background:none}
+.mascot-hero img{width:100%;height:100%;object-fit:contain;border:0;background:none;
+  filter:drop-shadow(0 12px 22px rgba(0,0,0,.34))}
 @media(max-width:900px){.mascot-hero{display:none}}
 
 .trustbar-w{background:var(--cream);padding:0 5vw}
@@ -905,7 +907,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .shead p{color:rgba(27,36,64,.68);font-size:16px;line-height:1.65}
 
 .grid{display:grid;grid-template-columns:1fr;gap:clamp(16px,2vw,22px);max-width:1180px;margin:0 auto}
-.card{background:#fff;border-radius:16px;overflow:hidden;border:1px solid rgba(24,40,78,.13);
+.card{background:#fffdf9;border-radius:16px;overflow:hidden;border:1px solid rgba(24,40,78,.13);
   box-shadow:0 2px 10px rgba(24,40,78,.05);transition:.28s cubic-bezier(.2,.7,.3,1);display:flex;flex-direction:column}
 .card.star{border-color:rgba(24,40,78,.3)}
 .card:hover{transform:translateY(-6px);box-shadow:0 20px 46px rgba(24,40,78,.16)}
@@ -917,34 +919,39 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
   .card{flex-direction:row;align-items:stretch}
   /* aspect-ratio giữ nguyên 3/4 → ô ảnh tự cao theo chiều rộng của nó,
      KHÔNG ăn theo chiều cao cột chữ. Cột chữ dài thì tự cuộn/giãn riêng. */
-  .card .cimg{flex:0 0 clamp(236px,28%,300px);aspect-ratio:3/4;align-self:center;
-    border-radius:12px;margin:14px 0 14px 14px}
-  .card.star .cimg{margin-left:12px}
+  /* Panel anh CHAM MEP the — mang mau lien khoi, khong con o anh nho noi
+     tren nen trang. WBS doi mau panel theo mui (inline style tu sc.c1/c2). */
+  .card .cimg{flex:0 0 clamp(250px,29%,310px);aspect-ratio:auto;align-self:stretch;
+    border-radius:0;margin:0;padding:26px}
   .card .cbody{flex:1;justify-content:center;padding:24px 30px}
 }
 .badge{position:absolute;top:14px;left:14px;background:#fff;color:var(--navy);font-size:11px;font-weight:800;
   letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.14);z-index:2}
+.badge-mint{background:var(--mint);color:#0f3b34}
 .cbody{padding:20px;display:flex;flex-direction:column;gap:10px;flex:1}
 .cbody h3{font-size:20px;color:var(--navy);line-height:1.25}
 .cdesc{font-size:14.5px;color:rgba(27,36,64,.66);line-height:1.6}
 .optlabel{font-size:12.5px;font-weight:800;color:var(--navy);opacity:.6}
 .variants{display:flex;gap:8px;flex-wrap:wrap}
 .chip{padding:9px 15px;border-radius:999px;border:1.5px solid rgba(24,40,78,.18);font-size:13px;font-weight:700;
-  cursor:pointer;transition:.2s;background:#fff;color:var(--navy)}
+  cursor:pointer;transition:.2s;background:var(--cream);color:var(--navy)}
 .chip:hover{border-color:var(--navy)}
 .chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .chip.out,.scent.out{opacity:.45}
-.scents{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
-.scent{display:inline-flex;align-items:center;justify-content:center;padding:0;width:36px;height:36px;border-radius:50%;
-  background:rgba(24,40,78,.05);border:1.5px solid transparent;cursor:pointer;transition:.2s;
-  font-size:13px;font-weight:700;color:var(--navy);white-space:nowrap}
-.scent:hover{background:rgba(24,40,78,.09)}
-.scent.on{background:#fff;border-color:var(--navy);box-shadow:0 2px 8px rgba(24,40,78,.12)}
-.scent i{width:100%;height:100%;border-radius:50%;flex-shrink:0;display:block}
-.scent .sic{width:100%;height:100%;border-radius:50%;object-fit:cover}
-.scent.on{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--navy);border-color:transparent}
-.scentname{font-size:13.5px;font-weight:800;color:var(--navy);margin-left:6px;align-self:center}
-.scent .sic{width:22px;height:22px;flex-shrink:0;object-fit:contain;border-radius:50%}
+/* Mui dang chon PHINH ra thanh vien thuoc co ten ben trong; cac mui khac
+   van la cham tron. Van 1 hang, khong xuong dong -> khong lam the cao len. */
+.scents{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.scent{display:inline-flex;align-items:center;gap:0;padding:5px;height:34px;border-radius:999px;
+  background:transparent;border:1.5px solid rgba(24,40,78,.16);cursor:pointer;
+  transition:.26s cubic-bezier(.2,.7,.3,1);font-size:13px;font-weight:800;color:var(--navy);white-space:nowrap}
+.scent:hover{border-color:rgba(24,40,78,.4)}
+.scent.on{background:#fff;border-color:var(--navy);gap:8px;padding-right:14px;
+  box-shadow:0 2px 8px rgba(24,40,78,.12)}
+.scent i{width:22px;height:22px;border-radius:50%;flex-shrink:0;display:block}
+.scent .sic{width:22px;height:22px;border-radius:50%;flex-shrink:0;object-fit:cover}
+.scent b{font-weight:800;max-width:0;overflow:hidden;opacity:0;
+  transition:max-width .26s cubic-bezier(.2,.7,.3,1),opacity .2s}
+.scent.on b{max-width:150px;opacity:1}
 .pricerow{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-top:auto;padding-top:10px}
 .price{font-family:'Nunito';font-weight:900;font-size:29px;color:var(--navy);letter-spacing:-.02em}
 .was{font-size:15px;color:rgba(27,36,64,.36);text-decoration:line-through}
@@ -963,11 +970,11 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
   .cbtns .btn{flex:1;padding-left:14px;padding-right:14px}}
 .b-buy{background:var(--navy);color:#fff}
 .b-buy:hover:not(:disabled){background:var(--navy-deep)}
-.b-more{border:2px solid rgba(24,40,78,.18);color:var(--navy)}
+.b-more{border:2px solid rgba(24,40,78,.18);color:var(--navy);background:var(--cream)}
 .b-more:hover{border-color:var(--navy)}
 
 .invite{display:flex;align-items:center;gap:16px;padding:6px 2px}
-.invite .msc{width:54px;height:54px;border-radius:14px;flex-shrink:0;overflow:hidden;background:rgba(24,40,78,.06);border:1px dashed rgba(24,40,78,.24)}
+.invite .msc{width:62px;height:62px;flex-shrink:0;overflow:visible}
 .invite .msc img{width:100%;height:100%;object-fit:contain}
 .invite p{font-family:'Nunito';font-weight:800;font-size:clamp(16px,1.9vw,23px);color:var(--navy);line-height:1.35}
 .invite .arrow{flex:1;height:1px;background:linear-gradient(90deg,rgba(24,40,78,.22),transparent);min-width:20px}
