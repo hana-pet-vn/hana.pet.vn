@@ -196,7 +196,8 @@ const DEFAULTS = {
 
   // Anh mascot thoc dau khi bam mua. Sua duoc trong admin.
   cartPets: ['/mascots/pet-01.png','/mascots/pet-02.png','/mascots/pet-03.png','/mascots/pet-04.png','/mascots/pet-05.png','/mascots/pet-06.png','/mascots/pet-07.png','/mascots/pet-08.png','/mascots/pet-09.png','/mascots/pet-10.png'],
-  cartCheers: ['Thơm rồi nè!', 'Hoan hô!', 'Yêu quá đi!', 'Ngoan lắm!'],
+  cartCheers: ['Thơm rồi nè!', 'Hoan hô!', 'Yêu quá đi!', 'Ngoan lắm!',
+               'Đỉnh quá!', 'Tuyệt vời!', 'Xịn sò phết!', 'Cảm ơn bạn yêu!'],
 
   buybarBtn: 'Thêm giỏ',
   buybarImage: '',
@@ -354,23 +355,22 @@ export default function Home() {
     host.classList.add('peekwrap');
     host.querySelectorAll('.peek,.pop').forEach(n => n.remove());
 
-    const pets = (S.cartPets || []).filter(Boolean);
+    /* Bong bong CHU (style L): navy, vien trang, bo goc lech.
+       KHONG dung anh nua — chu doc tu cartCheers nen sua duoc trong admin.
+       Moi lan hien lay ngau nhien 1 cau + 1 dang bo goc/nghieng (v1..v4). */
+    const cheers = (S.cartCheers || []).filter(Boolean);
     const key = btn.dataset.peekid || (btn.dataset.peekid = Math.random().toString(36).slice(2));
     const first = !seen.current[key];
     seen.current[key] = true;
 
     const el = document.createElement('div');
-    el.className = 'peek' + (first ? '' : ' small');
-    if (pets.length) {
-      const p = pets[Math.floor(Math.random() * pets.length)];
-      el.innerHTML = `<i><img src="${p}" alt=""></i>`;
-    } else {
-      el.innerHTML = '<span>MASCOT<br>cún / mèo</span>';
-      el.classList.add('peek-ph');
-    }
+    el.className = 'peek v' + (1 + Math.floor(Math.random() * 4)) + (first ? '' : ' small');
+    el.textContent = cheers.length
+      ? cheers[Math.floor(Math.random() * cheers.length)]
+      : 'Hoan hô!';
     host.appendChild(el);
-    setTimeout(() => el.remove(), 2400);
-  }, [S.cartPets]);
+    setTimeout(() => el.remove(), 1950);
+  }, [S.cartCheers]);
 
   useEffect(() => {
     const onClick = (e) => {
@@ -1113,39 +1113,32 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .tstat b{display:block;font-family:'Nunito';font-weight:900;font-size:clamp(22px,2.6vw,30px);color:var(--navy)}
 .tstat span{font-size:13px;color:rgba(27,36,64,.58);font-weight:600}
 
-/* Sticker thò đầu. Chữ nằm SẴN trong ảnh PNG nên KHÔNG còn bong bóng .pop.
-   Khoá chiều CAO, thả chiều RỘNG: sticker rộng/hẹp khác nhau (tỉ lệ 0.94–1.93)
-   nên ô vuông sẽ bóp con ngang bé tí. width:auto cho mọi con cao bằng nhau.
-   Bọc 2 lớp: .peek lo vào-ra, .peek i lo lắc tada. Gộp 1 lớp thì
-   translateX(-50%) của lớp ngoài bị animation lắc ghi đè → sticker lệch. */
+/* Bong bong CHU thò lên khi bấm nút mua (style L).
+   KHONG dung anh: chu doc tu S.cartCheers nen sua duoc trong admin.
+   Navy nen + vien trang bang box-shadow (khong dung border de goc bo van muot).
+   4 dang v1..v4: moi dang mot kieu bo goc lech + mot goc nghieng khac nhau,
+   nen bam lien tiep khong bao gio thay hai cai giong het nhau. */
 .peekwrap{position:relative}
-.peek{position:absolute;left:50%;bottom:calc(100% - 6px);height:76px;width:auto;pointer-events:none;z-index:5;
-  transform:translateX(-50%);opacity:0;animation:peekin 2.4s cubic-bezier(.3,1.5,.5,1) forwards}
-.peek i{display:block;height:100%;transform-origin:50% 100%;
-  animation:tada 1.25s ease-in-out 1.15s 1 both}
-.peek img{display:block;height:100%;width:auto;max-width:none;
-  filter:drop-shadow(0 6px 14px rgba(24,40,78,.28))}
-.peek.peek-ph{width:76px;border-radius:14px 14px 8px 8px;background:rgba(255,255,255,.96);
-  border:1px dashed rgba(24,40,78,.3);display:grid;place-items:center;text-align:center;
-  font-size:8.5px;font-weight:800;line-height:1.45;color:rgba(24,40,78,.5);box-shadow:0 8px 22px rgba(24,40,78,.2)}
-.peek.small{height:56px;font-size:7.5px}
-.peek.small.peek-ph{width:56px}
-/* Vào: nảy lên quá đà rồi rơi về. Ra: tụt xuống ở cuối. */
+.peek{position:absolute;left:50%;bottom:calc(100% + 8px);z-index:5;pointer-events:none;
+  background:var(--navy);color:#fff;font-family:'Nunito',system-ui,sans-serif;
+  font-weight:900;font-size:15px;letter-spacing:.2px;text-transform:uppercase;white-space:nowrap;
+  padding:9px 18px;box-shadow:0 0 0 3px #fff,0 6px 18px rgba(0,0,0,.28);
+  opacity:0;will-change:transform,opacity;
+  animation:peekin 1.9s cubic-bezier(.3,1.5,.5,1) forwards}
+/* Bo goc LECH: 3 goc tron, 1 goc gan vuong. Goc gan vuong doi cho o moi dang. */
+.peek.v1{border-radius:26px 26px 26px 10px;--rot:-3deg}
+.peek.v2{border-radius:26px 26px 10px 26px;--rot:2deg}
+.peek.v3{border-radius:24px 27px 25px 9px;--rot:-1.5deg}
+.peek.v4{border-radius:27px 24px 9px 26px;--rot:2.5deg}
+.peek.small{font-size:13px;padding:7px 15px}
+/* Vao: nay len qua da roi roi ve. Ra: tut xuong o cuoi.
+   var(--rot) giu goc nghieng rieng cua tung dang trong SUOT hieu ung. */
 @keyframes peekin{
-  0%{opacity:0;transform:translateX(-50%) translateY(130%) scale(.8)}
-  18%{opacity:1;transform:translateX(-50%) translateY(-14%) scale(1.12)}
-  26%{transform:translateX(-50%) translateY(4%) scale(.97)}
-  33%{transform:translateX(-50%) translateY(-4%) scale(1.04)}
-  42%,88%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}
-  100%{opacity:0;transform:translateX(-50%) translateY(40%) scale(.9)}}
-/* Tada: xoay MẠNH ±9° kèm phình co. Phình co mới ra chất "khoe". */
-@keyframes tada{
-  0%,100%{transform:scale(1) rotate(0)}
-  12%{transform:scale(1.06) rotate(-9deg)}
-  30%{transform:scale(1.09) rotate(9deg)}
-  48%{transform:scale(1.06) rotate(-8deg)}
-  66%{transform:scale(1.08) rotate(8deg)}
-  82%{transform:scale(1.03) rotate(-4deg)}}
+  0%{opacity:0;transform:translateX(-50%) translateY(120%) rotate(0) scale(.86)}
+  14%{opacity:1;transform:translateX(-50%) translateY(-12%) rotate(var(--rot)) scale(1.06)}
+  24%{transform:translateX(-50%) translateY(3%) rotate(var(--rot)) scale(.98)}
+  32%,86%{opacity:1;transform:translateX(-50%) translateY(0) rotate(var(--rot)) scale(1)}
+  100%{opacity:0;transform:translateX(-50%) translateY(26%) rotate(var(--rot)) scale(.94)}}
 
 .buybar{position:fixed;left:0;right:0;bottom:0;z-index:80;overflow:visible;background:rgba(255,255,255,.97);
   backdrop-filter:blur(14px);border-top:1px solid rgba(24,40,78,.12);box-shadow:0 -6px 26px rgba(24,40,78,.12);
