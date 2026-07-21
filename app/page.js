@@ -1010,23 +1010,34 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 /* v18: Khu SẢN PHẨM đảo màu — nền XÁM NHẠT, thẻ navy ĐẶC (bỏ kính mờ).
    Kicker/shead dùng lại màu navy mặc định nên không cần override nữa. */
 #sp{background:#f4f5f7}
+/* v18.1: khu #sp bung theo khung 1180 (cùng cỡ .nav-in) — tiêu đề thẳng
+   hàng với lưới thẻ, hết cảnh tiêu đề dính trái còn thẻ lọt giữa. */
+#sp .shead{max-width:1180px;margin-left:auto;margin-right:auto}
+#sp .shead p{max-width:640px}
 
-.grid{display:grid;grid-template-columns:1fr;gap:16px;max-width:500px;margin:0 auto}
+/* v18.1: PC = 2 thẻ cạnh nhau lấp đầy khung 1180; màn hẹp tự về 1 cột.
+   min(480px,100%) để không vỡ trên màn cực hẹp. */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(480px,100%),1fr));
+  gap:clamp(16px,1.8vw,24px);max-width:1180px;margin:0 auto}
 /* v14: thẻ NẰM NGANG — ảnh dọc bên trái, chữ bên phải. Xếp chồng 1 cột. */
 .card{background:var(--navy);border-radius:18px;overflow:hidden;border:none;
   transition:.28s cubic-bezier(.2,.7,.3,1);box-shadow:0 6px 18px rgba(24,40,78,.16);
-  display:grid;grid-template-columns:170px minmax(0,1fr);align-items:stretch}
+  display:grid;grid-template-columns:200px minmax(0,1fr);align-items:stretch}
 .card.star{box-shadow:0 8px 24px rgba(24,40,78,.22)}
 .card:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(24,40,78,.26)}
-.cimg{position:relative;aspect-ratio:3/4;max-height:280px;overflow:hidden;transition:background .45s;
-  display:grid;place-items:center;padding:18px}
+/* v18.1: BỎ aspect-ratio + max-height. Cặp này làm khung ảnh tự tính rộng
+   hơn cột chứa nó rồi (vì position:relative) ĐÈ LÊN cột chữ — chính là lỗi
+   chữ bị cắt cụt. Giờ: rộng = đúng cột lưới, cao = giãn theo thẻ, ảnh tự
+   căn GIỮA DỌC (xong luôn việc treo "ảnh chai căn giữa"). */
+.cimg{position:relative;overflow:hidden;transition:background .45s;
+  display:grid;place-items:center;padding:20px;min-height:280px}
 /* Ảnh LUÔN nằm gọn trong khung, không kéo giãn theo chiều cao cột chữ */
 .cimg img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
   transition:transform .3s cubic-bezier(.2,.7,.3,1)}
 .card:hover .cimg img{transform:translateY(-6px) scale(1.03)}
 .badge{position:absolute;top:14px;left:14px;background:#fff;color:var(--navy);font-size:11px;font-weight:800;
   letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.14);z-index:2}
-.cbody{padding:18px 20px;display:flex;flex-direction:column;gap:8px;justify-content:center;min-width:0}
+.cbody{padding:20px 24px;display:flex;flex-direction:column;gap:8px;justify-content:center;min-width:0}
 .cbody h3{font-size:19px;color:var(--navy);line-height:1.22}
 .cdesc{font-size:13.5px;color:rgba(27,36,64,.66);line-height:1.55}
 .optlabel{font-size:12.5px;font-weight:800;color:var(--navy);opacity:.6}
@@ -1071,6 +1082,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
    cùng tên, không thì bị đè — bài học điểm 9). */
 @media(max-width:620px){
   .card{grid-template-columns:132px minmax(0,1fr)}
+  .cimg{min-height:210px;padding:12px}
 }
 .b-buy{background:var(--navy);color:#fff}
 .b-buy:hover:not(:disabled){background:var(--navy-deep);transform:translateY(-2px);box-shadow:0 10px 24px rgba(24,40,78,.28)}
