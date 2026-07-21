@@ -1007,19 +1007,17 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .shead h2{font-size:clamp(26px,3.2vw,40px);line-height:1.1;margin-bottom:10px;color:var(--navy)}
 .shead p{color:rgba(27,36,64,.68);font-size:16px;line-height:1.65}
 
-/* Khu SẢN PHẨM: nền navy + thẻ kính mờ (trộn phương án 1 và 3, bỏ mint). */
-#sp{background:var(--navy)}
-#sp .kicker{color:rgba(255,255,255,.6);opacity:1}
-#sp .shead h2{color:#fff}
-#sp .shead p{color:rgba(255,255,255,.68)}
+/* v18: Khu SẢN PHẨM đảo màu — nền XÁM NHẠT, thẻ navy ĐẶC (bỏ kính mờ).
+   Kicker/shead dùng lại màu navy mặc định nên không cần override nữa. */
+#sp{background:#f4f5f7}
 
-.grid{display:grid;grid-template-columns:1fr;gap:16px;max-width:720px;margin:0 auto}
+.grid{display:grid;grid-template-columns:1fr;gap:16px;max-width:500px;margin:0 auto}
 /* v14: thẻ NẰM NGANG — ảnh dọc bên trái, chữ bên phải. Xếp chồng 1 cột. */
-.card{background:rgba(255,255,255,.055);border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.17);
-  backdrop-filter:blur(6px);transition:.28s cubic-bezier(.2,.7,.3,1);
-  display:grid;grid-template-columns:200px minmax(0,1fr);align-items:stretch}
-.card.star{border-color:rgba(255,255,255,.4)}
-.card:hover{transform:translateY(-6px);border-color:rgba(255,255,255,.36);box-shadow:0 22px 50px rgba(0,0,0,.32)}
+.card{background:var(--navy);border-radius:18px;overflow:hidden;border:none;
+  transition:.28s cubic-bezier(.2,.7,.3,1);box-shadow:0 6px 18px rgba(24,40,78,.16);
+  display:grid;grid-template-columns:170px minmax(0,1fr);align-items:stretch}
+.card.star{box-shadow:0 8px 24px rgba(24,40,78,.22)}
+.card:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(24,40,78,.26)}
 .cimg{position:relative;aspect-ratio:3/4;max-height:280px;overflow:hidden;transition:background .45s;
   display:grid;place-items:center;padding:18px}
 /* Ảnh LUÔN nằm gọn trong khung, không kéo giãn theo chiều cao cột chữ */
@@ -1029,7 +1027,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .badge{position:absolute;top:14px;left:14px;background:#fff;color:var(--navy);font-size:11px;font-weight:800;
   letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.14);z-index:2}
 .cbody{padding:18px 20px;display:flex;flex-direction:column;gap:8px;justify-content:center;min-width:0}
-.cbody h3{font-size:18px;color:var(--navy);line-height:1.28}
+.cbody h3{font-size:19px;color:var(--navy);line-height:1.22}
 .cdesc{font-size:13.5px;color:rgba(27,36,64,.66);line-height:1.55}
 .optlabel{font-size:12.5px;font-weight:800;color:var(--navy);opacity:.6}
 .variants{display:flex;gap:8px;flex-wrap:wrap}
@@ -1068,44 +1066,57 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .cbtns .b-buy{padding-left:20px;padding-right:20px}
 @media(max-width:620px){.cfoot{flex-direction:column;align-items:stretch;gap:13px}
   .cbtns .btn{flex:1;padding-left:14px;padding-right:14px}}
-/* v14: màn hẹp → thẻ quay lại dạng DỌC, ảnh trên chữ dưới */
-@media(max-width:700px){
-  .card{grid-template-columns:1fr}
-  .cimg{aspect-ratio:1/1;max-height:240px}
+/* v18: màn hẹp — ảnh VẪN BÊN TRÁI (Tung chốt), chỉ thu cột ảnh.
+   Chip/nút mobile nằm ở CUỐI khối .card bên dưới (phải đứng SAU override
+   cùng tên, không thì bị đè — bài học điểm 9). */
+@media(max-width:620px){
+  .card{grid-template-columns:132px minmax(0,1fr)}
 }
 .b-buy{background:var(--navy);color:#fff}
 .b-buy:hover:not(:disabled){background:var(--navy-deep);transform:translateY(-2px);box-shadow:0 10px 24px rgba(24,40,78,.28)}
 .b-more{border:2px solid rgba(24,40,78,.18);color:var(--navy);background:var(--cream)}
 .b-more:hover{border-color:var(--navy);background:#fff;transform:translateY(-2px)}
 
-/* ── Bên trong thẻ kính (nền navy): chỉ navy & trắng ── */
+/* ── v18: Bên trong thẻ navy ĐẶC — navy nhiều tầng, hierarchy 3 tầng ──
+   Tầng 1 SP (tên + giá) > Tầng 2 nút mua > Tầng 3 còn lại.
+   Tầng navy: nền #18284e > chip #22355f > viền #3d5589.
+   Chữ phụ dùng màu ĐẶC (#c3cde0, #9fb0d0, #8fa3c8), không dùng trắng-mờ. */
 .card .cbody h3{color:#fff}
-.card .cdesc{color:rgba(255,255,255,.7)}
-.card .optlabel{color:rgba(255,255,255,.6);opacity:1}
-.card .chip{border-color:rgba(255,255,255,.3);background:transparent;color:#fff}
-.card .chip:hover{border-color:#fff;background:rgba(255,255,255,.1)}
+.card .cdesc{font-size:11.5px;color:#9fb0d0}
+.card .optlabel{color:#8fa3c8;opacity:1;font-size:11.5px}
+.card .chip{padding:4px 10px;font-size:11px;border:1px solid #3d5589;background:#22355f;color:#c3cde0}
+.card .chip:hover{border-color:#fff}
 .card .chip.on{background:#fff;color:var(--navy);border-color:#fff}
-.card .scent{border-color:rgba(255,255,255,.28);color:#fff}
+.card .scent{border-color:#3d5589;color:#fff}
 .card .scent:hover{border-color:#fff;background:rgba(255,255,255,.08)}
-.card .scent.on{background:rgba(255,255,255,.14);border-color:#fff;box-shadow:none}
-.card .price{color:#fff}
-.card .was{color:rgba(255,255,255,.4)}
-.card .save{color:#fff;background:rgba(255,255,255,.14)}
-.card .stock{color:rgba(255,255,255,.8)}
-.card .stock::before{background:#fff}
-.card .stock.out{color:rgba(255,255,255,.5)}
-.card .stock.out::before{background:rgba(255,255,255,.5)}
-.card .cfoot{border-top-color:rgba(255,255,255,.16);flex-direction:column;align-items:stretch;gap:12px}
-.card .cbtns .b-buy{flex:1;background:#fff;color:var(--navy)}
-.card .cbtns .b-buy:hover:not(:disabled){background:#fff;box-shadow:0 12px 26px rgba(0,0,0,.3)}
-.card .b-more{border-color:rgba(255,255,255,.32);color:#fff;background:transparent}
-.card .b-more:hover{border-color:#fff;background:rgba(255,255,255,.1)}
+.card .scent.on{background:#22355f;border-color:#fff;box-shadow:none}
+.card .price{color:#fff;font-size:24px}
+.card .was{color:#8fa3c8}
+.card .save{color:#c3cde0;background:#22355f}
+.card .stock{color:#8fa3c8;font-size:11px}
+.card .stock::before{background:#7dd3a8}
+.card .stock.out{color:#e5a3a3}
+.card .stock.out::before{background:#e5a3a3}
+.card .cfoot{border-top-color:#33487a;flex-direction:column;align-items:flex-start;gap:10px}
+.card .cbtns{align-items:center}
+.card .cbtns .b-buy{padding:12px 26px;font-size:14px;background:#fff;color:var(--navy);box-shadow:0 3px 10px rgba(0,0,0,.25)}
+.card .cbtns .b-buy:hover:not(:disabled){background:#fff;box-shadow:0 8px 20px rgba(0,0,0,.35)}
+.card .b-more{padding:9px 13px;font-size:12px;border:1px solid #33487a;color:#9fb0d0;background:transparent}
+.card .b-more:hover{border-color:#9fb0d0;color:#fff;background:transparent}
+/* Mobile: chip to lại cho ngón cái, nút mua giãn full. Khối này phải đứng
+   SAU các override cùng tên ở trên (điểm 9). */
+@media(max-width:620px){
+  .card .chip{padding:7px 13px;font-size:12px}
+  .card .cbtns{align-self:stretch}
+  .card .cbtns .b-buy{flex:1;text-align:center}
+}
 
+/* v18: invite nằm trong #sp — nền khu giờ SÁNG nên đổi chữ trắng → navy */
 .invite{display:flex;align-items:center;gap:16px;padding:2px;grid-column:1/-1}
-.invite .msc{width:62px;height:62px;flex-shrink:0;overflow:visible;background:rgba(255,255,255,.08);border-radius:14px}
+.invite .msc{width:62px;height:62px;flex-shrink:0;overflow:visible;background:rgba(24,40,78,.06);border-radius:14px}
 .invite .msc img{width:100%;height:100%;object-fit:contain}
-.invite p{font-family:'Nunito';font-weight:800;font-size:clamp(16px,1.9vw,23px);color:#fff;line-height:1.35}
-.invite .arrow{flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.3),transparent);min-width:20px}
+.invite p{font-family:'Nunito';font-weight:800;font-size:clamp(16px,1.9vw,23px);color:var(--navy);line-height:1.35}
+.invite .arrow{flex:1;height:1px;background:linear-gradient(90deg,rgba(24,40,78,.3),transparent);min-width:20px}
 @media(max-width:720px){.invite .arrow{display:none}}
 
 .tmo{background:var(--cream);padding-top:clamp(40px,4.5vw,58px);padding-bottom:clamp(44px,5vw,66px);overflow:hidden}
