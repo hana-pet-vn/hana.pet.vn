@@ -196,8 +196,11 @@ const DEFAULTS = {
 
   // Anh mascot thoc dau khi bam mua. Sua duoc trong admin.
   cartPets: ['/mascots/pet-01.png','/mascots/pet-02.png','/mascots/pet-03.png','/mascots/pet-04.png','/mascots/pet-05.png','/mascots/pet-06.png','/mascots/pet-07.png','/mascots/pet-08.png','/mascots/pet-09.png','/mascots/pet-10.png'],
-  cartCheers: ['Thơm rồi nè!', 'Hoan hô!', 'Yêu quá đi!', 'Ngoan lắm!',
-               'Đỉnh quá!', 'Tuyệt vời!', 'Xịn sò phết!', 'Cảm ơn bạn yêu!'],
+  /* Cau co vu hien cung mascot. Sua duoc trong admin (tab Hero).
+     Nguyen tac: khen NGUOI MUA hoac reo vui trung tinh.
+     Tranh khen con thu ("Ngoan lam!") vi luc bam nut la CHU dang bam. */
+  cartCheers: ['Chọn khéo ghê!', 'Bé nhà mình sướng nha!', 'Cảm ơn bạn yêu!',
+               'Thơm rồi nè!', 'Hoan hô!', 'Chủ tâm lý ghê!'],
 
   buybarBtn: 'Thêm giỏ',
   buybarImage: '',
@@ -355,22 +358,36 @@ export default function Home() {
     host.classList.add('peekwrap');
     host.querySelectorAll('.peek,.pop').forEach(n => n.remove());
 
-    /* Bong bong CHU (style L): navy, vien trang, bo goc lech.
-       KHONG dung anh nua — chu doc tu cartCheers nen sua duoc trong admin.
-       Moi lan hien lay ngau nhien 1 cau + 1 dang bo goc/nghieng (v1..v4). */
+    /* Bong bong P3: mascot + chu NAM CHUNG mot khoi navy vien trang.
+       Vien trang om ca hai -> mascot thanh mot phan cua bo nhan dien,
+       khong phai hinh dan them. Chu doc tu cartCheers (sua trong admin),
+       mascot doc tu cartPets (cung sua trong admin).
+       Moi lan hien: 1 cau + 1 mascot + 1 dang bo goc/nghieng (v1..v4). */
     const cheers = (S.cartCheers || []).filter(Boolean);
+    const pets = (S.cartPets || []).filter(Boolean);
     const key = btn.dataset.peekid || (btn.dataset.peekid = Math.random().toString(36).slice(2));
     const first = !seen.current[key];
     seen.current[key] = true;
 
-    const el = document.createElement('div');
-    el.className = 'peek v' + (1 + Math.floor(Math.random() * 4)) + (first ? '' : ' small');
-    el.textContent = cheers.length
+    const word = cheers.length
       ? cheers[Math.floor(Math.random() * cheers.length)]
       : 'Hoan hô!';
+
+    const el = document.createElement('div');
+    el.className = 'peek v' + (1 + Math.floor(Math.random() * 4)) + (first ? '' : ' small');
+    if (pets.length) {
+      const p = pets[Math.floor(Math.random() * pets.length)];
+      const img = document.createElement('img');
+      img.src = p; img.alt = '';
+      el.appendChild(img);
+    }
+    const tx = document.createElement('span');
+    tx.textContent = word;          /* textContent: khong dinh loi chen ma doc */
+    el.appendChild(tx);
+
     host.appendChild(el);
     setTimeout(() => el.remove(), 1950);
-  }, [S.cartCheers]);
+  }, [S.cartCheers, S.cartPets]);
 
   useEffect(() => {
     const onClick = (e) => {
@@ -1113,26 +1130,35 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .tstat b{display:block;font-family:'Nunito';font-weight:900;font-size:clamp(22px,2.6vw,30px);color:var(--navy)}
 .tstat span{font-size:13px;color:rgba(27,36,64,.58);font-weight:600}
 
-/* Bong bong CHU thò lên khi bấm nút mua (style L).
-   KHONG dung anh: chu doc tu S.cartCheers nen sua duoc trong admin.
-   Navy nen + vien trang bang box-shadow (khong dung border de goc bo van muot).
-   4 dang v1..v4: moi dang mot kieu bo goc lech + mot goc nghieng khac nhau,
-   nen bam lien tiep khong bao gio thay hai cai giong het nhau. */
+/* Bong bong thò lên khi bấm nút mua — bo cuc P3 (style L).
+   Mascot + chu NAM CHUNG mot khoi navy, vien trang om ca hai.
+   Vien lam bang box-shadow chu KHONG dung border: bo goc lech van muot.
+   4 dang v1..v4 = 4 kieu bo goc + 4 goc nghieng, bam lien tiep khong trung. */
 .peekwrap{position:relative}
 .peek{position:absolute;left:50%;bottom:calc(100% + 8px);z-index:5;pointer-events:none;
-  background:var(--navy);color:#fff;font-family:'Nunito',system-ui,sans-serif;
-  font-weight:900;font-size:15px;letter-spacing:.2px;text-transform:uppercase;white-space:nowrap;
-  padding:9px 18px;box-shadow:0 0 0 3px #fff,0 6px 18px rgba(0,0,0,.28);
+  display:flex;align-items:center;gap:9px;
+  background:var(--navy);padding:7px 16px 7px 9px;
+  box-shadow:0 0 0 3px #fff,0 6px 18px rgba(0,0,0,.28);
   opacity:0;will-change:transform,opacity;
   animation:peekin 1.9s cubic-bezier(.3,1.5,.5,1) forwards}
-/* Bo goc LECH: 3 goc tron, 1 goc gan vuong. Goc gan vuong doi cho o moi dang. */
-.peek.v1{border-radius:26px 26px 26px 10px;--rot:-3deg}
-.peek.v2{border-radius:26px 26px 10px 26px;--rot:2deg}
-.peek.v3{border-radius:24px 27px 25px 9px;--rot:-1.5deg}
-.peek.v4{border-radius:27px 24px 9px 26px;--rot:2.5deg}
-.peek.small{font-size:13px;padding:7px 15px}
+/* Mascot nam trong O TRON TRANG. Bat buoc, khong phai trang tri:
+   4/10 mascot la nau rat toi (#47271d, #251c12) — dat thang len navy
+   thi tuong phan chi 1.09, gan nhu tang hinh. O trang keo len 13+.
+   O trang cung noi lien mach voi vien trang bao ngoai -> mot khoi thong nhat. */
+.peek img{display:block;width:34px;height:34px;flex:0 0 auto;border-radius:50%;
+  background:#fff;object-fit:contain;padding:3px}
+.peek span{font-family:'Nunito',system-ui,sans-serif;font-weight:900;font-size:14.5px;
+  letter-spacing:.2px;color:#fff;text-transform:uppercase;white-space:nowrap}
+/* Bo goc LECH: 3 goc tron, 1 goc gan vuong. Goc gan vuong doi cho moi dang. */
+.peek.v1{border-radius:30px 30px 30px 11px;--rot:-3deg}
+.peek.v2{border-radius:30px 30px 11px 30px;--rot:2deg}
+.peek.v3{border-radius:28px 31px 29px 10px;--rot:-1.5deg}
+.peek.v4{border-radius:31px 28px 10px 30px;--rot:2.5deg}
+.peek.small{padding:6px 14px 6px 8px;gap:8px}
+.peek.small img{width:28px;height:28px;padding:2.5px}
+.peek.small span{font-size:13px}
 /* Vao: nay len qua da roi roi ve. Ra: tut xuong o cuoi.
-   var(--rot) giu goc nghieng rieng cua tung dang trong SUOT hieu ung. */
+   var(--rot) giu goc nghieng rieng cua tung dang SUOT ca hieu ung. */
 @keyframes peekin{
   0%{opacity:0;transform:translateX(-50%) translateY(120%) rotate(0) scale(.86)}
   14%{opacity:1;transform:translateX(-50%) translateY(-12%) rotate(var(--rot)) scale(1.06)}
