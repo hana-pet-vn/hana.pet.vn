@@ -1820,9 +1820,14 @@ function HBox({ title, children }) {
         </>)}
 
         {grp==='pet' && (<>
-          <HRows idKey="cartPets" value={h.cartPets} onChange={v=>set('cartPets',v)} label="🐶 Mascot thò đầu khi bấm mua"
-                cols={[['src','Đường dẫn ảnh','full']]} blank={{src:''}}
-                hint="Ảnh có sẵn: /mascots/pet-01.png tới /mascots/pet-10.png. Bấm mua sẽ chọn ngẫu nhiên 1 con." />
+          {/* cartPets luu trong DB dang MANG CHUOI, nhung HRows can MANG OBJECT.
+              Doi o day luc nap. Luc luu thi doan trong SaveBtn boc nguoc lai. */}
+          <HRows idKey="cartPets"
+                value={(Array.isArray(h.cartPets) ? h.cartPets : [])
+                        .map(x => (typeof x === 'string' ? { src: x } : x))}
+                onChange={v=>set('cartPets',v)} label="🐶 Mascot thò đầu khi bấm mua"
+                cols={[['src','Ảnh mascot','img']]} blank={{src:''}} folder="mascots"
+                hint="Bấm mua sẽ chọn ngẫu nhiên 1 con. CHỈ DÙNG MASCOT MÀU TỐI — mascot nằm trong ổ tròn trắng nên con màu sáng sẽ chìm, không nhìn thấy gì." />
           <HLines value={h.cartCheers} onChange={v=>set('cartCheers',v)} label="🎉 Câu cổ vũ hiện cùng mascot" />
         </>)}
 

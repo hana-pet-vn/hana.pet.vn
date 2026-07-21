@@ -194,8 +194,15 @@ const DEFAULTS = {
     { t: 'Đổi trả 7 ngày', s: 'Bé không hợp? Nhắn shop, đổi hoặc hoàn tiền.' },
   ],
 
-  // Anh mascot thoc dau khi bam mua. Sua duoc trong admin.
-  cartPets: ['/mascots/pet-01.png','/mascots/pet-02.png','/mascots/pet-03.png','/mascots/pet-04.png','/mascots/pet-05.png','/mascots/pet-06.png','/mascots/pet-07.png','/mascots/pet-08.png','/mascots/pet-09.png','/mascots/pet-10.png'],
+  /* Mascot hien trong bong bong khi bam mua. Sua + upload duoc trong admin.
+     CHI DUNG MASCOT NAU TOI. Do tuong phan tren nen TRANG:
+         pet-01 #47271d -> 13.33  ro
+         pet-09 #251c12 -> 16.75  ro
+         pet-04 #a7a08f ->  2.60  nhat nhoe   (da bo)
+         pet-08 #b59472 ->  2.82  nhat nhoe   (da bo)
+         pet-10 #b59472 ->  2.82  nhat nhoe   (da bo)
+     Them mascot moi thi phai kiem mau: tuong phan tren trang >= 4.5. */
+  cartPets: ['/mascots/pet-01.png','/mascots/pet-09.png'],
   /* Cau co vu hien cung mascot. Sua duoc trong admin (tab Hero).
      Nguyen tac: khen NGUOI MUA hoac reo vui trung tinh.
      Tranh khen con thu ("Ngoan lam!") vi luc bam nut la CHU dang bam. */
@@ -364,7 +371,11 @@ export default function Home() {
        mascot doc tu cartPets (cung sua trong admin).
        Moi lan hien: 1 cau + 1 mascot + 1 dang bo goc/nghieng (v1..v4). */
     const cheers = (S.cartCheers || []).filter(Boolean);
-    const pets = (S.cartPets || []).filter(Boolean);
+    /* Chiu duoc ca 2 dang: mang chuoi (DEFAULTS) va mang object {src}
+       (dang HRows dung trong admin). Phong khi luu nham dang. */
+    const pets = (S.cartPets || [])
+      .map(x => (typeof x === 'string' ? x : x?.src))
+      .filter(Boolean);
     const key = btn.dataset.peekid || (btn.dataset.peekid = Math.random().toString(36).slice(2));
     const first = !seen.current[key];
     seen.current[key] = true;
