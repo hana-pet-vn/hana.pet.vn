@@ -1015,31 +1015,30 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 #sp .shead{max-width:1180px;margin-left:auto;margin-right:auto}
 #sp .shead p{max-width:640px}
 
-/* v18.1: PC = 2 thẻ cạnh nhau lấp đầy khung 1180; màn hẹp tự về 1 cột.
-   min(480px,100%) để không vỡ trên màn cực hẹp. */
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(480px,100%),1fr));
-  gap:clamp(16px,1.8vw,24px);max-width:1180px;margin:0 auto}
+/* v18.2: MỖI THẺ MỘT HÀNG, bó 1180 (đúng cái nhìn Tung ưng ở zoom 150%).
+   Cú pháp để THẬT ĐƠN GIẢN — bản trước dùng repeat(auto-fit,minmax(min(...)))
+   bị bộ dịch CSS nhai hỏng, cả luật chết, thẻ bung full màn hình. */
+.grid{display:grid;grid-template-columns:1fr;gap:20px;max-width:1180px;margin:0 auto}
 /* v14: thẻ NẰM NGANG — ảnh dọc bên trái, chữ bên phải. Xếp chồng 1 cột. */
 .card{background:var(--navy);border-radius:18px;overflow:hidden;border:none;
   transition:.28s cubic-bezier(.2,.7,.3,1);box-shadow:0 6px 18px rgba(24,40,78,.16);
-  display:grid;grid-template-columns:200px minmax(0,1fr);align-items:stretch}
+  display:grid;grid-template-columns:340px minmax(0,1fr);align-items:stretch}
 .card.star{box-shadow:0 8px 24px rgba(24,40,78,.22)}
 .card:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(24,40,78,.26)}
-/* v18.1: BỎ aspect-ratio + max-height. Cặp này làm khung ảnh tự tính rộng
-   hơn cột chứa nó rồi (vì position:relative) ĐÈ LÊN cột chữ — chính là lỗi
-   chữ bị cắt cụt. Giờ: rộng = đúng cột lưới, cao = giãn theo thẻ, ảnh tự
-   căn GIỮA DỌC (xong luôn việc treo "ảnh chai căn giữa"). */
+/* v18.1: BỎ aspect-ratio + max-height của khung. Cặp này làm khung ảnh tự
+   tính rộng hơn cột chứa nó rồi (vì position:relative) ĐÈ LÊN cột chữ.
+   v18.2: khoá trần ẢNH (không phải khung) 360px để mọi ảnh hiện cùng cỡ. */
 .cimg{position:relative;overflow:hidden;transition:background .45s;
-  display:grid;place-items:center;padding:20px;min-height:280px}
+  display:grid;place-items:center;padding:24px;min-height:400px}
 /* Ảnh LUÔN nằm gọn trong khung, không kéo giãn theo chiều cao cột chữ */
-.cimg img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
+.cimg img{width:auto;height:auto;max-width:100%;max-height:360px;object-fit:contain;
   transition:transform .3s cubic-bezier(.2,.7,.3,1)}
 .card:hover .cimg img{transform:translateY(-6px) scale(1.03)}
 .badge{position:absolute;top:14px;left:14px;background:#fff;color:var(--navy);font-size:11px;font-weight:800;
   letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.14);z-index:2}
-.cbody{padding:20px 24px;display:flex;flex-direction:column;gap:8px;justify-content:center;min-width:0}
-.cbody h3{font-size:19px;color:var(--navy);line-height:1.22}
-.cdesc{font-size:13.5px;color:rgba(27,36,64,.66);line-height:1.55}
+.cbody{padding:28px 34px;display:flex;flex-direction:column;gap:10px;justify-content:center;min-width:0}
+.cbody h3{font-size:26px;color:var(--navy);line-height:1.2}
+.cdesc{font-size:14px;color:rgba(27,36,64,.66);line-height:1.6;max-width:600px}
 .optlabel{font-size:12.5px;font-weight:800;color:var(--navy);opacity:.6}
 .variants{display:flex;gap:8px;flex-wrap:wrap}
 .chip{padding:9px 15px;border-radius:999px;border:1.5px solid rgba(24,40,78,.18);font-size:13px;font-weight:700;
@@ -1077,50 +1076,54 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .cbtns .b-buy{padding-left:20px;padding-right:20px}
 @media(max-width:620px){.cfoot{flex-direction:column;align-items:stretch;gap:13px}
   .cbtns .btn{flex:1;padding-left:14px;padding-right:14px}}
-/* v18: màn hẹp — ảnh VẪN BÊN TRÁI (Tung chốt), chỉ thu cột ảnh.
-   Chip/nút mobile nằm ở CUỐI khối .card bên dưới (phải đứng SAU override
-   cùng tên, không thì bị đè — bài học điểm 9). */
-@media(max-width:620px){
-  .card{grid-template-columns:132px minmax(0,1fr)}
-  .cimg{min-height:210px;padding:12px}
-}
+/* v18.2: media mobile của thẻ nằm Ở CUỐI khối .card override phía dưới —
+   đừng thêm lại ở đây kẻo hai khối đè nhau (điểm 9). */
 .b-buy{background:var(--navy);color:#fff}
 .b-buy:hover:not(:disabled){background:var(--navy-deep);transform:translateY(-2px);box-shadow:0 10px 24px rgba(24,40,78,.28)}
 .b-more{border:2px solid rgba(24,40,78,.18);color:var(--navy);background:var(--cream)}
 .b-more:hover{border-color:var(--navy);background:#fff;transform:translateY(-2px)}
 
-/* ── v18: Bên trong thẻ navy ĐẶC — navy nhiều tầng, hierarchy 3 tầng ──
-   Tầng 1 SP (tên + giá) > Tầng 2 nút mua > Tầng 3 còn lại.
-   Tầng navy: nền #18284e > chip #22355f > viền #3d5589.
-   Chữ phụ dùng màu ĐẶC (#c3cde0, #9fb0d0, #8fa3c8), không dùng trắng-mờ. */
+/* ── v18.2: Bên trong thẻ navy ĐẶC — hierarchy 3 tầng, cỡ chữ phóng ~1.35x
+   (đúng cái nhìn Tung ưng ở zoom 150%, giờ là mặc định ở 100%).
+   Tầng navy: nền #18284e > chip #22355f > viền #3d5589. */
 .card .cbody h3{color:#fff}
-.card .cdesc{font-size:11.5px;color:#9fb0d0}
-.card .optlabel{color:#8fa3c8;opacity:1;font-size:11.5px}
-.card .chip{padding:4px 10px;font-size:11px;border:1px solid #3d5589;background:#22355f;color:#c3cde0}
+.card .cdesc{font-size:14px;color:#9fb0d0}
+.card .optlabel{color:#8fa3c8;opacity:1;font-size:12.5px}
+.card .chip{padding:6px 14px;font-size:12.5px;border:1px solid #3d5589;background:#22355f;color:#c3cde0}
 .card .chip:hover{border-color:#fff}
 .card .chip.on{background:#fff;color:var(--navy);border-color:#fff}
 .card .scent{border-color:#3d5589;color:#fff}
 .card .scent:hover{border-color:#fff;background:rgba(255,255,255,.08)}
 .card .scent.on{background:#22355f;border-color:#fff;box-shadow:none}
-.card .price{color:#fff;font-size:24px}
-.card .was{color:#8fa3c8}
-.card .save{color:#c3cde0;background:#22355f}
-.card .stock{color:#8fa3c8;font-size:11px}
+.card .price{color:#fff;font-size:32px}
+.card .was{color:#8fa3c8;font-size:16px}
+.card .save{color:#c3cde0;background:#22355f;font-size:13px}
+.card .stock{color:#8fa3c8;font-size:12px}
 .card .stock::before{background:#7dd3a8}
 .card .stock.out{color:#e5a3a3}
 .card .stock.out::before{background:#e5a3a3}
-.card .cfoot{border-top-color:#33487a;flex-direction:column;align-items:flex-start;gap:10px}
+.card .cfoot{border-top-color:#33487a;flex-direction:column;align-items:flex-start;gap:12px;padding-top:14px;margin-top:8px}
 .card .cbtns{align-items:center}
-.card .cbtns .b-buy{padding:12px 26px;font-size:14px;background:#fff;color:var(--navy);box-shadow:0 3px 10px rgba(0,0,0,.25)}
+.card .cbtns .b-buy{padding:14px 32px;font-size:15.5px;background:#fff;color:var(--navy);box-shadow:0 3px 10px rgba(0,0,0,.25)}
 .card .cbtns .b-buy:hover:not(:disabled){background:#fff;box-shadow:0 8px 20px rgba(0,0,0,.35)}
-.card .b-more{padding:9px 13px;font-size:12px;border:1px solid #33487a;color:#9fb0d0;background:transparent}
+.card .b-more{padding:10px 16px;font-size:13px;border:1px solid #33487a;color:#9fb0d0;background:transparent}
 .card .b-more:hover{border-color:#9fb0d0;color:#fff;background:transparent}
-/* Mobile: chip to lại cho ngón cái, nút mua giãn full. Khối này phải đứng
-   SAU các override cùng tên ở trên (điểm 9). */
+/* Mobile: ảnh VẪN TRÁI, cột ảnh 40%; nút xếp DỌC (mua trên, chi tiết dưới)
+   để hết tràn mép thẻ; mô tả cắt 2 dòng cho thẻ khỏi cao lêu nghêu.
+   Khối này phải đứng SAU các override cùng tên ở trên (điểm 9). */
 @media(max-width:620px){
+  .card{grid-template-columns:minmax(120px,40%) minmax(0,1fr)}
+  .cimg{min-height:0;padding:12px}
+  .cimg img{max-height:220px}
+  .cbody{padding:16px}
+  .cbody h3{font-size:17px}
+  .card .cdesc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .card .chip{padding:7px 13px;font-size:12px}
-  .card .cbtns{align-self:stretch}
-  .card .cbtns .b-buy{flex:1;text-align:center}
+  .card .price{font-size:24px}
+  .card .was{font-size:14px}
+  .card .cbtns{flex-direction:column-reverse;align-items:stretch;align-self:stretch;gap:8px}
+  .card .cbtns .btn{text-align:center}
+  .card .cbtns .b-buy{padding:13px 16px}
 }
 
 /* v18: invite nằm trong #sp — nền khu giờ SÁNG nên đổi chữ trắng → navy */
