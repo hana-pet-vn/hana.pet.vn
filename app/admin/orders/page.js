@@ -2,7 +2,7 @@
 // app/admin/orders/page.js
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase, getOrders, updateOrderDB } from '../../../lib/supabase'
+import { supabase, getOrders, updateOrderDB, restockOrder } from '../../../lib/supabase'
 
 const FONT_T = "'Baloo 2','Be Vietnam Pro','Segoe UI',sans-serif"
 const FONT_B = "'Be Vietnam Pro','Segoe UI',sans-serif"
@@ -293,6 +293,12 @@ function OrderDetail({ order: o, onClose, onUpdate }) {
   const save = async () => {
     setSaving(true)
     try {
+      /* v20.1: HOÀN KHO khi chuyển sang Cancelled. Chỉ chạy khi trạng thái
+         GỐC của đơn (o.status) chưa phải Cancelled → lưu lại lần 2 không cộng đôi. */
+      if (status === 'Cancelled' && o.status !== 'Cancelled') {
+        try { await restockOrder(o) }
+        catch (e) { console.error('restock:', e); alert('⚠️ Hoàn kho lỗi: ' + (e?.message || e) + ' — đơn vẫn được huỷ, kiểm kho tay giúp.') }
+      }
       await onUpdate(o.id, { status, trackingCode: tracking, note, source })
       setSaved(true); setTimeout(() => setSaved(false), 2000)
     } catch (e) { alert('Lỗi khi lưu: ' + e.message) }

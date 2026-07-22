@@ -97,10 +97,32 @@ export async function POST(request) {
           // variantName tu client CHI la chu hien thi (ten mui khach chon) —
           // gia/kho van lay tu DB. Cat 120 ky tu cho an toan.
           const cn = String(item.variantName || '').slice(0, 120) || c.name
+          // v20.1 KHO 1 NGUON: combo co BOM thi "con ban duoc" TINH tu kho
+          // mon con ('' = SP goc, '*scent*' = mui khach chon qua scentId,
+          // con lai = id phan loai). Khong co BOM (kieu cu) → dung c.stock.
+          const bom = Array.isArray(c.bom) ? c.bom : []
+          let stock
+          if (bom.length) {
+            stock = Infinity
+            for (const row of bom) {
+              let s
+              if (row.variantId === '*scent*') {
+                const sv = variants.find(x => x.id === item.scentId)
+                s = sv ? Number(sv.stock) || 0 : 0
+              } else if (row.variantId) {
+                const rv = variants.find(x => x.id === row.variantId)
+                s = rv ? Number(rv.stock) || 0 : 0
+              } else s = Number(p.stock) || 0
+              stock = Math.min(stock, Math.floor(s / (Number(row.qty) || 1)))
+            }
+            if (stock === Infinity) stock = 0
+          } else {
+            stock = Number(c.stock) || 0
+          }
           return {
             ok: true, product: p, variant: null, combo: c,
             price: Number(c.price) || 0,
-            stock: Number(c.stock) || 0,
+            stock,
             label: `${p.name} — ${cn}`,
             variantName: cn,
           }
@@ -183,8 +205,11 @@ export async function POST(request) {
           qty:         i.qty,
           price:       line.price,   // locked price at time of order (variant-aware)
           name:        line.product.name,
-          variantId:   line.variant ? line.variant.id : '',
+          // v20.1: luu ca id combo (truoc day combo bi ghi '' → huy don
+          // khong biet hoan kho mon nao) + scentId cho BOM '*scent*'
+          variantId:   line.variant ? line.variant.id : (line.combo ? line.combo.id : ''),
           variantName: line.variantName || '',
+          scentId:     String(i.scentId || ''),
         }
       }),
       total,
@@ -221,18 +246,39 @@ export async function POST(request) {
           .eq('id', item.productId)
         if (stockErr) console.error(`Variant stock update failed for ${item.productId}:`, stockErr)
       } else if (line.combo) {
-        // v20: tru kho cua CHINH combo trong mang combos.
-        // BOM (tru tung mon con: 1 chai + 1 refill...) lam o Chat 2 KHO.
-        const newCombos = (Array.isArray(p.combos) ? p.combos : []).map(c =>
-          c.id === line.combo.id
-            ? { ...c, stock: Math.max(0, (Number(c.stock) || 0) - item.qty) }
-            : c
-        )
-        const { error: stockErr } = await supabase
-          .from('products')
-          .update({ combos: newCombos, updated_at: new Date().toISOString() })
-          .eq('id', item.productId)
-        if (stockErr) console.error(`Combo stock update failed for ${item.productId}:`, stockErr)
+        // v20.1 KHO 1 NGUON: combo co BOM → tru kho TUNG MON CON.
+        // Khong co BOM (kieu cu) → tru kho cua chinh combo.
+        const bom = Array.isArray(line.combo.bom) ? line.combo.bom : []
+        if (bom.length) {
+          let newVariants = Array.isArray(p.variants) ? [...p.variants] : []
+          let newStock = Number(p.stock) || 0
+          const decVar = (vid, q) => {
+            newVariants = newVariants.map(v => v.id === vid
+              ? { ...v, stock: Math.max(0, (Number(v.stock) || 0) - q) } : v)
+          }
+          for (const row of bom) {
+            const rq = (Number(row.qty) || 1) * item.qty
+            if (row.variantId === '*scent*') { if (item.scentId) decVar(item.scentId, rq) }
+            else if (row.variantId)          { decVar(row.variantId, rq) }
+            else                             { newStock = Math.max(0, newStock - rq) }
+          }
+          const { error: stockErr } = await supabase
+            .from('products')
+            .update({ variants: newVariants, stock: newStock, updated_at: new Date().toISOString() })
+            .eq('id', item.productId)
+          if (stockErr) console.error(`Combo BOM stock update failed for ${item.productId}:`, stockErr)
+        } else {
+          const newCombos = (Array.isArray(p.combos) ? p.combos : []).map(c =>
+            c.id === line.combo.id
+              ? { ...c, stock: Math.max(0, (Number(c.stock) || 0) - item.qty) }
+              : c
+          )
+          const { error: stockErr } = await supabase
+            .from('products')
+            .update({ combos: newCombos, updated_at: new Date().toISOString() })
+            .eq('id', item.productId)
+          if (stockErr) console.error(`Combo stock update failed for ${item.productId}:`, stockErr)
+        }
       } else {
         const currentStock = Number(p.stock) || 0
         const { error: stockErr } = await supabase

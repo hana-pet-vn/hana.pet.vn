@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   supabase, adminSignOut,
   getProducts, upsertProduct, deleteProduct, updateProductStock, saveProductOrder,
-  getOrders, updateOrderDB,
+  getOrders, updateOrderDB, restockOrder,
   getAllConfigs, setConfig as setSupabaseConfig,
   getCategories, saveCategories, getVouchers, saveVouchers,
   addSubscriber,
@@ -1100,7 +1100,14 @@ function TabOrders({ S }) {
           {o.trackingCode&&<div style={{padding:"8px 14px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:10,fontFamily:FONT_T,fontSize:13,color:"#166534",marginBottom:10}}>✅ Mã vận đơn: <strong>{o.trackingCode}</strong></div>}
           <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
             {o.status!=="Delivered"&&o.status!=="Cancelled"&&<button onClick={()=>advance(o)} style={{background:brand.primary,color:"#fff",border:"none",borderRadius:10,padding:"8px 18px",fontFamily:FONT_T,fontSize:13,cursor:"pointer"}}>→ {STATUS_LABELS[STEPS[stepIdx+1]]||STEPS[stepIdx+1]}</button>}
-            {o.status!=="Cancelled"&&o.status!=="Delivered"&&<button onClick={()=>updateOrder(o.id,{status:"Cancelled"})} style={{background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:10,padding:"8px 18px",fontFamily:FONT_T,fontSize:13,cursor:"pointer"}}>Huỷ đơn</button>}
+            {o.status!=="Cancelled"&&o.status!=="Delivered"&&<button onClick={async()=>{
+              /* v20.1: HOÀN KHO khi huỷ — trước đây chỉ đổi chữ trạng thái,
+                 kho mất luôn số hàng của đơn huỷ. Guard o.status!==Cancelled
+                 ở điều kiện hiện nút → không cộng đôi. */
+              if(!confirm("Huỷ đơn này? Kho sẽ được cộng trả lại từng món.")) return;
+              try{ await restockOrder(o); }catch(e){ console.error("restock:",e); alert("⚠️ Hoàn kho lỗi: "+(e?.message||e)+" — đơn VẪN SẼ bị huỷ, kiểm kho tay giúp."); }
+              updateOrder(o.id,{status:"Cancelled"});
+            }} style={{background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:10,padding:"8px 18px",fontFamily:FONT_T,fontSize:13,cursor:"pointer"}}>Huỷ đơn</button>}
           </div>
         </div>
         {/* Customer + Shipping */}
@@ -1666,6 +1673,7 @@ function HBox({ title, children }) {
               ở đây chỉ sửa thanh tiêu đề nhóm + mascot + chữ nhãn. */}
           <HBox title="🧩 Nhóm combo A/B/C (thanh tiêu đề + nhãn)">
             <Field label='Chữ nhãn thẻ nổi bật (mặc định "Best choice" — đổi được, VD "Đáng mua nhất")' value={h.bestChoiceLabel||''} onChange={v=>set('bestChoiceLabel',v)} span="full" />
+            <Field label='Tên thẻ tự sinh khi SP có phân loại mùi/màu (mặc định "Chai lẻ")' value={h.autoCardName||''} onChange={v=>set('autoCardName',v)} span="full" />
             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
               <Field label="Tiêu đề nhóm Misty" value={h.mfHeading||''} onChange={v=>set('mfHeading',v)} />
               <Field label="Kicker nhóm Misty (trống = ẩn)" value={h.mfHeadKicker||''} onChange={v=>set('mfHeadKicker',v)} />
@@ -2072,11 +2080,22 @@ function HBox({ title, children }) {
                 productFont ở đâu cả (trang chủ/chi tiết/popup đều không), bấm
                 chọn chỉ lưu DB rồi nằm im. Muốn dùng lại thì phải nối
                 normalize() + render trước, đừng chỉ thêm ô. */}
-            {/* v20 dọn: BỎ ô "Link video" + "Banner riêng của sản phẩm" —
-                storefront KHÔNG render videoUrl (không có tab Video nào) và
-                KHÔNG render p.banner/bannerVideo/bannerText ở bất kỳ đâu.
-                Ô banner ghi "hiện phía trên khối SP ở trang chủ" là hứa suông.
-                Muốn dùng lại thì phải viết phần render trước, đừng chỉ thêm ô. */}
+            {/* v20 dọn: BỎ ô "Phông chữ riêng cho SP" — storefront không đọc
+                productFont ở đâu cả (trang chủ/chi tiết/popup đều không), bấm
+                chọn chỉ lưu DB rồi nằm im. Muốn dùng lại thì phải nối
+                normalize() + render trước, đừng chỉ thêm ô. */}
+            {/* v20.1: banner SP — KHÔI PHỤC vì trang chủ GIỜ RENDER THẬT
+                (khối .pbanner phía trên nhóm thẻ). Trước đây là ô hứa suông. */}
+            <div style={{ gridColumn:"1 / -1",marginTop:4,padding:14,background:"#eef1fa",borderRadius:12,border:"2px solid #dbe2f1" }}>
+              <div style={{ fontFamily:FONT_T,fontSize:12,color:"#18284e",marginBottom:8 }}>🖼 Banner riêng của sản phẩm — hiện phía TRÊN nhóm thẻ ở trang chủ (không bắt buộc)</div>
+              <div style={{ display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap" }}>
+                <ImgUp current={p.banner} onUpload={v=>upd(p.id,"banner",v)} label="Ảnh banner (ngang ~3:1)" aspect="33%" folder="products" entityId={p.id+"_banner"} hint="Ngang rộng — cao tối đa 340px khi hiện" />
+                <div style={{ flex:1,minWidth:180 }}>
+                  <Field label="Link video banner (.mp4 — ưu tiên hơn ảnh)" value={p.bannerVideo||""} onChange={v=>upd(p.id,"bannerVideo",v)} span="full" placeholder="https://.../banner.mp4" />
+                  <Field label="Chữ trên banner (không bắt buộc)" value={p.bannerText||""} onChange={v=>upd(p.id,"bannerText",v)} span="full" placeholder="VD: Ưu đãi đặc biệt tháng này" />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* ── Variants (Phân loại) ── */}
@@ -2084,7 +2103,12 @@ function HBox({ title, children }) {
             <div style={{ fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",marginBottom:4 }}>🏷 Phân loại (Variants)</div>
             <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12 }}>
               Nếu có phân loại, giá và kho ở trên bị bỏ qua — mỗi loại có giá + kho riêng. Để trống nếu sản phẩm không phân loại.
+              Trang chủ TỰ SINH thẻ từ đây (không cần nhập lại vào combo): mặc định mỗi phân loại = 1 thẻ; tick ô dưới nếu phân loại là mùi/màu.
             </div>
+            <label style={{ display:"flex",alignItems:"center",gap:8,marginBottom:12,fontFamily:FONT_T,fontSize:13,cursor:"pointer" }}>
+              <input type="checkbox" checked={!!p.variantAsPicker} onChange={e=>upd(p.id,"variantAsPicker",e.target.checked)} />
+              🎨 Phân loại là THUỘC TÍNH (mùi/màu) — trang chủ gom 1 thẻ có bộ chọn, không tách mỗi loại 1 thẻ
+            </label>
             <div style={{ marginBottom:12,maxWidth:260 }}>
               <Field label='Tên nhóm phân loại (VD: "Kích cỡ", "Màu")' value={p.variantLabel||""} onChange={v=>upd(p.id,"variantLabel",v)} />
             </div>
@@ -2109,11 +2133,12 @@ function HBox({ title, children }) {
               Phân loại của WBS vẫn là 5 MÙI — không đụng. Combo là gói bán
               (chai lẻ / combo vừa / combo lớn) hiện thành 3 thẻ ở trang chủ. */}
           <div style={{ marginTop:18,padding:16,background:"#fdf9ec",border:"2px dashed #e3ca22",borderRadius:14 }}>
-            <div style={{ fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",marginBottom:4 }}>🧩 Combo A/B/C (khu sản phẩm trang chủ)</div>
+            <div style={{ fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",marginBottom:4 }}>🧩 Combo (khu sản phẩm trang chủ)</div>
             <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12 }}>
-              Mỗi combo = 1 thẻ ở trang chủ. Nên tạo đúng 3: A chai lẻ · B combo vừa (tick &quot;Best choice&quot;) · C combo lớn.
-              CHƯA nhập combo thì trang chủ vẫn hiện thẻ kiểu cũ — không sợ trống.
-              Combo tick &quot;Cho chọn mùi&quot; sẽ hiện bộ chấm mùi (đọc từ Phân loại) ngay trong thẻ — chỉ dùng cho Waterless.
+              Thẻ đầu nhóm ở trang chủ TỰ SINH từ sản phẩm gốc/phân loại — KHÔNG cần nhập lại chai lẻ ở đây.
+              Chỉ thêm các GÓI (combo đôi, set...). KHO KHÔNG NHẬP TAY: khai &quot;Gồm những món nào trong kho&quot; —
+              số còn bán được tự tính từ kho phân loại/SP gốc, bán combo trừ thẳng kho món con (1 nguồn duy nhất).
+              Combo tick 🎨 &quot;Cho chọn mùi&quot; có thể thêm dòng kho &quot;Mùi khách chọn&quot;.
             </div>
             {(p.combos||[]).map((c,ci)=>(
               <div key={c.id||ci} style={{ background:"#fff",border:"1px solid #dbe2f1",borderRadius:12,padding:12,marginBottom:10 }}>
@@ -2124,22 +2149,41 @@ function HBox({ title, children }) {
                     <Field label='Kicker (dòng nhỏ trên tên — VD: "Misty Fresh")' value={c.kicker||""} onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],kicker:val};upd(p.id,"combos",nc);}} span="full" />
                     <Field label="Giá bán (₫)" value={c.price||0} type="number" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],price:Number(val)};upd(p.id,"combos",nc);}} />
                     <Field label="Giá gốc (₫)" value={c.original||0} type="number" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],original:Number(val)};upd(p.id,"combos",nc);}} />
-                    <Field label="Kho" value={c.stock||0} type="number" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],stock:Number(val)};upd(p.id,"combos",nc);}} />
-                    <Field label="Trong combo có gì (MỖI DÒNG 1 MÓN)" value={(c.items||[]).join("\n")} rows={3} span="full" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],items:val.split("\n")};upd(p.id,"combos",nc);}} placeholder={"1 Chai xịt 250ml\n1 Lõi refill 250ml"} />
+                    <Field label="Trong combo có gì — CHỮ HIỂN THỊ trên thẻ (MỖI DÒNG 1 MÓN)" value={(c.items||[]).join("\n")} rows={3} span="full" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],items:val.split("\n")};upd(p.id,"combos",nc);}} placeholder={"1 Chai xịt 250ml\n1 Lõi refill 250ml"} />
+
+                    {/* ── BOM: kho 1 nguồn ── */}
+                    <div style={{ gridColumn:"1 / -1",background:"#f2f5fb",border:"1px solid #dbe2f1",borderRadius:10,padding:10 }}>
+                      <div style={{ fontFamily:FONT_T,fontSize:12,color:"#18284e",marginBottom:6 }}>📦 Gồm những món nào trong kho (bán 1 combo trừ đúng từng món)</div>
+                      {(c.bom||[]).map((b,bi)=>(
+                        <div key={bi} style={{ display:"flex",gap:8,alignItems:"center",marginBottom:6 }}>
+                          <select value={b.variantId||""} onChange={e=>{const nc=[...p.combos];const nb=[...(nc[ci].bom||[])];nb[bi]={...nb[bi],variantId:e.target.value};nc[ci]={...nc[ci],bom:nb};upd(p.id,"combos",nc);}} style={{ flex:1,padding:"7px 10px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13 }}>
+                            <option value="">— Sản phẩm gốc —</option>
+                            {(p.variants||[]).map(v=><option key={v.id} value={v.id}>{v.name||"(chưa tên)"} (kho {v.stock||0})</option>)}
+                            {c.scentPick && <option value="*scent*">🎨 Mùi khách chọn</option>}
+                          </select>
+                          <span style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f" }}>×</span>
+                          <input type="number" min={1} value={b.qty||1} onChange={e=>{const nc=[...p.combos];const nb=[...(nc[ci].bom||[])];nb[bi]={...nb[bi],qty:Number(e.target.value)||1};nc[ci]={...nc[ci],bom:nb};upd(p.id,"combos",nc);}} style={{ width:60,padding:"7px 8px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13,textAlign:"center" }} />
+                          <button onClick={()=>{const nc=[...p.combos];const nb=(nc[ci].bom||[]).filter((_,x)=>x!==bi);nc[ci]={...nc[ci],bom:nb};upd(p.id,"combos",nc);}} style={{ background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"6px 10px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>✕</button>
+                        </div>
+                      ))}
+                      <button onClick={()=>{const nc=[...p.combos];nc[ci]={...nc[ci],bom:[...(nc[ci].bom||[]),{variantId:(p.variants||[])[0]?.id||"",qty:1}]};upd(p.id,"combos",nc);}} style={{ background:"#fff",color:S.brand[0].primary,border:`2px solid ${S.brand[0].primary}`,borderRadius:8,padding:"6px 12px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ Thêm món</button>
+                      {(c.bom||[]).length===0 && <div style={{ fontFamily:FONT_B,fontSize:11,color:"#d64545",marginTop:6 }}>⚠️ Chưa khai món nào — combo sẽ hiện HẾT HÀNG cho tới khi thêm món.</div>}
+                    </div>
+
                     <label style={{ display:"flex",alignItems:"center",gap:7,fontFamily:FONT_T,fontSize:12.5,cursor:"pointer" }}>
                       <input type="checkbox" checked={!!c.best} onChange={e=>{const nc=[...p.combos];nc[ci]={...nc[ci],best:e.target.checked};upd(p.id,"combos",nc);}} />
                       ⭐ Best choice (viên vàng góc ảnh)
                     </label>
                     <label style={{ display:"flex",alignItems:"center",gap:7,fontFamily:FONT_T,fontSize:12.5,cursor:"pointer" }}>
                       <input type="checkbox" checked={!!c.scentPick} onChange={e=>{const nc=[...p.combos];nc[ci]={...nc[ci],scentPick:e.target.checked};upd(p.id,"combos",nc);}} />
-                      🎨 Cho chọn mùi (chỉ Waterless)
+                      🎨 Cho chọn mùi (SP có phân loại mùi/màu)
                     </label>
                     <button onClick={()=>{const nc=p.combos.filter((_,x)=>x!==ci);upd(p.id,"combos",nc);}} style={{ gridColumn:"1 / -1",background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"8px 0",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>✕ Xóa combo</button>
                   </div>
                 </div>
               </div>
             ))}
-            <button onClick={()=>{const nc=[...(p.combos||[]),{id:"c_"+uid(),name:"",kicker:"",items:[],price:p.price||0,original:p.original||0,stock:0,best:false,scentPick:false,img:""}];upd(p.id,"combos",nc);}} style={{ background:"#fff",color:S.brand[0].primary,border:`2px solid ${S.brand[0].primary}`,borderRadius:10,padding:"9px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ Thêm combo</button>
+            <button onClick={()=>{const nc=[...(p.combos||[]),{id:"c_"+uid(),name:"",kicker:"",items:[],price:p.price||0,original:p.original||0,stock:0,best:false,scentPick:false,img:"",bom:[]}];upd(p.id,"combos",nc);}} style={{ background:"#fff",color:S.brand[0].primary,border:`2px solid ${S.brand[0].primary}`,borderRadius:10,padding:"9px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ Thêm combo</button>
           </div>
           <div style={{ marginTop:12,display:"flex",alignItems:"center",gap:12 }}>
             <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer" }}>

@@ -124,6 +124,8 @@ const DEFAULTS = {
      (tab Trang chủ → Sản phẩm). Mascot BẮT BUỘC nằm ổ tròn trắng trên
      navy (pet nâu trên navy tương phản 1.09 = tàng hình, mục 2.2 V19). */
   bestChoiceLabel: 'Best choice',
+  /* Tên thẻ tự sinh khi SP tick "phân loại là mùi/màu" (VD chai lẻ WBS) */
+  autoCardName: 'Chai lẻ',
   mfHeading:    'Khử mùi an toàn cho thú cưng',
   mfHeadKicker: 'Sạch khuẩn · khử mùi',
   mfHeadMascot: '/mascots/pet-01.png',
@@ -313,37 +315,90 @@ function VideoEmbed({ url, poster, label }) {
 }
 
 /* ============================================================
-   v20: KHU SẢN PHẨM = COMBO A/B/C
-   ĐỊNH NGHĨA NGOÀI component cha (lỗi #8 — trong cha thì mỗi lần
-   gõ 1 chữ component remount, mất focus).
-   Mỗi nhóm = thanh tiêu đề navy (mascot ổ tròn trắng) + 3 thẻ CÙNG
-   shape. Thẻ B chỉ khác đúng viên nhãn "Best choice" góc phải ảnh
-   (viên bo góc đè ảnh, KHÔNG phải thanh — thanh làm ảnh tụt, Tung bác).
-   KHÔNG auto bỏ combo nào vào giỏ — nhãn chỉ để mắt dừng ở B.
+   v20.1: KHU SẢN PHẨM = THẺ TỰ SINH + COMBO, KHO 1 NGUỒN
+   ĐỊNH NGHĨA NGOÀI component cha (lỗi #8).
+
+   HẾT NHẬP TRÙNG: thẻ đầu nhóm TỰ SINH từ sản phẩm gốc/phân loại
+   (ảnh, giá, kho lấy thẳng từ tab Sản phẩm — không upload lại):
+   - SP không phân loại            → 1 thẻ = SP gốc
+   - SP phân loại là HÀNG BÁN LẺ   → mỗi phân loại 1 thẻ (Misty: Chai + Refill)
+   - SP tick "phân loại là mùi/màu"→ 1 thẻ + bộ chọn trong thẻ (WBS)
+   Admin chỉ nhập thêm combo B/C. Combo khai BOM (gồm món nào trong
+   kho) → "còn bán được" TỰ TÍNH từ kho món con, kho chỉ có 1 nguồn.
    ============================================================ */
-function ComboCard({ combo, prod, S, light, scents, scent, setScent, onBuy, onDetail }) {
-  const items = (combo.items || []).filter(Boolean);
-  const save = combo.original > combo.price
-    ? Math.round((1 - combo.price / combo.original) * 100) : 0;
-  const out = combo.stock <= 0;
-  const sc = combo.scentPick ? (scents[Math.min(scent, Math.max(0, scents.length - 1))] || {}) : null;
+
+/* Số combo còn bán được, tính từ kho món con theo BOM.
+   Không có BOM (kiểu cũ) → dùng kho tự nhập của combo. */
+function comboAvail(combo, prod, scVariant) {
+  const bom = combo.bom || [];
+  if (!bom.length) return Number(combo.stock) || 0;
+  let avail = Infinity;
+  for (const row of bom) {
+    let s;
+    if (row.variantId === '*scent*') s = scVariant ? Number(scVariant.stock) || 0 : 0;
+    else if (row.variantId) {
+      const v = (prod.variants || []).find(x => x.id === row.variantId);
+      s = v ? Number(v.stock) || 0 : 0;
+    } else s = Number(prod.stock) || 0;
+    avail = Math.min(avail, Math.floor(s / (row.qty || 1)));
+  }
+  return avail === Infinity ? 0 : avail;
+}
+
+/* Ghép thẻ hiển thị: thẻ tự sinh trước, combo admin nhập sau. */
+function cardsOf(prod, S) {
+  if (!prod) return [];
+  const vs = prod.variants || [];
+  const auto = [];
+  if (!vs.length) {
+    auto.push({ id: 'auto_base', autoBase: true, name: prod.name, kicker: '',
+      items: [], price: prod.price, original: prod.original, stock: prod.stock,
+      img: prod.img, best: false, scentPick: false });
+  } else if (prod.variantAsPicker) {
+    /* phân loại = mùi/màu → 1 thẻ, giá/kho/ảnh chạy theo mùi đang chọn */
+    auto.push({ id: 'auto_picker', autoPicker: true, name: S.autoCardName,
+      kicker: prod.name, items: [], best: false, scentPick: true, img: '' });
+  } else {
+    /* phân loại = hàng bán lẻ → mỗi loại 1 thẻ, mua là trừ thẳng kho loại đó */
+    vs.forEach(v => auto.push({ id: 'auto_v_' + v.id, autoVariant: v,
+      name: v.name, kicker: prod.name, items: [],
+      price: v.price, original: v.original, stock: v.stock,
+      img: v.img || prod.img, best: false, scentPick: false }));
+  }
+  return [...auto, ...(prod.combos || [])];
+}
+
+function ComboCard({ card, prod, S, light, scents, scent, setScent, onBuy, onDetail }) {
+  const items = (card.items || []).filter(Boolean);
+  const sc = card.scentPick ? (scents[Math.min(scent, Math.max(0, scents.length - 1))] || {}) : null;
+  const scV = sc && sc.variant;
+  /* giá/kho: thẻ picker chạy theo mùi; combo có BOM thì kho tự tính */
+  const price    = card.autoPicker ? (scV ? scV.price : 0) : card.price;
+  const original = card.autoPicker ? (scV ? scV.original : 0) : card.original;
+  const stockN   = card.autoPicker ? (scV ? scV.stock : 0)
+                 : card.autoBase || card.autoVariant ? card.stock
+                 : comboAvail(card, prod, scV);
+  const img = card.autoPicker
+    ? ((scV && scV.img) || (sc && sc.image) || prod.img)
+    : card.img || (sc && (sc.image || (scV && scV.img))) || prod.img;
+  const save = original > price ? Math.round((1 - price / original) * 100) : 0;
+  const out = stockN <= 0;
   return (
     <article className="ccard">
-      {combo.best && <span className="pill">{S.bestChoiceLabel}</span>}
+      {card.best && <span className="pill">{S.bestChoiceLabel}</span>}
       <div className={'cc-img' + (light ? ' light' : '')}
            style={light && sc ? { background: `linear-gradient(160deg,${sc.c1 || '#dde5f5'},${sc.c2 || '#c9d6ee'})` } : undefined}>
-        <Img src={combo.img || (sc && (sc.image || (sc.variant && sc.variant.img))) || prod.img}
-             alt={combo.name} text={`ẢNH|${combo.name}`} dark={!light} />
+        <Img src={img} alt={card.name} text={`ẢNH|${card.name}`} dark={!light} />
       </div>
       <div className="cc-body">
-        <span className="cc-k">{combo.kicker || prod.name}</span>
-        <h3 className="cc-t">{combo.name}</h3>
+        <span className="cc-k">{card.kicker || prod.name}</span>
+        <h3 className="cc-t">{card.name}</h3>
         {items.length > 0 && (
           <ul className="cc-list">
             {items.map((x, i) => <li key={i}>{x}</li>)}
           </ul>
         )}
-        {combo.scentPick && scents.length > 0 && (
+        {card.scentPick && scents.length > 0 && (
           <>
             <span className="cc-k cc-scentlabel">{S.wbsOptLabel}</span>
             <div className="scentmini">
@@ -359,8 +414,8 @@ function ComboCard({ combo, prod, S, light, scents, scent, setScent, onBuy, onDe
           </>
         )}
         <div className="cc-pricerow">
-          <span className="cc-price">{vnd(combo.price)}</span>
-          {combo.original > combo.price && <span className="cc-was">{vnd(combo.original)}</span>}
+          <span className="cc-price">{vnd(price)}</span>
+          {original > price && <span className="cc-was">{vnd(original)}</span>}
           {save > 0 && <span className="cc-save">-{save}%</span>}
         </div>
         <div className={'cc-stock' + (out ? ' out' : '')}>
@@ -368,7 +423,7 @@ function ComboCard({ combo, prod, S, light, scents, scent, setScent, onBuy, onDe
         </div>
         <div className="cc-btns">
           <button type="button" className="btn cc-buy cta-buy" disabled={out}
-                  onClick={() => onBuy(combo, sc)}>
+                  onClick={() => onBuy(card, sc, stockN, price, img)}>
             {out ? S.txtOutOfStock : S.labelCart}
           </button>
           <button type="button" className="btn cc-more" onClick={onDetail}>{S.labelDetail}</button>
@@ -378,7 +433,21 @@ function ComboCard({ combo, prod, S, light, scents, scent, setScent, onBuy, onDe
   );
 }
 
-function ComboGroup({ heading, kicker, mascot, combos, rowRef, children }) {
+/* Banner riêng của SP — v20.1: giờ RENDER THẬT phía trên nhóm
+   (trước đây admin có ô nhập mà trang chủ không render = hứa suông). */
+function ProductBanner({ prod }) {
+  if (!prod || (!prod.banner && !prod.bannerVideo)) return null;
+  return (
+    <div className="pbanner">
+      {prod.bannerVideo
+        ? <video src={prod.bannerVideo} autoPlay muted loop playsInline />
+        : <img src={prod.banner} alt="" loading="lazy" />}
+      {prod.bannerText && <span className="pbanner-t">{prod.bannerText}</span>}
+    </div>
+  );
+}
+
+function ComboGroup({ heading, kicker, mascot, cards, rowRef, children }) {
   return (
     <div className="cgrp">
       <div className="ghead">
@@ -388,8 +457,9 @@ function ComboGroup({ heading, kicker, mascot, combos, rowRef, children }) {
           <h3>{heading}</h3>
         </div>
       </div>
-      <div className="crow" ref={rowRef}>
-        {combos.map((c, i) => children(c, i))}
+      <div className="crow" ref={rowRef}
+           style={{ '--ncards': Math.max(1, Math.min(cards.length, 4)) }}>
+        {cards.map((c, i) => children(c, i))}
       </div>
     </div>
   );
@@ -552,6 +622,7 @@ export default function Home() {
     add({
       productId: prod.id,
       variantId: variant ? variant.id : '',
+      scentId: (variant && variant.scentId) || '',
       name: prod.name,
       variantName: variant ? variant.name : '',
       price: variant ? variant.price : prod.price,
@@ -562,20 +633,27 @@ export default function Home() {
 
   const railStep = () => (railRef.current?.querySelector('.tcard')?.offsetWidth || 220) + 16;
 
-  /* v20: mua combo — combo ĐÓNG VAI variant, giữ nguyên chữ ký addToCart
-     (prod, variant, img). Combo chọn mùi (scentPick) thì ghép tên mùi vào
-     tên dòng giỏ để đơn hàng biết khách chọn mùi nào. */
-  const buyCombo = (prod) => (combo, sc) => {
+  /* v20.1: mua từ thẻ — KHO 1 NGUỒN.
+     - Thẻ tự sinh từ phân loại/mùi → addToCart với variant THẬT
+       (trừ thẳng kho phân loại, đúng luồng cũ, không sinh kho thứ 2)
+     - Thẻ tự sinh từ SP gốc → variant null (trừ kho SP gốc)
+     - Combo admin nhập → combo đóng vai variant + mang scentId để
+       server trừ BOM đúng mùi khách chọn */
+  const buyCombo = (prod) => (card, sc, stockN, price, img) => {
     if (!prod) return;
+    if (card.autoVariant) { addToCart(prod, card.autoVariant, img); return; }
+    if (card.autoPicker)  { if (sc?.variant) addToCart(prod, sc.variant, img); return; }
+    if (card.autoBase)    { addToCart(prod, null, img); return; }
     const scentName = sc?.name ? ` — ${sc.name}` : '';
     addToCart(prod, {
-      id: combo.id,
-      name: combo.name + scentName,
-      price: combo.price,
-      original: combo.original,
-      stock: combo.stock,
-      img: combo.img,
-    }, combo.img || (sc && (sc.image || (sc.variant && sc.variant.img))) || prod.img);
+      id: card.id,
+      name: card.name + scentName,
+      price: card.price,
+      original: card.original,
+      stock: stockN,
+      img: card.img,
+      scentId: sc?.variant?.id || '',
+    }, img);
   };
 
   /* v20: MOBILE auto-lock — mở trang thì hàng thẻ cuộn khoá sẵn vào thẻ B
@@ -694,64 +772,22 @@ export default function Home() {
         </div>
 
         <div className="grid">
-          {/* MISTY — v20: có combos (nhập trong admin) thì hiện nhóm A/B/C,
-              CHƯA có thì fallback thẻ cũ để trang không trống (mục 1.0 V20) */}
-          {mfProd && (mfProd.combos || []).length > 0 && (
-            <ComboGroup heading={S.mfHeading} kicker={S.mfHeadKicker}
-                        mascot={S.mfHeadMascot} combos={mfProd.combos} rowRef={mfRowRef}>
-              {(c, i) => (
-                <ComboCard key={c.id || i} combo={c} prod={mfProd} S={S}
-                           scents={[]} scent={0} setScent={() => {}}
-                           onBuy={buyCombo(mfProd)}
-                           onDetail={() => setModalSlug(mfProd.slug)} />
-              )}
-            </ComboGroup>
-          )}
-          {mfProd && (mfProd.combos || []).length === 0 && (
-          <article className="card star">
-            <div className="cimg" style={{ background: 'linear-gradient(160deg,#26396a,#18284e)' }}>
-              {S.mfBadge && <span className="badge">{S.mfBadge}</span>}
-              <Img src={(mfV && mfV.img) || mfProd.img || S.mfImage} alt={mfProd.name}
-                   text="ẢNH THẬT|chai Misty Fresh" dark />
-            </div>
-            <div className="cbody">
-              <h3>{S.mfName || mfProd.name}</h3>
-              <p className="cdesc">{S.mfDesc}</p>
-              {mfProd.variants.length > 0 && (
-                <>
-                  <div className="optlabel">{S.mfOptLabel}</div>
-                  <div className="variants">
-                    {mfProd.variants.map((v, i) => (
-                      <button key={v.id || i}
-                              className={'chip' + (i === mfSel ? ' on' : '') + (v.stock <= 0 ? ' out' : '')}
-                              onClick={() => setMfSel(i)}>{v.name}</button>
-                    ))}
-                  </div>
-                </>
-              )}
-              <div className="cfoot">
-                <div className="cfoot-l">
-                  <div className="pricerow">
-                    <span className="price">{vnd(mfPrice)}</span>
-                    {mfWas > mfPrice && <span className="was">{vnd(mfWas)}</span>}
-                    {mfSave > 0 && <span className="save">Rẻ hơn {mfSave}%</span>}
-                  </div>
-                  <div className={'stock' + (mfStockN <= 0 ? ' out' : '')}>
-                    {mfStockN <= 0 ? S.txtOutOfStock : S.txtInStock}
-                  </div>
-                </div>
-                <div className="cbtns">
-                  <a className="btn b-more" href={`/san-pham/${mfProd.slug}`}
-                     onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
-                                     e.preventDefault(); setModalSlug(mfProd.slug); }}>{S.labelDetail}</a>
-                  <button type="button" className="btn b-buy cta-buy" disabled={mfStockN <= 0}
-                          onClick={() => addToCart(mfProd, mfV, (mfV && mfV.img) || mfProd.img || S.mfImage)}>
-                    {mfStockN <= 0 ? S.txtOutOfStock : S.labelCart}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </article>
+          {/* v20.1: thẻ đầu nhóm TỰ SINH từ SP gốc/phân loại (tab Sản phẩm),
+              combo admin nhập nối sau — KHÔNG còn fallback thẻ cũ vì nhóm
+              không bao giờ trống. Banner SP (nếu có) hiện trên nhóm. */}
+          {mfProd && (
+            <>
+              <ProductBanner prod={mfProd} />
+              <ComboGroup heading={S.mfHeading} kicker={S.mfHeadKicker}
+                          mascot={S.mfHeadMascot} cards={cardsOf(mfProd, S)} rowRef={mfRowRef}>
+                {(c, i) => (
+                  <ComboCard key={c.id || i} card={c} prod={mfProd} S={S}
+                             scents={[]} scent={0} setScent={() => {}}
+                             onBuy={buyCombo(mfProd)}
+                             onDetail={() => setModalSlug(mfProd.slug)} />
+                )}
+              </ComboGroup>
+            </>
           )}
 
           {/* DÒNG MỜI GỌI */}
@@ -763,75 +799,23 @@ export default function Home() {
             <div className="arrow" />
           </div>
 
-          {/* WBS — v20: combo có scentPick=true thì hiện bộ chọn mùi CŨ
-              (đọc scents có sẵn) ngay trong thẻ */}
-          {wbsProd && (wbsProd.combos || []).length > 0 && (
-            <ComboGroup heading={S.wbsHeading} kicker={S.wbsHeadKicker}
-                        mascot={S.wbsHeadMascot} combos={wbsProd.combos} rowRef={wbsRowRef}>
-              {(c, i) => (
-                <ComboCard key={c.id || i} combo={c} prod={wbsProd} S={S} light
-                           scents={scents} scent={scent} setScent={setScent}
-                           onBuy={buyCombo(wbsProd)}
-                           onDetail={() => setModalSlug(wbsProd.slug)} />
-              )}
-            </ComboGroup>
-          )}
-          {wbsProd && (wbsProd.combos || []).length === 0 && (
-          <article className="card">
-            <div className="cimg light"
-                 style={{ background: `linear-gradient(160deg,${sc.c1 || '#dbe4f4'},${sc.c2 || '#b3c4e2'})` }}>
-              {S.wbsBadge && <span className="badge">{S.wbsBadge}</span>}
-              <Img src={(scV && scV.img) || sc.image || wbsProd.img} alt={wbsProd.name}
-                   text={`ẢNH THẬT|chai Waterless Bubble|(${sc.name || 'mùi'})`} />
-            </div>
-            <div className="cbody">
-              <h3>{S.wbsName || wbsProd.name}</h3>
-              <p className="cdesc">{S.wbsDesc}</p>
-              {scents.length > 0 && (
-                <>
-                  <div className="optlabel">{S.wbsOptLabel}</div>
-                  <div className="scents">
-                    {scents.map((s, i) => (
-                      <button key={i}
-                              className={'scent' + (i === scent ? ' on' : '') +
-                                         (s.variant && s.variant.stock <= 0 ? ' out' : '')}
-                              onClick={() => setScent(i)}
-                              title={s.name} aria-label={s.name}
-                              aria-pressed={i === scent}>
-                        {s.icon ? <img className="sic" src={s.icon} alt="" />
-                                : <i style={{ background: s.dot }} />}
-                        <b>{s.name}</b>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-              <div className="cfoot">
-                <div className="cfoot-l">
-                  <div className="pricerow">
-                    <span className="price">{vnd(wbsPrice)}</span>
-                    {wbsWas > wbsPrice && <span className="was">{vnd(wbsWas)}</span>}
-                    {wbsSave > 0 && <span className="save">Rẻ hơn {wbsSave}%</span>}
-                  </div>
-                  <div className={'stock' + (wbsStockN <= 0 ? ' out' : '')}>
-                    {wbsStockN <= 0 ? S.txtOutOfStock : S.txtInStock}
-                  </div>
-                </div>
-                <div className="cbtns">
-                  <a className="btn b-more" href={`/san-pham/${wbsProd.slug}`}
-                     onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
-                                     e.preventDefault(); setModalSlug(wbsProd.slug); }}>{S.labelDetail}</a>
-                  <button type="button" className="btn b-buy cta-buy" disabled={wbsStockN <= 0}
-                          onClick={() => addToCart(wbsProd, scV, (scV && scV.img) || sc.image || wbsProd.img)}>
-                    {wbsStockN <= 0 ? S.txtOutOfStock : S.labelCart}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </article>
+          {wbsProd && (
+            <>
+              <ProductBanner prod={wbsProd} />
+              <ComboGroup heading={S.wbsHeading} kicker={S.wbsHeadKicker}
+                          mascot={S.wbsHeadMascot} cards={cardsOf(wbsProd, S)} rowRef={wbsRowRef}>
+                {(c, i) => (
+                  <ComboCard key={c.id || i} card={c} prod={wbsProd} S={S} light
+                             scents={scents} scent={scent} setScent={setScent}
+                             onBuy={buyCombo(wbsProd)}
+                             onDetail={() => setModalSlug(wbsProd.slug)} />
+                )}
+              </ComboGroup>
+            </>
           )}
         </div>
       </section>
+
 
       {/* ---------------- ĐÁNH GIÁ ---------------- */}
       {(S.testimonials || []).length > 0 && (
@@ -1289,6 +1273,13 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
    Tiêu đề nhóm CÁCH hàng thẻ 12px (dính), bo góc dưới 8px + navy
    trùng thẻ → mắt trôi thẳng tiêu đề xuống sản phẩm (Tung yêu cầu). */
 .cgrp{grid-column:1/-1}
+/* v20.1: banner riêng của SP — render THẬT phía trên nhóm */
+.pbanner{grid-column:1/-1;position:relative;border-radius:16px;overflow:hidden;
+  box-shadow:0 6px 18px rgba(24,40,78,.14);line-height:0}
+.pbanner img,.pbanner video{width:100%;height:auto;display:block;object-fit:cover;max-height:340px}
+.pbanner-t{position:absolute;left:20px;bottom:16px;background:rgba(24,40,78,.86);color:#fff;
+  font-family:'Nunito';font-weight:900;font-size:clamp(14px,1.8vw,19px);line-height:1.3;
+  padding:9px 16px;border-radius:12px;max-width:70%}
 .ghead{display:flex;align-items:center;gap:14px;background:linear-gradient(100deg,#18284e,#22345f);
   border-radius:16px 16px 8px 8px;padding:14px 20px;margin-bottom:12px;box-shadow:0 6px 16px rgba(24,40,78,.18)}
 /* Mascot BẮT BUỘC nằm ổ tròn trắng: pet nâu trên navy = 1.09 tương phản
@@ -1299,7 +1290,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .ghead .pod .ph{font-size:16px}
 .gk{display:block;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#9fb0d0;margin-bottom:3px}
 .ghead h3{margin:0;font-size:clamp(18px,2.2vw,22px);font-weight:900;color:#fff;line-height:1.12;letter-spacing:-.01em;font-family:'Nunito'}
-.crow{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:stretch}
+.crow{display:grid;grid-template-columns:repeat(var(--ncards,3),1fr);gap:14px;align-items:stretch}
 /* 3 thẻ CÙNG shape — B KHÔNG nhô, KHÔNG viền màu, KHÔNG đổi nút.
    Chỉ khác đúng viên nhãn (Tung chốt: "đừng khác shape"). */
 .ccard{position:relative;background:var(--navy);border-radius:14px;overflow:hidden;
