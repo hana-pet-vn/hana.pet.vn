@@ -1331,12 +1331,16 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .pill{position:absolute;top:12px;right:12px;z-index:3;background:#e3ca22;color:#3a2f00;
   font-size:11px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;
   padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.22);font-family:'Nunito'}
+/* v20.3: ảnh PHỦ KÍN khung (Tung yêu cầu) — cover edge-to-edge,
+   khung khoá tỉ lệ 4:3, hết cảnh chai rúm 58% giữa nền trống.
+   Ảnh up nên là ảnh đã dàn cảnh/có nền; PNG trong suốt vẫn chạy
+   (gradient nền lộ qua phần trong suốt). */
 .cc-img{position:relative;background:linear-gradient(160deg,#26396a,#18284e);
-  display:grid;place-items:center;padding:20px;min-height:180px;transition:background .45s}
+  display:grid;place-items:center;aspect-ratio:4/3;overflow:hidden;transition:background .45s}
 .cc-img.light{background:linear-gradient(160deg,#dde5f5,#c9d6ee)}
-.cc-img img{width:auto;height:auto;max-width:58%;max-height:170px;object-fit:contain;
+.cc-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
   transition:transform .3s cubic-bezier(.2,.7,.3,1)}
-.ccard:hover .cc-img img{transform:translateY(-4px) scale(1.03)}
+.ccard:hover .cc-img img{transform:scale(1.04)}
 .cc-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:8px;flex:1}
 .cc-k{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8fa3c8;font-family:'Nunito'}
 .cc-scentlabel{margin-top:2px}
@@ -1390,8 +1394,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
     -webkit-overflow-scrolling:touch;scrollbar-width:none}
   .crow::-webkit-scrollbar{display:none}
   .crow .ccard{flex:0 0 82%;scroll-snap-align:center;scroll-snap-stop:always}
-  .cc-img{min-height:160px}
-  .cc-img img{max-width:64%;max-height:150px}
+  .cc-img{aspect-ratio:4/3}
   .cc-t{font-size:16px}
   .cc-price{font-size:22px}
 }
