@@ -474,8 +474,11 @@ function ComboGroup({ heading, kicker, mascot, cards, rowRef, children }) {
           <h3>{heading}</h3>
         </div>
       </div>
+      {/* Sàn 3 cột: nhóm mới có 1-2 thẻ thì thẻ vẫn cỡ 1/3 như thẻ
+         thường, KHÔNG stretch full màn (lỗi WBS 1 thẻ banh 1180px).
+         Trần 4 cột khi thêm nhiều combo. Mobile không ảnh hưởng (flex). */}
       <div className="crow" ref={rowRef}
-           style={{ '--ncards': Math.max(1, Math.min(cards.length, 4)) }}>
+           style={{ '--ncards': Math.min(Math.max(cards.length, 3), 4) }}>
         {cards.map((c, i) => children(c, i))}
       </div>
     </div>
