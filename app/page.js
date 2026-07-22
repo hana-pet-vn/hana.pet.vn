@@ -120,6 +120,17 @@ const DEFAULTS = {
   spTitle: 'Chọn loại phù hợp với bé',
   spSub: 'Giá đổi theo lựa chọn — không cần mở thêm trang.',
 
+  /* v20: khu SP = combo A/B/C. Tiêu đề nhóm + mascot sửa trong admin
+     (tab Trang chủ → Sản phẩm). Mascot BẮT BUỘC nằm ổ tròn trắng trên
+     navy (pet nâu trên navy tương phản 1.09 = tàng hình, mục 2.2 V19). */
+  bestChoiceLabel: 'Best choice',
+  mfHeading:    'Khử mùi an toàn cho thú cưng',
+  mfHeadKicker: 'Sạch khuẩn · khử mùi',
+  mfHeadMascot: '/mascots/pet-01.png',
+  wbsHeading:    'Spa bỏ túi',
+  wbsHeadKicker: 'Thơm tho · nâng niu',
+  wbsHeadMascot: '/mascots/pet-09.png',
+
   // mfKey: khớp với sản phẩm trong bảng products (theo tên hoặc mã SP).
   // Giá, giá gốc, tồn kho, danh sách phân loại → LẤY TỪ ADMIN, không ghi ở đây.
   mfKey: 'misty',
@@ -302,6 +313,89 @@ function VideoEmbed({ url, poster, label }) {
 }
 
 /* ============================================================
+   v20: KHU SẢN PHẨM = COMBO A/B/C
+   ĐỊNH NGHĨA NGOÀI component cha (lỗi #8 — trong cha thì mỗi lần
+   gõ 1 chữ component remount, mất focus).
+   Mỗi nhóm = thanh tiêu đề navy (mascot ổ tròn trắng) + 3 thẻ CÙNG
+   shape. Thẻ B chỉ khác đúng viên nhãn "Best choice" góc phải ảnh
+   (viên bo góc đè ảnh, KHÔNG phải thanh — thanh làm ảnh tụt, Tung bác).
+   KHÔNG auto bỏ combo nào vào giỏ — nhãn chỉ để mắt dừng ở B.
+   ============================================================ */
+function ComboCard({ combo, prod, S, light, scents, scent, setScent, onBuy, onDetail }) {
+  const items = (combo.items || []).filter(Boolean);
+  const save = combo.original > combo.price
+    ? Math.round((1 - combo.price / combo.original) * 100) : 0;
+  const out = combo.stock <= 0;
+  const sc = combo.scentPick ? (scents[Math.min(scent, Math.max(0, scents.length - 1))] || {}) : null;
+  return (
+    <article className="ccard">
+      {combo.best && <span className="pill">{S.bestChoiceLabel}</span>}
+      <div className={'cc-img' + (light ? ' light' : '')}
+           style={light && sc ? { background: `linear-gradient(160deg,${sc.c1 || '#dde5f5'},${sc.c2 || '#c9d6ee'})` } : undefined}>
+        <Img src={combo.img || (sc && (sc.image || (sc.variant && sc.variant.img))) || prod.img}
+             alt={combo.name} text={`ẢNH|${combo.name}`} dark={!light} />
+      </div>
+      <div className="cc-body">
+        <span className="cc-k">{combo.kicker || prod.name}</span>
+        <h3 className="cc-t">{combo.name}</h3>
+        {items.length > 0 && (
+          <ul className="cc-list">
+            {items.map((x, i) => <li key={i}>{x}</li>)}
+          </ul>
+        )}
+        {combo.scentPick && scents.length > 0 && (
+          <>
+            <span className="cc-k cc-scentlabel">{S.wbsOptLabel}</span>
+            <div className="scentmini">
+              {scents.map((s, i) => (
+                <button key={i} type="button"
+                        className={(i === scent ? 'on' : '') + (s.variant && s.variant.stock <= 0 ? ' out' : '')}
+                        style={{ background: s.dot }}
+                        onClick={() => setScent(i)}
+                        title={s.name} aria-label={s.name} aria-pressed={i === scent} />
+              ))}
+              <b>{sc?.name || ''}</b>
+            </div>
+          </>
+        )}
+        <div className="cc-pricerow">
+          <span className="cc-price">{vnd(combo.price)}</span>
+          {combo.original > combo.price && <span className="cc-was">{vnd(combo.original)}</span>}
+          {save > 0 && <span className="cc-save">-{save}%</span>}
+        </div>
+        <div className={'cc-stock' + (out ? ' out' : '')}>
+          {out ? S.txtOutOfStock : S.txtInStock}
+        </div>
+        <div className="cc-btns">
+          <button type="button" className="btn cc-buy cta-buy" disabled={out}
+                  onClick={() => onBuy(combo, sc)}>
+            {out ? S.txtOutOfStock : S.labelCart}
+          </button>
+          <button type="button" className="btn cc-more" onClick={onDetail}>{S.labelDetail}</button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ComboGroup({ heading, kicker, mascot, combos, rowRef, children }) {
+  return (
+    <div className="cgrp">
+      <div className="ghead">
+        <div className="pod"><Img src={mascot} text="🐾" /></div>
+        <div>
+          {kicker && <span className="gk">{kicker}</span>}
+          <h3>{heading}</h3>
+        </div>
+      </div>
+      <div className="crow" ref={rowRef}>
+        {combos.map((c, i) => children(c, i))}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    PAGE
    ============================================================ */
 export default function Home() {
@@ -315,6 +409,8 @@ export default function Home() {
   const railRef = useRef(null);
   const heroRef = useRef(null);
   const footRef = useRef(null);
+  const mfRowRef = useRef(null);   /* v20: hàng thẻ combo Misty (auto-lock mobile) */
+  const wbsRowRef = useRef(null);  /* v20: hàng thẻ combo WBS */
   const { add, openDrawer, count } = useCart();
 
   /* nạp config từ Supabase */
@@ -466,6 +562,35 @@ export default function Home() {
 
   const railStep = () => (railRef.current?.querySelector('.tcard')?.offsetWidth || 220) + 16;
 
+  /* v20: mua combo — combo ĐÓNG VAI variant, giữ nguyên chữ ký addToCart
+     (prod, variant, img). Combo chọn mùi (scentPick) thì ghép tên mùi vào
+     tên dòng giỏ để đơn hàng biết khách chọn mùi nào. */
+  const buyCombo = (prod) => (combo, sc) => {
+    if (!prod) return;
+    const scentName = sc?.name ? ` — ${sc.name}` : '';
+    addToCart(prod, {
+      id: combo.id,
+      name: combo.name + scentName,
+      price: combo.price,
+      original: combo.original,
+      stock: combo.stock,
+      img: combo.img,
+    }, combo.img || (sc && (sc.image || (sc.variant && sc.variant.img))) || prod.img);
+  };
+
+  /* v20: MOBILE auto-lock — mở trang thì hàng thẻ cuộn khoá sẵn vào thẻ B
+     (.pill). Chỉ chạy ở màn hẹp; PC là lưới 3 cột không cuộn. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!window.matchMedia('(max-width:760px)').matches) return;
+    [mfRowRef, wbsRowRef].forEach(r => {
+      const row = r.current;
+      if (!row) return;
+      const best = row.querySelector('.pill')?.closest('.ccard');
+      if (best) row.scrollLeft = Math.max(0, best.offsetLeft - (row.clientWidth - best.clientWidth) / 2);
+    });
+  }, [products]);
+
   return (
     <>
       <Styles />
@@ -569,8 +694,20 @@ export default function Home() {
         </div>
 
         <div className="grid">
-          {/* MISTY */}
-          {mfProd && (
+          {/* MISTY — v20: có combos (nhập trong admin) thì hiện nhóm A/B/C,
+              CHƯA có thì fallback thẻ cũ để trang không trống (mục 1.0 V20) */}
+          {mfProd && (mfProd.combos || []).length > 0 && (
+            <ComboGroup heading={S.mfHeading} kicker={S.mfHeadKicker}
+                        mascot={S.mfHeadMascot} combos={mfProd.combos} rowRef={mfRowRef}>
+              {(c, i) => (
+                <ComboCard key={c.id || i} combo={c} prod={mfProd} S={S}
+                           scents={[]} scent={0} setScent={() => {}}
+                           onBuy={buyCombo(mfProd)}
+                           onDetail={() => setModalSlug(mfProd.slug)} />
+              )}
+            </ComboGroup>
+          )}
+          {mfProd && (mfProd.combos || []).length === 0 && (
           <article className="card star">
             <div className="cimg" style={{ background: 'linear-gradient(160deg,#26396a,#18284e)' }}>
               {S.mfBadge && <span className="badge">{S.mfBadge}</span>}
@@ -626,8 +763,20 @@ export default function Home() {
             <div className="arrow" />
           </div>
 
-          {/* WBS */}
-          {wbsProd && (
+          {/* WBS — v20: combo có scentPick=true thì hiện bộ chọn mùi CŨ
+              (đọc scents có sẵn) ngay trong thẻ */}
+          {wbsProd && (wbsProd.combos || []).length > 0 && (
+            <ComboGroup heading={S.wbsHeading} kicker={S.wbsHeadKicker}
+                        mascot={S.wbsHeadMascot} combos={wbsProd.combos} rowRef={wbsRowRef}>
+              {(c, i) => (
+                <ComboCard key={c.id || i} combo={c} prod={wbsProd} S={S} light
+                           scents={scents} scent={scent} setScent={setScent}
+                           onBuy={buyCombo(wbsProd)}
+                           onDetail={() => setModalSlug(wbsProd.slug)} />
+              )}
+            </ComboGroup>
+          )}
+          {wbsProd && (wbsProd.combos || []).length === 0 && (
           <article className="card">
             <div className="cimg light"
                  style={{ background: `linear-gradient(160deg,${sc.c1 || '#dbe4f4'},${sc.c2 || '#b3c4e2'})` }}>
@@ -1133,6 +1282,93 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .invite p{font-family:'Nunito';font-weight:800;font-size:clamp(16px,1.9vw,23px);color:var(--navy);line-height:1.35}
 .invite .arrow{flex:1;height:1px;background:linear-gradient(90deg,rgba(24,40,78,.3),transparent);min-width:20px}
 @media(max-width:720px){.invite .arrow{display:none}}
+
+/* ── v20: KHU COMBO A/B/C ─────────────────────────────────────
+   Class riêng .cgrp/.ccard/.cc-* — KHÔNG đụng .card/.cimg/.cbody cũ
+   (thẻ cũ vẫn là fallback khi sản phẩm chưa nhập combo).
+   Tiêu đề nhóm CÁCH hàng thẻ 12px (dính), bo góc dưới 8px + navy
+   trùng thẻ → mắt trôi thẳng tiêu đề xuống sản phẩm (Tung yêu cầu). */
+.cgrp{grid-column:1/-1}
+.ghead{display:flex;align-items:center;gap:14px;background:linear-gradient(100deg,#18284e,#22345f);
+  border-radius:16px 16px 8px 8px;padding:14px 20px;margin-bottom:12px;box-shadow:0 6px 16px rgba(24,40,78,.18)}
+/* Mascot BẮT BUỘC nằm ổ tròn trắng: pet nâu trên navy = 1.09 tương phản
+   (tàng hình, mục 2.2 V19). Mascot đứng yên → drop-shadow OK. */
+.ghead .pod{width:52px;height:52px;border-radius:50%;background:#fff;flex-shrink:0;
+  display:grid;place-items:center;box-shadow:0 3px 8px rgba(0,0,0,.14);overflow:hidden}
+.ghead .pod img{width:42px;height:42px;object-fit:contain;filter:drop-shadow(0 1px 2px rgba(0,0,0,.15))}
+.ghead .pod .ph{font-size:16px}
+.gk{display:block;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#9fb0d0;margin-bottom:3px}
+.ghead h3{margin:0;font-size:clamp(18px,2.2vw,22px);font-weight:900;color:#fff;line-height:1.12;letter-spacing:-.01em;font-family:'Nunito'}
+.crow{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:stretch}
+/* 3 thẻ CÙNG shape — B KHÔNG nhô, KHÔNG viền màu, KHÔNG đổi nút.
+   Chỉ khác đúng viên nhãn (Tung chốt: "đừng khác shape"). */
+.ccard{position:relative;background:var(--navy);border-radius:14px;overflow:hidden;
+  display:flex;flex-direction:column;box-shadow:0 6px 18px rgba(24,40,78,.16);
+  transition:.28s cubic-bezier(.2,.7,.3,1)}
+.ccard:hover{transform:translateY(-5px);box-shadow:0 16px 36px rgba(24,40,78,.26)}
+/* Nhãn "Best choice" = VIÊN bo góc đè GÓC PHẢI ảnh (top/right 12px).
+   KHÔNG phải thanh full ngang — thanh đẩy ảnh SP tụt xuống (Tung đã bác).
+   Vàng brand #e3ca22, chữ #3a2f00 — tương phản trên navy 9.76.
+   Thẻ ló mép phải màn (mobile) bị cắt nhãn là BÌNH THƯỜNG (thẻ peek). */
+.pill{position:absolute;top:12px;right:12px;z-index:3;background:#e3ca22;color:#3a2f00;
+  font-size:11px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;
+  padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.22);font-family:'Nunito'}
+.cc-img{position:relative;background:linear-gradient(160deg,#26396a,#18284e);
+  display:grid;place-items:center;padding:20px;min-height:180px;transition:background .45s}
+.cc-img.light{background:linear-gradient(160deg,#dde5f5,#c9d6ee)}
+.cc-img img{width:auto;height:auto;max-width:58%;max-height:170px;object-fit:contain;
+  transition:transform .3s cubic-bezier(.2,.7,.3,1)}
+.ccard:hover .cc-img img{transform:translateY(-4px) scale(1.03)}
+.cc-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:8px;flex:1}
+.cc-k{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8fa3c8;font-family:'Nunito'}
+.cc-scentlabel{margin-top:2px}
+.cc-t{font-size:18px;font-weight:900;color:#fff;line-height:1.2;margin:0;font-family:'Nunito'}
+.cc-list{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.cc-list li{font-size:12.5px;color:#c3cde0;display:flex;align-items:center;gap:6px;font-family:'Nunito'}
+.cc-list li::before{content:"✓";color:#7dd3a8;font-weight:900;font-size:11px}
+.scentmini{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.scentmini button{width:18px;height:18px;border-radius:50%;border:1.5px solid #3d5589;cursor:pointer;padding:0;transition:.2s}
+.scentmini button:hover{border-color:#fff}
+.scentmini button.on{border-color:#fff;box-shadow:0 0 0 2px #22355f}
+.scentmini button.out{opacity:.4}
+.scentmini b{font-size:11.5px;font-weight:800;color:#c3cde0;margin-left:3px;font-family:'Nunito'}
+.cc-pricerow{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-top:auto;padding-top:6px}
+.cc-price{font-family:'Nunito';font-weight:900;font-size:24px;color:#fff;letter-spacing:-.02em}
+.cc-was{font-size:13px;color:#8fa3c8;text-decoration:line-through}
+.cc-save{font-size:11px;font-weight:800;color:#c3cde0;background:#22355f;padding:3px 7px;border-radius:6px;font-family:'Nunito'}
+.cc-stock{font-size:11.5px;color:#8fa3c8;font-weight:700;display:flex;align-items:center;gap:6px}
+.cc-stock::before{content:"";width:6px;height:6px;border-radius:50%;background:#7dd3a8}
+.cc-stock.out{color:#e5a3a3}
+.cc-stock.out::before{background:#e5a3a3}
+.cc-btns{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.cc-buy{padding:11px 18px;font-size:14px;background:#fff;color:var(--navy);box-shadow:0 3px 10px rgba(0,0,0,.22)}
+.cc-buy:hover:not(:disabled){background:#fff;transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.35)}
+.cc-more{padding:9px 14px;font-size:12px;border:1px solid #33487a;color:#9fb0d0;background:transparent}
+.cc-more:hover{border-color:#9fb0d0;color:#fff;background:transparent}
+/* MOBILE v2: tiêu đề tách RIÊNG thành thanh full ngang bo ĐỀU 4 góc,
+   KHÔNG nối xuống thẻ (Tung: nối trên mobile trông kỳ; PC vẫn nối).
+   Hàng thẻ cuộn ngang độc lập, mỗi thẻ 82%, snap KHOÁ CỨNG 1 option.
+   ⚠️ VÁ KẸT: overscroll-behavior-x:contain BẮT BUỘC — thiếu nó cuộn
+   ngang lan ra trang, cuộn DỌC KẸT giữa 2 nhóm (Tung gặp ở demo v1).
+   ĐỪNG BỎ dòng này. */
+@media(max-width:760px){
+  .ghead{border-radius:14px;padding:13px 16px;gap:12px}
+  .ghead .pod{width:44px;height:44px}
+  .ghead .pod img{width:35px;height:35px}
+  .ghead h3{font-size:17px}
+  .gk{font-size:9.5px;letter-spacing:.08em}
+  .crow{display:flex;grid-template-columns:none;overflow-x:auto;gap:12px;
+    padding:2px 2px 4px;
+    scroll-snap-type:x mandatory;
+    overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .crow::-webkit-scrollbar{display:none}
+  .crow .ccard{flex:0 0 82%;scroll-snap-align:center;scroll-snap-stop:always}
+  .cc-img{min-height:160px}
+  .cc-img img{max-width:64%;max-height:150px}
+  .cc-t{font-size:16px}
+  .cc-price{font-size:22px}
+}
 
 .tmo{background:var(--cream);padding-top:clamp(40px,4.5vw,58px);padding-bottom:clamp(44px,5vw,66px);overflow:hidden}
 .tmo-head{max-width:1180px;margin:0 auto clamp(18px,2.2vw,26px);display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}

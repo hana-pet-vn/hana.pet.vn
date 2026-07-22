@@ -1670,6 +1670,25 @@ function HBox({ title, children }) {
           <Field label="Tiêu đề mục" value={h.spTitle||''} onChange={v=>set('spTitle',v)} span="full" />
           <Field label="Mô tả mục" value={h.spSub||''} onChange={v=>set('spSub',v)} span="full" />
 
+          {/* v20: tiêu đề nhóm combo A/B/C + nhãn Best choice.
+              Combo NHẬP trong tab Sản phẩm (ô Combo A/B/C của từng SP);
+              ở đây chỉ sửa thanh tiêu đề nhóm + mascot + chữ nhãn. */}
+          <HBox title="🧩 Nhóm combo A/B/C (thanh tiêu đề + nhãn)">
+            <Field label='Chữ nhãn thẻ nổi bật (mặc định "Best choice" — đổi được, VD "Đáng mua nhất")' value={h.bestChoiceLabel||''} onChange={v=>set('bestChoiceLabel',v)} span="full" />
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
+              <Field label="Tiêu đề nhóm Misty" value={h.mfHeading||''} onChange={v=>set('mfHeading',v)} />
+              <Field label="Kicker nhóm Misty (trống = ẩn)" value={h.mfHeadKicker||''} onChange={v=>set('mfHeadKicker',v)} />
+              <Field label="Tiêu đề nhóm Waterless" value={h.wbsHeading||''} onChange={v=>set('wbsHeading',v)} />
+              <Field label="Kicker nhóm Waterless (trống = ẩn)" value={h.wbsHeadKicker||''} onChange={v=>set('wbsHeadKicker',v)} />
+            </div>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:10 }}>
+              <ImgUp current={h.mfHeadMascot||''} onUpload={v=>set('mfHeadMascot',v)} label="Mascot nhóm Misty"
+                     aspect="100%" folder="home" entityId="mf-head-mascot" hint="Nằm ổ tròn trắng — mascot nâu tối OK" />
+              <ImgUp current={h.wbsHeadMascot||''} onUpload={v=>set('wbsHeadMascot',v)} label="Mascot nhóm Waterless"
+                     aspect="100%" folder="home" entityId="wbs-head-mascot" hint="Nằm ổ tròn trắng — mascot nâu tối OK" />
+            </div>
+          </HBox>
+
           <HBox title="🧴 Misty Fresh">
             <Field label="Từ khoá khớp sản phẩm trong tab Sản phẩm" value={h.mfKey||''} onChange={v=>set('mfKey',v)} span="full" />
             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
@@ -2249,6 +2268,43 @@ function HBox({ title, children }) {
               </div>
             ))}
             <button onClick={()=>{const nv=[...(p.variants||[]),{id:"v_"+uid(),name:"",price:p.price||0,original:p.original||0,stock:0,img:""}];upd(p.id,"variants",nv);}} style={{ background:"#fff",color:S.brand[0].primary,border:`2px solid ${S.brand[0].primary}`,borderRadius:10,padding:"9px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ Thêm phân loại</button>
+          </div>
+
+          {/* ── v20: Combo A/B/C (CHIỀU DỮ LIỆU MỚI, tách khỏi Phân loại) ──
+              Phân loại của WBS vẫn là 5 MÙI — không đụng. Combo là gói bán
+              (chai lẻ / combo vừa / combo lớn) hiện thành 3 thẻ ở trang chủ. */}
+          <div style={{ marginTop:18,padding:16,background:"#fdf9ec",border:"2px dashed #e3ca22",borderRadius:14 }}>
+            <div style={{ fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",marginBottom:4 }}>🧩 Combo A/B/C (khu sản phẩm trang chủ)</div>
+            <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12 }}>
+              Mỗi combo = 1 thẻ ở trang chủ. Nên tạo đúng 3: A chai lẻ · B combo vừa (tick &quot;Best choice&quot;) · C combo lớn.
+              CHƯA nhập combo thì trang chủ vẫn hiện thẻ kiểu cũ — không sợ trống.
+              Combo tick &quot;Cho chọn mùi&quot; sẽ hiện bộ chấm mùi (đọc từ Phân loại) ngay trong thẻ — chỉ dùng cho Waterless.
+            </div>
+            {(p.combos||[]).map((c,ci)=>(
+              <div key={c.id||ci} style={{ background:"#fff",border:"1px solid #dbe2f1",borderRadius:12,padding:12,marginBottom:10 }}>
+                <div style={{ display:"grid",gridTemplateColumns:"90px 1fr",gap:12 }}>
+                  <ImgUp current={c.img} onUpload={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],img:val};upd(p.id,"combos",nc);}} label="Ảnh" aspect="125%" folder="products" entityId={p.id+"_c"+ci} hint="Dọc 4:5 (800×1000)" />
+                  <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
+                    <Field label='Tên combo (VD: "Combo Tiết Kiệm")' value={c.name||""} onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],name:val};upd(p.id,"combos",nc);}} span="full" />
+                    <Field label='Kicker (dòng nhỏ trên tên — VD: "Misty Fresh")' value={c.kicker||""} onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],kicker:val};upd(p.id,"combos",nc);}} span="full" />
+                    <Field label="Giá bán (₫)" value={c.price||0} type="number" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],price:Number(val)};upd(p.id,"combos",nc);}} />
+                    <Field label="Giá gốc (₫)" value={c.original||0} type="number" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],original:Number(val)};upd(p.id,"combos",nc);}} />
+                    <Field label="Kho" value={c.stock||0} type="number" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],stock:Number(val)};upd(p.id,"combos",nc);}} />
+                    <Field label="Trong combo có gì (MỖI DÒNG 1 MÓN)" value={(c.items||[]).join("\n")} rows={3} span="full" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],items:val.split("\n")};upd(p.id,"combos",nc);}} placeholder={"1 Chai xịt 250ml\n1 Lõi refill 250ml"} />
+                    <label style={{ display:"flex",alignItems:"center",gap:7,fontFamily:FONT_T,fontSize:12.5,cursor:"pointer" }}>
+                      <input type="checkbox" checked={!!c.best} onChange={e=>{const nc=[...p.combos];nc[ci]={...nc[ci],best:e.target.checked};upd(p.id,"combos",nc);}} />
+                      ⭐ Best choice (viên vàng góc ảnh)
+                    </label>
+                    <label style={{ display:"flex",alignItems:"center",gap:7,fontFamily:FONT_T,fontSize:12.5,cursor:"pointer" }}>
+                      <input type="checkbox" checked={!!c.scentPick} onChange={e=>{const nc=[...p.combos];nc[ci]={...nc[ci],scentPick:e.target.checked};upd(p.id,"combos",nc);}} />
+                      🎨 Cho chọn mùi (chỉ Waterless)
+                    </label>
+                    <button onClick={()=>{const nc=p.combos.filter((_,x)=>x!==ci);upd(p.id,"combos",nc);}} style={{ gridColumn:"1 / -1",background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"8px 0",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>✕ Xóa combo</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button onClick={()=>{const nc=[...(p.combos||[]),{id:"c_"+uid(),name:"",kicker:"",items:[],price:p.price||0,original:p.original||0,stock:0,best:false,scentPick:false,img:""}];upd(p.id,"combos",nc);}} style={{ background:"#fff",color:S.brand[0].primary,border:`2px solid ${S.brand[0].primary}`,borderRadius:10,padding:"9px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ Thêm combo</button>
           </div>
           <div style={{ marginTop:12,display:"flex",alignItems:"center",gap:12 }}>
             <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer" }}>
