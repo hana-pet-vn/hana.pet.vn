@@ -143,7 +143,7 @@ export default function CheckoutPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: lines.map(l => ({ productId: l.productId, variantId: l.variantId || undefined, qty: l.qty })),
+          items: lines.map(l => ({ productId: l.productId, variantId: l.variantId || undefined, variantName: l.variantName || undefined, qty: l.qty })),
           customer: {
             name: f.name.trim(), phone: f.phone.trim(), email: f.email.trim(),
             address: f.address.trim(),

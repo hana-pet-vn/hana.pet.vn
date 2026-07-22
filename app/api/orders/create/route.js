@@ -64,7 +64,7 @@ export async function POST(request) {
     const ids = items.map(i => i.productId)
     const { data: products, error: prodErr } = await supabase
       .from('products')
-      .select('id, name, price, stock, variants')
+      .select('id, name, price, stock, variants, combos')
       .in('id', ids)
 
     if (prodErr) return json({ error: 'Failed to load products' }, 500)
@@ -73,24 +73,43 @@ export async function POST(request) {
 
     // Resolve the authoritative price/stock for an item, honoring variants.
     // If the item names a variant, that variant's price/stock is used.
+    // v20: variantId co the la COMBO id (c_...) — combo dong vai variant
+    // trong gio hang. Khop variants truoc, khong thay thi khop combos.
+    // Truoc day combo bi chan "Invalid option" o day → khach khong dat duoc.
     const resolveLine = (item) => {
       const p = productMap[item.productId]
       if (!p) return { ok: false, error: `Product not found: ${item.productId}` }
       const variants = Array.isArray(p.variants) ? p.variants : []
-      if (variants.length > 0) {
-        if (!item.variantId) return { ok: false, error: `Please choose an option for "${p.name}"` }
+      const combos   = Array.isArray(p.combos)   ? p.combos   : []
+      if (item.variantId) {
         const v = variants.find(x => x.id === item.variantId)
-        if (!v) return { ok: false, error: `Invalid option for "${p.name}"` }
-        return {
-          ok: true, product: p, variant: v,
-          price: Number(v.price) || 0,
-          stock: Number(v.stock) || 0,
-          label: `${p.name} — ${v.name}`,
-          variantName: v.name,
+        if (v) {
+          return {
+            ok: true, product: p, variant: v, combo: null,
+            price: Number(v.price) || 0,
+            stock: Number(v.stock) || 0,
+            label: `${p.name} — ${v.name}`,
+            variantName: v.name,
+          }
         }
+        const c = combos.find(x => x.id === item.variantId)
+        if (c) {
+          // variantName tu client CHI la chu hien thi (ten mui khach chon) —
+          // gia/kho van lay tu DB. Cat 120 ky tu cho an toan.
+          const cn = String(item.variantName || '').slice(0, 120) || c.name
+          return {
+            ok: true, product: p, variant: null, combo: c,
+            price: Number(c.price) || 0,
+            stock: Number(c.stock) || 0,
+            label: `${p.name} — ${cn}`,
+            variantName: cn,
+          }
+        }
+        return { ok: false, error: `Invalid option for "${p.name}"` }
       }
+      if (variants.length > 0) return { ok: false, error: `Please choose an option for "${p.name}"` }
       return {
-        ok: true, product: p, variant: null,
+        ok: true, product: p, variant: null, combo: null,
         price: Number(p.price) || 0,
         stock: Number(p.stock) || 0,
         label: p.name,
@@ -185,7 +204,7 @@ export async function POST(request) {
     const { error: orderErr } = await supabase.from('orders').insert(orderRecord)
     if (orderErr) return json({ error: 'Failed to save order: ' + orderErr.message }, 500)
 
-    // ── 10. Decrement stock for each item (variant-aware) ─────────────────────
+    // ── 10. Decrement stock for each item (variant/combo-aware) ───────────────
     for (const item of items) {
       const line = resolveLine(item)
       const p = line.product
@@ -201,6 +220,19 @@ export async function POST(request) {
           .update({ variants: newVariants, updated_at: new Date().toISOString() })
           .eq('id', item.productId)
         if (stockErr) console.error(`Variant stock update failed for ${item.productId}:`, stockErr)
+      } else if (line.combo) {
+        // v20: tru kho cua CHINH combo trong mang combos.
+        // BOM (tru tung mon con: 1 chai + 1 refill...) lam o Chat 2 KHO.
+        const newCombos = (Array.isArray(p.combos) ? p.combos : []).map(c =>
+          c.id === line.combo.id
+            ? { ...c, stock: Math.max(0, (Number(c.stock) || 0) - item.qty) }
+            : c
+        )
+        const { error: stockErr } = await supabase
+          .from('products')
+          .update({ combos: newCombos, updated_at: new Date().toISOString() })
+          .eq('id', item.productId)
+        if (stockErr) console.error(`Combo stock update failed for ${item.productId}:`, stockErr)
       } else {
         const currentStock = Number(p.stock) || 0
         const { error: stockErr } = await supabase
