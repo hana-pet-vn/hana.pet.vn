@@ -345,7 +345,12 @@ function comboAvail(combo, prod, scVariant) {
   return avail === Infinity ? 0 : avail;
 }
 
-/* Ghép thẻ hiển thị: thẻ tự sinh trước, combo admin nhập sau. */
+/* Ghép thẻ hiển thị: thẻ tự sinh trước, combo admin nhập sau.
+   v20.2: SP có phân loại → LUÔN 1 thẻ "sản phẩm lẻ" + BỘ CHỌN ngay
+   trong thẻ (giá/kho/ảnh đổi theo lựa chọn — giống thẻ cũ Tung quen):
+   - Có bảng mùi (scents truyền vào) → chấm màu (WBS)
+   - Không có     → chip tên phân loại (Misty: Chai xịt / Lõi refill)
+   Không cần cờ trong admin — tự nhận dạng, bớt 1 ô thừa. */
 function cardsOf(prod, S) {
   if (!prod) return [];
   const vs = prod.variants || [];
@@ -354,33 +359,33 @@ function cardsOf(prod, S) {
     auto.push({ id: 'auto_base', autoBase: true, name: prod.name, kicker: '',
       items: [], price: prod.price, original: prod.original, stock: prod.stock,
       img: prod.img, best: false, scentPick: false });
-  } else if (prod.variantAsPicker) {
-    /* phân loại = mùi/màu → 1 thẻ, giá/kho/ảnh chạy theo mùi đang chọn */
+  } else {
     auto.push({ id: 'auto_picker', autoPicker: true, name: S.autoCardName,
       kicker: prod.name, items: [], best: false, scentPick: true, img: '' });
-  } else {
-    /* phân loại = hàng bán lẻ → mỗi loại 1 thẻ, mua là trừ thẳng kho loại đó */
-    vs.forEach(v => auto.push({ id: 'auto_v_' + v.id, autoVariant: v,
-      name: v.name, kicker: prod.name, items: [],
-      price: v.price, original: v.original, stock: v.stock,
-      img: v.img || prod.img, best: false, scentPick: false }));
   }
   return [...auto, ...(prod.combos || [])];
 }
 
-function ComboCard({ card, prod, S, light, scents, scent, setScent, onBuy, onDetail }) {
+function ComboCard({ card, prod, S, light, scents, scent, setScent, vsel, setVsel, onBuy, onDetail }) {
   const items = (card.items || []).filter(Boolean);
-  const sc = card.scentPick ? (scents[Math.min(scent, Math.max(0, scents.length - 1))] || {}) : null;
+  const vlist = prod.variants || [];
+  /* Thẻ picker: có bảng mùi → chấm màu (scent state), không có → chip tên (vsel) */
+  const chipsMode = card.autoPicker && scents.length === 0 && vlist.length > 0;
+  const dotsMode  = card.scentPick && scents.length > 0;
+  const sc = dotsMode ? (scents[Math.min(scent, Math.max(0, scents.length - 1))] || {}) : null;
   const scV = sc && sc.variant;
-  /* giá/kho: thẻ picker chạy theo mùi; combo có BOM thì kho tự tính */
-  const price    = card.autoPicker ? (scV ? scV.price : 0) : card.price;
-  const original = card.autoPicker ? (scV ? scV.original : 0) : card.original;
-  const stockN   = card.autoPicker ? (scV ? scV.stock : 0)
-                 : card.autoBase || card.autoVariant ? card.stock
+  const vv = chipsMode ? (vlist[Math.min(vsel, vlist.length - 1)] || null) : null;
+  const picked = card.autoPicker ? (chipsMode ? vv : scV) : null;
+  const price    = card.autoPicker ? (picked ? picked.price : 0) : card.price;
+  const original = card.autoPicker ? (picked ? picked.original : 0) : card.original;
+  const stockN   = card.autoPicker ? (picked ? picked.stock : 0)
+                 : card.autoBase ? card.stock
                  : comboAvail(card, prod, scV);
   const img = card.autoPicker
-    ? ((scV && scV.img) || (sc && sc.image) || prod.img)
+    ? ((picked && picked.img) || (sc && sc.image) || prod.img)
     : card.img || (sc && (sc.image || (scV && scV.img))) || prod.img;
+  /* Chip mode: tên thẻ = tên phân loại đang chọn (Chai xịt 250ml / Lõi refill) */
+  const title = chipsMode ? (vv ? vv.name : card.name) : card.name;
   const save = original > price ? Math.round((1 - price / original) * 100) : 0;
   const out = stockN <= 0;
   return (
@@ -388,17 +393,29 @@ function ComboCard({ card, prod, S, light, scents, scent, setScent, onBuy, onDet
       {card.best && <span className="pill">{S.bestChoiceLabel}</span>}
       <div className={'cc-img' + (light ? ' light' : '')}
            style={light && sc ? { background: `linear-gradient(160deg,${sc.c1 || '#dde5f5'},${sc.c2 || '#c9d6ee'})` } : undefined}>
-        <Img src={img} alt={card.name} text={`ẢNH|${card.name}`} dark={!light} />
+        <Img src={img} alt={title} text={`ẢNH|${title}`} dark={!light} />
       </div>
       <div className="cc-body">
         <span className="cc-k">{card.kicker || prod.name}</span>
-        <h3 className="cc-t">{card.name}</h3>
+        <h3 className="cc-t">{title}</h3>
         {items.length > 0 && (
           <ul className="cc-list">
             {items.map((x, i) => <li key={i}>{x}</li>)}
           </ul>
         )}
-        {card.scentPick && scents.length > 0 && (
+        {chipsMode && (
+          <>
+            <span className="cc-k cc-scentlabel">{prod.variantLabel || S.mfOptLabel}</span>
+            <div className="vchips">
+              {vlist.map((x, i) => (
+                <button key={x.id || i} type="button"
+                        className={(i === vsel ? 'on' : '') + (x.stock <= 0 ? ' out' : '')}
+                        onClick={() => setVsel(i)}>{x.name}</button>
+              ))}
+            </div>
+          </>
+        )}
+        {dotsMode && (
           <>
             <span className="cc-k cc-scentlabel">{S.wbsOptLabel}</span>
             <div className="scentmini">
@@ -423,7 +440,7 @@ function ComboCard({ card, prod, S, light, scents, scent, setScent, onBuy, onDet
         </div>
         <div className="cc-btns">
           <button type="button" className="btn cc-buy cta-buy" disabled={out}
-                  onClick={() => onBuy(card, sc, stockN, price, img)}>
+                  onClick={() => onBuy(card, { picked, sc, stockN, img })}>
             {out ? S.txtOutOfStock : S.labelCart}
           </button>
           <button type="button" className="btn cc-more" onClick={onDetail}>{S.labelDetail}</button>
@@ -639,11 +656,12 @@ export default function Home() {
      - Thẻ tự sinh từ SP gốc → variant null (trừ kho SP gốc)
      - Combo admin nhập → combo đóng vai variant + mang scentId để
        server trừ BOM đúng mùi khách chọn */
-  const buyCombo = (prod) => (card, sc, stockN, price, img) => {
+  const buyCombo = (prod) => (card, { picked, sc, stockN, img }) => {
     if (!prod) return;
-    if (card.autoVariant) { addToCart(prod, card.autoVariant, img); return; }
-    if (card.autoPicker)  { if (sc?.variant) addToCart(prod, sc.variant, img); return; }
-    if (card.autoBase)    { addToCart(prod, null, img); return; }
+    /* Thẻ tự sinh: mua bằng variant THẬT đang chọn (chip/chấm mùi) →
+       trừ thẳng kho phân loại, kho 1 nguồn */
+    if (card.autoPicker) { if (picked) addToCart(prod, picked, img); return; }
+    if (card.autoBase)   { addToCart(prod, null, img); return; }
     const scentName = sc?.name ? ` — ${sc.name}` : '';
     addToCart(prod, {
       id: card.id,
@@ -783,6 +801,7 @@ export default function Home() {
                 {(c, i) => (
                   <ComboCard key={c.id || i} card={c} prod={mfProd} S={S}
                              scents={[]} scent={0} setScent={() => {}}
+                             vsel={mfSel} setVsel={setMfSel}
                              onBuy={buyCombo(mfProd)}
                              onDetail={() => setModalSlug(mfProd.slug)} />
                 )}
@@ -807,6 +826,7 @@ export default function Home() {
                 {(c, i) => (
                   <ComboCard key={c.id || i} card={c} prod={wbsProd} S={S} light
                              scents={scents} scent={scent} setScent={setScent}
+                             vsel={0} setVsel={() => {}}
                              onBuy={buyCombo(wbsProd)}
                              onDetail={() => setModalSlug(wbsProd.slug)} />
                 )}
@@ -1142,7 +1162,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 
 /* v18: Khu SẢN PHẨM đảo màu — nền XÁM NHẠT, thẻ navy ĐẶC (bỏ kính mờ).
    Kicker/shead dùng lại màu navy mặc định nên không cần override nữa. */
-#sp{background:#f4f5f7}
+#sp{background:#f4f5f7;overflow-x:clip}
 /* v18.1: khu #sp bung theo khung 1180 (cùng cỡ .nav-in) — tiêu đề thẳng
    hàng với lưới thẻ, hết cảnh tiêu đề dính trái còn thẻ lọt giữa. */
 #sp .shead{max-width:1180px;margin-left:auto;margin-right:auto}
@@ -1272,9 +1292,13 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
    (thẻ cũ vẫn là fallback khi sản phẩm chưa nhập combo).
    Tiêu đề nhóm CÁCH hàng thẻ 12px (dính), bo góc dưới 8px + navy
    trùng thẻ → mắt trôi thẳng tiêu đề xuống sản phẩm (Tung yêu cầu). */
-.cgrp{grid-column:1/-1}
+/* ⚠️ min-width:0 BẮT BUỘC: .cgrp là grid item, mặc định min-width:auto
+   → hàng thẻ cuộn ngang bên trong CHỐNG ĐẨY làm .cgrp phình rộng hơn
+   màn hình, CẢ TRANG banh ngang, nền xám #sp bị cắt cụt (lỗi mobile
+   Tung chụp 22/07). ĐỪNG BỎ. */
+.cgrp{grid-column:1/-1;min-width:0}
 /* v20.1: banner riêng của SP — render THẬT phía trên nhóm */
-.pbanner{grid-column:1/-1;position:relative;border-radius:16px;overflow:hidden;
+.pbanner{grid-column:1/-1;min-width:0;position:relative;border-radius:16px;overflow:hidden;
   box-shadow:0 6px 18px rgba(24,40,78,.14);line-height:0}
 .pbanner img,.pbanner video{width:100%;height:auto;display:block;object-fit:cover;max-height:340px}
 .pbanner-t{position:absolute;left:20px;bottom:16px;background:rgba(24,40,78,.86);color:#fff;
@@ -1323,6 +1347,13 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .scentmini button.on{border-color:#fff;box-shadow:0 0 0 2px #22355f}
 .scentmini button.out{opacity:.4}
 .scentmini b{font-size:11.5px;font-weight:800;color:#c3cde0;margin-left:3px;font-family:'Nunito'}
+/* v20.2: chip chọn phân loại trong thẻ tự sinh (Chai xịt / Lõi refill) */
+.vchips{display:flex;gap:6px;flex-wrap:wrap}
+.vchips button{padding:6px 13px;border-radius:999px;border:1px solid #3d5589;background:#22355f;
+  color:#c3cde0;font-size:12px;font-weight:800;cursor:pointer;transition:.2s;font-family:'Nunito'}
+.vchips button:hover{border-color:#fff}
+.vchips button.on{background:#fff;color:var(--navy);border-color:#fff}
+.vchips button.out{opacity:.45}
 .cc-pricerow{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-top:auto;padding-top:6px}
 .cc-price{font-family:'Nunito';font-weight:900;font-size:24px;color:#fff;letter-spacing:-.02em}
 .cc-was{font-size:13px;color:#8fa3c8;text-decoration:line-through}
@@ -1349,6 +1380,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
   .ghead h3{font-size:17px}
   .gk{font-size:9.5px;letter-spacing:.08em}
   .crow{display:flex;grid-template-columns:none;overflow-x:auto;gap:12px;
+    max-width:100%;
     padding:2px 2px 4px;
     scroll-snap-type:x mandatory;
     overscroll-behavior-x:contain;
