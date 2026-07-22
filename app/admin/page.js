@@ -13,17 +13,6 @@ import {
 
 const FONT_T = "'Baloo 2','Be Vietnam Pro','Segoe UI',sans-serif"
 const FONT_B = "'Be Vietnam Pro','Segoe UI',sans-serif"
-const FONT_CHOICES = [
-  ["Nunito","'Nunito','Segoe UI',sans-serif"],
-  ["Nunito Sans","'Nunito Sans','Segoe UI',sans-serif"],
-  ["Be Vietnam Pro","'Be Vietnam Pro','Segoe UI',sans-serif"],
-  ["Quicksand","'Quicksand','Segoe UI',sans-serif"],
-  ["Baloo 2","'Baloo 2','Segoe UI',sans-serif"],
-  ["Montserrat","'Montserrat','Segoe UI',sans-serif"],
-  ["Lexend","'Lexend','Segoe UI',sans-serif"],
-  ["Fredoka","'Fredoka','Segoe UI',sans-serif"],
-  ["Poppins (giống Avant)","'Poppins','Segoe UI',sans-serif"],
-]
 const PRIMARY_DEFAULT = '#1b295b'
 
 
@@ -1390,8 +1379,10 @@ export default function AdminPage() {
   ]
   // Sub-tabs inside grouped tabs
   const SUBTABS = {
-    home:  [['all','📝 Nội dung trang chủ'],['layout','Bố cục'],['banners','Banner'],['trust','Trust Bar'],['flash','Flash Bar'],['popup','Popup']],
-    brand: [['brandmain','Thương hiệu'],['about','Giới thiệu'],['footer','Footer'],['socials','Mạng xã hội'],['favicon','Favicon']],
+    /* v20 dọn dẹp: bỏ Bố cục/Banner/Trust Bar/Flash Bar/Popup (trang chủ
+       KHÔNG đọc các key này — function chết) và Giới thiệu/Footer/Mạng xã
+       hội/Favicon (bị key 'home' đè hoặc không được render). Nội dung
+       trang chủ giờ sửa TẤT CẢ trong 1 tab Trang chủ. */
     promo: [['vouchers','Mã giảm giá'],['categories','Danh mục']],
   }
   // (sub-tab state declared at top with other hooks)
@@ -1900,141 +1891,6 @@ function HBox({ title, children }) {
     );
   };
 
-  // ── Tab: Layout (kéo-thả sắp xếp khối trang chủ) ──
-  const TabLayout = () => {
-    const DEFAULT_ORDER = [
-      { id:"hero",    label:"🎬 Hero (đầu trang)",       locked:true },
-      { id:"banner",  label:"🖼 Banner khuyến mãi" },
-      { id:"misty",   label:"🧴 Khối Misty Fresh" },
-      { id:"wbs",     label:"🫧 Khối Bubble Shampoo" },
-      { id:"trust",   label:"✅ Thanh tin cậy (Trust bar)" },
-      { id:"about",   label:"📖 Giới thiệu" },
-    ];
-    const saved = (S.brand[0].layoutOrder||[]).filter(Boolean);
-    const initial = saved.length
-      ? [...DEFAULT_ORDER].sort((a,b)=>{
-          const ia=saved.indexOf(a.id), ib=saved.indexOf(b.id);
-          return (ia<0?99:ia)-(ib<0?99:ib);
-        })
-      : DEFAULT_ORDER;
-    const [items,setItems] = useState(initial);
-    const [drag,setDrag]   = useState(null);
-
-    const onDrop = (target) => {
-      if(drag===null||drag===target) return;
-      const next=[...items];
-      const [moved]=next.splice(drag,1);
-      next.splice(target,0,moved);
-      setItems(next); setDrag(null);
-    };
-
-    return (
-      <div style={{ maxWidth:520 }}>
-        <SectionHeader title="🧩 Bố cục trang chủ" />
-        <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:16 }}>Kéo-thả để sắp xếp thứ tự các khối hiển thị trên trang chủ. Khối Hero luôn ở trên cùng.</div>
-        {items.map((it,idx)=>(
-          <div key={it.id}
-            draggable={!it.locked}
-            onDragStart={()=>!it.locked&&setDrag(idx)}
-            onDragOver={e=>{e.preventDefault();}}
-            onDrop={()=>onDrop(idx)}
-            style={{ display:"flex",alignItems:"center",gap:12,padding:"14px 16px",marginBottom:8,background:drag===idx?"#e7ecfa":"#fff",border:"2px solid "+(drag===idx?"#18284e":"#dbe2f1"),borderRadius:12,cursor:it.locked?"not-allowed":"grab",opacity:it.locked?0.6:1,transition:"background .15s" }}>
-            <span style={{ fontSize:18,color:"#8a93ad" }}>{it.locked?"🔒":"⠿"}</span>
-            <span style={{ fontFamily:FONT_T,fontSize:14,color:"#18284e",flex:1 }}>{it.label}</span>
-            <span style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad" }}>#{idx+1}</span>
-          </div>
-        ))}
-        <SaveBtn onSave={async ()=>{
-          const order=items.map(x=>x.id);
-          const nb={...S.brand[0],layoutOrder:order};
-          await setSupabaseConfig("brand", nb); S.brand[1](nb); flash();
-        }} saved={saved} />
-      </div>
-    );
-  };
-
-  // ── Tab: Hero / Trang chủ ──
-
-  // ── Tab: Banners ──
-  const TabBanners = () => {
-    const [list,setList] = useState([...S.banners[0]]);
-    const [editing,setEditing] = useState(null);
-    const [saving,setSaving] = useState(false);
-    const [saveErr,setSaveErr] = useState(null);
-    const upd = (id,k,v) => setList(l=>l.map(x=>x.id===id?{...x,[k]:v}:x));
-    if (editing) {
-      const b = list.find(x=>x.id===editing);
-      return (
-        <div style={{ maxWidth:540 }}>
-          <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:18 }}>
-            <button onClick={()=>setEditing(null)} style={{ background:"#f2f5fb",border:"2px solid #dbe2f1",borderRadius:9,padding:"6px 14px",fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",cursor:"pointer" }}>← Quay lại</button>
-            <div style={{ fontFamily:FONT_T,fontSize:15,color:"#0d142e" }}>Sửa Banner</div>
-          </div>
-          <div style={{ marginBottom:14,padding:14,background:"#f2f5fb",borderRadius:12,border:"2px solid #dbe2f1" }}>
-            <div style={{ fontFamily:FONT_T,fontSize:12,color:"#5f6c8f",marginBottom:8 }}>Tỉ lệ banner (áp dụng cho cả dải banner)</div>
-            <div style={{ display:"flex",gap:8 }}>
-              {[["2:1","Lớn (2:1)"],["5:1","Dải mảnh (5:1)"]].map(([val,lbl])=>{
-                const on=(b.ratio||"2:1")===val;
-                return <button key={val} onClick={()=>upd(b.id,"ratio",val)} style={{ flex:1,padding:"9px 0",borderRadius:10,background:on?S.brand[0].primary:"#fff",color:on?"#fff":"#5f6c8f",border:"2px solid "+(on?S.brand[0].primary:"#dbe2f1"),fontFamily:FONT_T,fontWeight:700,fontSize:13,cursor:"pointer" }}>{lbl}</button>;
-              })}
-            </div>
-          </div>
-          <ImgUp current={b.img} onUpload={v=>upd(b.id,"img",v)} label={"Ảnh banner — PC (đúng tỉ lệ "+(b.ratio||"2:1")+")"} aspect={(b.ratio||"2:1")==="5:1"?"20%":"50%"} folder="banners" entityId={b.id} hint={"Ngang "+(b.ratio||"2:1")} />
-          <ImgUp current={b.imgMobile} onUpload={v=>upd(b.id,"imgMobile",v)} label="Ảnh banner — Mobile (không bắt buộc)" aspect="60%" folder="banners" entityId={b.id+"_m"} hint="Dọc hơn cho điện thoại" />
-          <div className="hh-admin-grid2" style={{ marginTop:14,display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
-            <Field label="Tiêu đề chính" value={b.title} onChange={v=>upd(b.id,"title",v)} span="full" />
-            <Field label="Phụ đề"      value={b.sub}   onChange={v=>upd(b.id,"sub",v)} span="full" />
-            <Field label="Nút CTA (chữ trên nút)"     value={b.cta}   onChange={v=>upd(b.id,"cta",v)} />
-            <Field label="Màu nền"     value={b.bg||"#1b295b"} onChange={v=>upd(b.id,"bg",v)} type="color" />
-            <Field label="Link khi bấm nút" value={b.ctaLink||""} onChange={v=>upd(b.id,"ctaLink",v)} span="full" placeholder="#sku-misty · #sku-wbs · https://... · để trống = cuộn tới sản phẩm" />
-            <Field label="🎬 Link video nền (.mp4 — ưu tiên hơn ảnh nếu có)" value={b.video||""} onChange={v=>upd(b.id,"video",v)} span="full" placeholder="https://.../banner.mp4 — để trống = dùng ảnh" />
-          </div>
-          <div style={{ display:"flex",gap:10,marginTop:16,alignItems:"center" }}>
-            <button disabled={saving} onClick={async()=>{
-              setSaving(true); setSaveErr(null);
-              try { await setSupabaseConfig("banners", list); S.banners[1](list); flash(); setEditing(null); }
-              catch(e) { setSaveErr(e?.message || "Lưu thất bại — vui lòng thử lại"); }
-              finally { setSaving(false); }
-            }} style={{ flex:1,background:S.brand[0].primary,color:"#fff",border:"none",borderRadius:12,padding:"12px 0",fontFamily:FONT_T,fontSize:14,cursor:saving?"not-allowed":"pointer",opacity:saving?0.7:1 }}>{saving?"⏳ Đang lưu...":"💾 Lưu"}</button>
-            <DelBtn onClick={async()=>{
-              const nl=list.filter(x=>x.id!==b.id);
-              setSaving(true); setSaveErr(null);
-              try { await setSupabaseConfig("banners", nl); setList(nl); S.banners[1](nl); setEditing(null); }
-              catch(e) { setSaveErr(e?.message || "Xoá thất bại — vui lòng thử lại"); }
-              finally { setSaving(false); }
-            }} />
-          </div>
-          {saveErr && <div style={{ marginTop:8,padding:"8px 12px",borderRadius:8,fontFamily:FONT_B,fontSize:12,background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4" }}>❌ {saveErr}</div>}
-        </div>
-      );
-    }
-    return (
-      <div>
-        <SectionHeader title="🖼 Banners"><AddBtn onClick={()=>{const nb={id:uid(),title:"Banner Mới",sub:"Phụ đề",cta:"Mua ngay",img:"",bg:S.brand[0].primary};setList(l=>[...l,nb]);setEditing(nb.id);}} label="Thêm Banner" /></SectionHeader>
-        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:(S.brand[0].bannersEnabled!==false)?"#eafaf3":"#f2f5fb",borderRadius:12,marginBottom:14,border:"1px solid "+((S.brand[0].bannersEnabled!==false)?"#a8e6cf":"#dbe2f1") }}>
-          <div>
-            <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13,color:"#18284e" }}>Hiện dải banner ở trang chủ</div>
-            <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad" }}>Tắt để ẩn toàn bộ banner (không xoá)</div>
-          </div>
-          <button onClick={async()=>{const nb={...S.brand[0],bannersEnabled:!(S.brand[0].bannersEnabled!==false)};await setSupabaseConfig("brand",nb);S.brand[1](nb);flash();}} style={{ width:48,height:27,background:(S.brand[0].bannersEnabled!==false)?"#22c55e":"#c8cede",borderRadius:999,border:"none",position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0 }}>
-            <span style={{ position:"absolute",top:3,left:(S.brand[0].bannersEnabled!==false)?24:3,width:21,height:21,background:"#fff",borderRadius:"50%",transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,0.3)" }} />
-          </button>
-        </div>
-        {list.map(b=>(
-          <div key={b.id} style={{ display:"flex",alignItems:"center",gap:14,padding:14,background:"#f8fafd",borderRadius:14,border:"2px solid #dbe2f1",marginBottom:10,cursor:"pointer" }} onClick={()=>setEditing(b.id)}>
-            <div style={{ width:90,height:50,borderRadius:8,overflow:"hidden",background:b.bg||"#ff7a00",flexShrink:0,position:"relative" }}>
-              {b.img&&<img src={b.img} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }} />}
-              {!b.img&&<div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:FONT_T,fontSize:10,color:"#fff",textAlign:"center",padding:4 }}>{b.title}</div>}
-            </div>
-            <div style={{ flex:1 }}><div style={{ fontFamily:FONT_T,fontSize:14,color:"#0d142e" }}>{b.title}</div><div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f" }}>{b.sub}</div></div>
-            <div style={{ background:"#f2f5fb",border:"2px solid #dbe2f1",color:S.brand[0].primary,borderRadius:8,padding:"6px 12px",fontFamily:FONT_T,fontSize:12 }}>✏️</div>
-          </div>
-        ))}
-        <SaveBtn onSave={async ()=>{await setSupabaseConfig("banners", list); S.banners[1](list); flash();}} saved={saved} />
-      </div>
-    );
-  };
-
   // ── Tab: Products ──
   const TabProducts = () => {
     const cats = S.categories[0];
@@ -2187,8 +2043,7 @@ function HBox({ title, children }) {
           <div style={{ marginBottom:14 }}>
             <div style={{ fontFamily:FONT_T,fontSize:12,color:"#5f6c8f",marginBottom:10 }}>🖼 Ảnh Sản Phẩm (ảnh đầu = ảnh chính, các ảnh sau hiện trong slideshow)</div>
             <div className="hh-admin-grid2" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
-              <ImgUp current={p.img} onUpload={v=>upd(p.id,"img",v)} label="Ảnh 1 (chính) — PC" aspect="100%" folder="products" entityId={p.id+"_0"} hint="Vuông 1:1 (ảnh sản phẩm)" />
-              <ImgUp current={p.imgMobile} onUpload={v=>upd(p.id,"imgMobile",v)} label="Ảnh 1 — Mobile (không bắt buộc)" aspect="100%" folder="products" entityId={p.id+"_0m"} hint="Vuông 1:1 (sản phẩm mobile)" />
+              <ImgUp current={p.img} onUpload={v=>upd(p.id,"img",v)} label="Ảnh 1 (chính)" aspect="100%" folder="products" entityId={p.id+"_0"} hint="Vuông 1:1 (ảnh sản phẩm)" />
               {(p.images||[]).map((img,idx)=>(
                 <div key={idx}>
                   <ImgUp current={img} onUpload={v=>{const arr=[...(p.images||[])];arr[idx]=v;upd(p.id,"images",arr);}} label={`Ảnh ${idx+2}`} aspect="100%" folder="products" entityId={p.id+"_"+(idx+1)} hint="Vuông 1:1" />
@@ -2213,35 +2068,15 @@ function HBox({ title, children }) {
             <Field label="Tags (cách nhau bằng dấu phẩy)" value={p.tags||""} onChange={v=>upd(p.id,"tags",v)} span="full" />
             <Field label="Mô tả ngắn (hiện ở trang chủ — 1-2 câu)" value={p.subtitle||""} onChange={v=>upd(p.id,"subtitle",v)} rows={2} span="full" placeholder="VD: Xịt khử mùi khử khuẩn, an toàn khi liếm" />
             <Field label="Câu chuyện sản phẩm (mô tả dài — chỉ hiện trong popup chi tiết)" value={p.story||""} onChange={v=>upd(p.id,"story",v)} rows={4} span="full" />
-            <div style={{ gridColumn:"1 / -1",marginTop:4 }}>
-              <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:6 }}>🔤 Phông chữ riêng cho SP này — áp cho tên + mô tả (để trống = dùng font chung của web)</div>
-              <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
-                <button onClick={()=>upd(p.id,"productFont","")} style={{ background:!p.productFont?"#18284e":"#fff",color:!p.productFont?"#fff":"#18284e",border:"2px solid "+(!p.productFont?"#18284e":"#dbe2f1"),borderRadius:8,padding:"6px 12px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:FONT_T }}>Mặc định</button>
-                {FONT_CHOICES.map(([name,stack])=>{
-                  const on=p.productFont===stack;
-                  return <button key={name} onClick={()=>upd(p.id,"productFont",stack)} style={{ fontFamily:stack,background:on?"#18284e":"#fff",color:on?"#fff":"#18284e",border:"2px solid "+(on?"#18284e":"#dbe2f1"),borderRadius:8,padding:"6px 12px",fontSize:14,fontWeight:700,cursor:"pointer" }}>{name}</button>;
-                })}
-                {S.brand[0].customFontName&&(()=>{
-                  const stack=`'${S.brand[0].customFontName}',sans-serif`; const on=p.productFont===stack;
-                  return <button onClick={()=>upd(p.id,"productFont",stack)} style={{ fontFamily:stack,background:on?"#ff6a3d":"#fff",color:on?"#fff":"#ff6a3d",border:"2px solid #ff6a3d",borderRadius:8,padding:"6px 12px",fontSize:14,fontWeight:700,cursor:"pointer" }}>★ {S.brand[0].customFontName}</button>;
-                })()}
-              </div>
-            </div>
-            <div style={{ gridColumn:"1 / -1" }}>
-              <Field label="🎬 Link video (YouTube / TikTok / Instagram — không bắt buộc)" value={p.videoUrl||p.tiktokUrl||""} onChange={v=>upd(p.id,"videoUrl",v)} span="full" />
-              <div style={{ fontFamily:FONT_B,fontSize:11,color:"#5f6c8f",marginTop:4 }}>Dán link từ YouTube, TikTok hoặc Instagram (reel/post) — hoặc link .mp4 trực tiếp. Sẽ hiện ở tab "Video" trong trang chi tiết sản phẩm. Ảnh GIF thì upload thẳng vào ô ảnh như thường, sẽ tự chạy.</div>
-
-              <div style={{ marginTop:14,padding:14,background:"#eef1fa",borderRadius:12,border:"2px solid #dbe2f1" }}>
-                <div style={{ fontFamily:FONT_T,fontSize:12,color:"#18284e",marginBottom:8 }}>🖼 Banner riêng của sản phẩm (hiện phía trên khối SP ở trang chủ — không bắt buộc)</div>
-                <div style={{ display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap" }}>
-                  <ImgUp current={p.banner} onUpload={v=>upd(p.id,"banner",v)} label="Ảnh banner (tỉ lệ 2:1 — ngang)" aspect="50%" folder="products" entityId={p.id+"_banner"} hint="Ngang 2:1 — nên dùng ảnh ngang, không dùng ảnh dọc" />
-                  <div style={{ flex:1,minWidth:180 }}>
-                    <Field label="Link video banner (.mp4 — ưu tiên hơn ảnh)" value={p.bannerVideo||""} onChange={v=>upd(p.id,"bannerVideo",v)} span="full" placeholder="https://.../banner.mp4" />
-                    <Field label="Chữ trên banner (không bắt buộc)" value={p.bannerText||""} onChange={v=>upd(p.id,"bannerText",v)} span="full" placeholder="VD: Ưu đãi đặc biệt tháng này" />
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* v20 dọn: BỎ ô "Phông chữ riêng cho SP" — storefront không đọc
+                productFont ở đâu cả (trang chủ/chi tiết/popup đều không), bấm
+                chọn chỉ lưu DB rồi nằm im. Muốn dùng lại thì phải nối
+                normalize() + render trước, đừng chỉ thêm ô. */}
+            {/* v20 dọn: BỎ ô "Link video" + "Banner riêng của sản phẩm" —
+                storefront KHÔNG render videoUrl (không có tab Video nào) và
+                KHÔNG render p.banner/bannerVideo/bannerText ở bất kỳ đâu.
+                Ô banner ghi "hiện phía trên khối SP ở trang chủ" là hứa suông.
+                Muốn dùng lại thì phải viết phần render trước, đừng chỉ thêm ô. */}
           </div>
 
           {/* ── Variants (Phân loại) ── */}
@@ -2416,52 +2251,6 @@ function HBox({ title, children }) {
     );
   };
 
-  // ── Tab: Trust Bar ──
-  const TabTrust = () => {
-    const [list,setList]=useState([...S.trustBar[0]]);
-    const upd=(id,k,v)=>setList(l=>l.map(x=>x.id===id?{...x,[k]:v}:x));
-    return (
-      <div>
-        <SectionHeader title="✅ Trust Bar (4 ô thông tin)"><AddBtn onClick={()=>setList(l=>[...l,{id:uid(),icon:"🌟",title:"Tiêu đề",sub:"Mô tả"}])} label="Thêm mục" /></SectionHeader>
-        {list.map(t=>(
-          <div key={t.id} style={{ padding:16,background:"#f8fafd",borderRadius:14,border:"2px solid #dbe2f1",marginBottom:12 }}>
-            <div style={{ display:"grid",gridTemplateColumns:"80px 1fr 1fr",gap:10,alignItems:"start" }}>
-              <Field label="Icon (emoji)" value={t.icon}  onChange={v=>upd(t.id,"icon",v)} />
-              <Field label="Tiêu đề"     value={t.title} onChange={v=>upd(t.id,"title",v)} />
-              <Field label="Phụ đề"  value={t.sub}   onChange={v=>upd(t.id,"sub",v)} />
-            </div>
-            <div style={{ marginTop:8 }}><DelBtn onClick={()=>setList(l=>l.filter(x=>x.id!==t.id))} /></div>
-          </div>
-        ))}
-        <SaveBtn onSave={async ()=>{await setSupabaseConfig("trustBar", list); S.trustBar[1](list); flash();}} saved={saved} />
-      </div>
-    );
-  };
-
-  // ── Tab: Flash Bar ──
-  const TabFlash = () => {
-    const [b,setB]=useState({...S.flashBar[0]});
-    return (
-      <div style={{ maxWidth:480 }}>
-        <SectionHeader title="⚡ Flash Sale Bar" />
-        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:b.enabled?"#eafaf3":"#f2f5fb",borderRadius:12,marginBottom:16,border:"1px solid "+(b.enabled?"#a8e6cf":"#dbe2f1") }}>
-          <div>
-            <div style={{ fontFamily:FONT_T,fontWeight:800,fontSize:13,color:"#18284e" }}>Hiện thanh Flash Sale</div>
-            <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad" }}>Bật để hiện dải chạy trên đầu trang chủ</div>
-          </div>
-          <button onClick={()=>setB(x=>({...x,enabled:!x.enabled}))} style={{ width:48,height:27,background:b.enabled?"#22c55e":"#c8cede",borderRadius:999,border:"none",position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0 }}>
-            <span style={{ position:"absolute",top:3,left:b.enabled?24:3,width:21,height:21,background:"#fff",borderRadius:"50%",transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,0.3)" }} />
-          </button>
-        </div>
-        <Field label="Tiêu đề"     value={b.title} onChange={v=>setB(x=>({...x,title:v}))} />
-        <div style={{ marginTop:12 }}>
-          <Field label="Phụ đề" value={b.sub}   onChange={v=>setB(x=>({...x,sub:v}))} />
-        </div>
-        <SaveBtn onSave={async ()=>{await setSupabaseConfig("flashBar", b); S.flashBar[1](b); flash();}} saved={saved} />
-      </div>
-    );
-  };
-
   // ── Tab: Categories ──
   const TabCats = () => {
     const [list,setList]=useState([...S.categories[0]]);
@@ -2528,208 +2317,6 @@ function HBox({ title, children }) {
     );
   };
 
-  // ── Tab: Popup ──
-  const TabPopup = () => {
-    const [p,setP]=useState({...S.popup[0]});
-    return (
-      <div style={{ maxWidth:480 }}>
-        <SectionHeader title="📢 Popup Khuyến Mãi" />
-        <div style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:"#f2f5fb",borderRadius:12,border:"2px solid #dbe2f1",marginBottom:16 }}>
-          <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer" }}>
-            <input type="checkbox" checked={p.enabled} onChange={e=>setP(x=>({...x,enabled:e.target.checked}))} />
-            <span style={{ fontFamily:FONT_T,fontSize:14,color:"#0d142e" }}>Bật popup</span>
-          </label>
-          <div style={{ flex:1 }}>
-            <Field label="Hiện sau (ms)" value={p.delayMs} onChange={v=>setP(x=>({...x,delayMs:Number(v)}))} type="number" />
-          </div>
-        </div>
-        <div className="hh-admin-grid2" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16 }}>
-          <ImgUp current={p.img} onUpload={v=>setP(x=>({...x,img:v}))} label="Ảnh popup — PC (không bắt buộc)" aspect="60%" folder="popup" entityId="popup-img" hint="Ngang ~16:9 (ảnh popup)" />
-          <ImgUp current={p.imgMobile} onUpload={v=>setP(x=>({...x,imgMobile:v}))} label="Ảnh popup — Mobile (không bắt buộc)" aspect="60%" folder="popup" entityId="popup-img-mobile" hint="Ngang ~16:9" />
-        </div>
-        {[["Tiêu đề popup","title"],["Nội dung","body"],["Nhãn nút","btnLabel"],["Tiêu đề khi thành công","successTitle"]].map(([l,k])=>(
-          <div key={k} style={{ marginBottom:12 }}>
-            <Field label={l} value={p[k]} onChange={v=>setP(x=>({...x,[k]:v}))} />
-          </div>
-        ))}
-        <div style={{ marginBottom:12,padding:14,background:"#f2f5fb",border:"2px dashed #dbe2f1",borderRadius:12 }}>
-          <Field label="🎟 Mã giảm giá gửi qua email" value={p.voucherCode||""} onChange={v=>setP(x=>({...x,voucherCode:v.toUpperCase()}))} />
-          <div style={{ fontFamily:FONT_B,fontSize:11,color:"#5f6c8f",marginTop:6 }}>
-            Mã này KHÔNG hiện trên web — nó được gửi thẳng vào email của khách sau khi đăng ký. Cần đặt biến môi trường RESEND_API_KEY (và RESEND_FROM) trong Vercel thì email mới gửi được. Mã phải trùng với một mã trong tab Mã Giảm Giá.
-          </div>
-        </div>
-        <SaveBtn onSave={async ()=>{await setSupabaseConfig("popup", p); S.popup[1](p); flash();}} saved={saved} />
-      </div>
-    );
-  };
-
-  // ── Tab: About ──
-  const TabAbout = () => {
-    const [a,setA]=useState({...S.about[0]});
-    return (
-      <div style={{ maxWidth:520 }}>
-        <SectionHeader title="🐾 Trang Giới Thiệu" />
-        <ImgUp current={a.img||""} onUpload={v=>setA(x=>({...x,img:v}))} label="Ảnh phần giới thiệu" aspect="50%" folder="about" entityId="about" hint="Ngang ~2:1" />
-        <div style={{ marginTop:14 }}>
-          <Field label="Tiêu đề chính"  value={a.heading}       onChange={v=>setA(x=>({...x,heading:v}))} />
-        </div>
-        <div style={{ marginTop:12 }}>
-          <Field label="Nội dung giới thiệu" value={a.body} onChange={v=>setA(x=>({...x,body:v}))} rows={4} />
-        </div>
-        <div style={{ marginTop:12 }}>
-          <Field label="Tiêu đề mạng xã hội" value={a.socialHeading} onChange={v=>setA(x=>({...x,socialHeading:v}))} />
-        </div>
-        <SaveBtn onSave={async ()=>{await setSupabaseConfig("about", a); S.about[1](a); flash();}} saved={saved} />
-      </div>
-    );
-  };
-
-  // ── Tab: Footer ──
-  const TabFooter = () => {
-    const [f,setF]=useState({ bg:'#0d142e', brandColor:'#1b295b', subtitleColor:'rgba(255,255,255,0.5)', city:'', tagline2:'', logoImg:'', links:[], showSocials:true, ...S.footer[0] });
-    const brand = S.brand[0];
-    // Live preview
-    const prev = (
-      <div style={{ borderRadius:16,overflow:'hidden',marginBottom:20,border:'2px solid #dbe2f1' }}>
-        <div style={{ position:'relative', background:f.bg||'#0d142e', padding:'28px 20px', textAlign:'center', overflow:'hidden' }}>
-          {f.bgImg&&<>
-            <img src={f.bgImg} alt="" style={{ position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',zIndex:0 }} />
-            <div style={{ position:'absolute',inset:0,background:`linear-gradient(to top, ${f.bg||'#0d142e'}ee, ${f.bg||'#0d142e'}cc)`,zIndex:1 }} />
-          </>}
-          <div style={{ position:'relative',zIndex:2 }}>
-          {f.logoImg
-            ? <img src={f.logoImg} alt="" style={{ height:52,objectFit:'contain',marginBottom:8 }} />
-            : <HHLogo primary={f.brandColor||brand.primary} size={44} />
-          }
-          <div style={{ fontFamily:FONT_T, fontSize:20, color:f.brandColor||brand.primary, marginTop:8 }}>{brand.name}</div>
-          <div style={{ fontFamily:FONT_B, fontSize:12, color:f.subtitleColor||'rgba(255,255,255,0.5)', marginTop:4 }}>{brand.tagline} · {f.city}</div>
-          <div style={{ display:'flex', justifyContent:'center', gap:8, marginTop:12, flexWrap:'wrap' }}>
-            {(f.links||[]).map((l,i)=><a key={i} href="#" style={{ fontFamily:FONT_B, fontSize:11, color:f.brandColor||brand.primary, textDecoration:'none', padding:'4px 10px', border:`1px solid ${f.brandColor||brand.primary}44`, borderRadius:20 }}>{l.label}</a>)}
-          </div>
-          <div style={{ width:60, height:1, background:'rgba(255,255,255,0.1)', margin:'16px auto' }} />
-          <div style={{ fontFamily:FONT_B, fontSize:11, color:'rgba(255,255,255,0.2)' }}>© 2025 {brand.name} · {f.tagline2}</div>
-          </div>
-        </div>
-      </div>
-    );
-    return (
-      <div style={{ maxWidth:540 }}>
-        <SectionHeader title="🔻 Footer" />
-        {prev}
-        <div className="hh-admin-grid2" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
-          <div>
-            <div style={{ fontFamily:FONT_T,fontSize:11,color:'#5f6c8f',marginBottom:5 }}>Màu nền</div>
-            <div style={{ display:'flex',gap:8,alignItems:'center' }}>
-              <input type="color" value={f.bg||'#0d142e'} onChange={e=>setF(x=>({...x,bg:e.target.value}))} style={{ width:40,height:36,borderRadius:8,border:'2px solid #dbe2f1',cursor:'pointer',padding:2 }} />
-              <input value={f.bg||'#0d142e'} onChange={e=>setF(x=>({...x,bg:e.target.value}))} style={{ flex:1,padding:'8px 10px',borderRadius:8,border:'2px solid #dbe2f1',fontFamily:FONT_B,fontSize:13 }} />
-            </div>
-          </div>
-          <div>
-            <div style={{ fontFamily:FONT_T,fontSize:11,color:'#5f6c8f',marginBottom:5 }}>Màu tên thương hiệu</div>
-            <div style={{ display:'flex',gap:8,alignItems:'center' }}>
-              <input type="color" value={f.brandColor||'#1b295b'} onChange={e=>setF(x=>({...x,brandColor:e.target.value}))} style={{ width:40,height:36,borderRadius:8,border:'2px solid #dbe2f1',cursor:'pointer',padding:2 }} />
-              <input value={f.brandColor||'#1b295b'} onChange={e=>setF(x=>({...x,brandColor:e.target.value}))} style={{ flex:1,padding:'8px 10px',borderRadius:8,border:'2px solid #dbe2f1',fontFamily:FONT_B,fontSize:13 }} />
-            </div>
-          </div>
-        </div>
-        <div style={{ marginBottom:12 }}>
-          <div style={{ fontFamily:FONT_T,fontSize:11,color:'#5f6c8f',marginBottom:5 }}>Màu phụ đề / khẩu hiệu</div>
-          <div style={{ display:'flex',gap:8,alignItems:'center' }}>
-            <input type="color" value={f.subtitleColor||'#888888'} onChange={e=>setF(x=>({...x,subtitleColor:e.target.value}))} style={{ width:40,height:36,borderRadius:8,border:'2px solid #dbe2f1',cursor:'pointer',padding:2 }} />
-            <input value={f.subtitleColor||''} onChange={e=>setF(x=>({...x,subtitleColor:e.target.value}))} style={{ flex:1,padding:'8px 10px',borderRadius:8,border:'2px solid #dbe2f1',fontFamily:FONT_B,fontSize:13 }} placeholder="rgba(255,255,255,0.5)" />
-          </div>
-        </div>
-        <div style={{ marginBottom:12 }}>
-          <div style={{ fontFamily:FONT_T,fontSize:11,color:'#5f6c8f',marginBottom:8 }}>Logo footer (không bắt buộc — thay cho icon HH)</div>
-          <ImgUp current={f.logoImg} onUpload={v=>setF(x=>({...x,logoImg:v}))} label="Tải logo cho footer" aspect="30%" folder="brand" entityId="footer-logo" hint="Ngang ~3:1 (logo footer)" />
-        </div>
-        <div style={{ marginBottom:12 }}>
-          <div style={{ fontFamily:FONT_T,fontSize:11,color:'#5f6c8f',marginBottom:8 }}>Ảnh nền footer (không bắt buộc — hiện phía sau màu nền)</div>
-          <ImgUp current={f.bgImg} onUpload={v=>setF(x=>({...x,bgImg:v}))} label="Tải ảnh nền footer — PC" aspect="40%" folder="brand" entityId="footer-bg" hint="Ngang rộng ~5:2" />
-          <ImgUp current={f.bgImgMobile} onUpload={v=>setF(x=>({...x,bgImgMobile:v}))} label="Tải ảnh nền footer — Mobile (không bắt buộc)" aspect="70%" folder="brand" entityId="footer-bg-mobile" hint="Dọc hơn ~3:2" />
-          {f.bgImg && (
-            <button onClick={()=>setF(x=>({...x,bgImg:''}))} style={{ marginTop:8,background:'#fdeeee',color:'#d64545',border:'1px solid #f0c4c4',borderRadius:8,padding:'6px 14px',fontFamily:FONT_T,fontSize:12,cursor:'pointer' }}>✕ Xoá ảnh nền</button>
-          )}
-        </div>
-        <Field label="Thành phố / dòng địa chỉ" value={f.city} onChange={v=>setF(x=>({...x,city:v}))} />
-        <div style={{ marginTop:12 }}><Field label="Khẩu hiệu cuối trang (VD: Made in VN)" value={f.tagline2} onChange={v=>setF(x=>({...x,tagline2:v}))} /></div>
-        <div style={{ marginTop:12 }}>
-          <div style={{ fontFamily:FONT_T,fontSize:11,color:'#5f6c8f',marginBottom:8 }}>Liên kết nhanh trong footer</div>
-          {(f.links||[]).map((l,i)=>(
-            <div key={i} style={{ display:'flex',gap:8,marginBottom:8,alignItems:'center' }}>
-              <input value={l.label} onChange={e=>setF(x=>({...x,links:x.links.map((ll,ii)=>ii===i?{...ll,label:e.target.value}:ll)}))} placeholder="Nhãn" style={{ flex:1,padding:'7px 10px',borderRadius:8,border:'2px solid #dbe2f1',fontFamily:FONT_B,fontSize:12 }} />
-              <input value={l.url} onChange={e=>setF(x=>({...x,links:x.links.map((ll,ii)=>ii===i?{...ll,url:e.target.value}:ll)}))} placeholder="URL" style={{ flex:2,padding:'7px 10px',borderRadius:8,border:'2px solid #dbe2f1',fontFamily:FONT_B,fontSize:12 }} />
-              <button onClick={()=>setF(x=>({...x,links:x.links.filter((_,ii)=>ii!==i)}))} style={{ background:'#fdeeee',color:'#d64545',border:'1px solid #f0c4c4',borderRadius:8,padding:'6px 10px',cursor:'pointer',fontSize:13 }}>✕</button>
-            </div>
-          ))}
-          <button onClick={()=>setF(x=>({...x,links:[...(x.links||[]),{label:'',url:''}]}))} style={{ background:'#f2f5fb',border:'2px dashed #dbe2f1',borderRadius:10,padding:'8px 18px',fontFamily:FONT_T,fontSize:12,color:'#5f6c8f',cursor:'pointer',width:'100%',marginTop:4 }}>+ Thêm liên kết</button>
-        </div>
-        <div style={{ marginTop:16 }}>
-          <SaveBtn onSave={async ()=>{await setSupabaseConfig('footer', f); S.footer[1](f); flash();}} saved={saved} />
-        </div>
-      </div>
-    );
-  };
-
-  // ── Tab: Socials ──
-  const TabSocials = () => {
-    const [list,setList]=useState([...S.socials[0]]);
-    const upd=(id,k,v)=>setList(l=>l.map(x=>x.id===id?{...x,[k]:v}:x));
-    return (
-      <div style={{ maxWidth:520 }}>
-        <SectionHeader title="📱 Mạng Xã Hội"><AddBtn onClick={()=>setList(l=>[...l,{id:uid(),name:"Kênh Mới",icon:"★",color:S.brand[0].primary,url:""}])} label="Thêm kênh" /></SectionHeader>
-        {list.map(s=>(
-          <div key={s.id} style={{ padding:14,background:"#f8fafd",borderRadius:14,border:"2px solid #dbe2f1",marginBottom:12 }}>
-            <div className="hh-admin-grid2" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
-              <Field label="Tên kênh" value={s.name}  onChange={v=>upd(s.id,"name",v)} />
-              <Field label="Icon"     value={s.icon}  onChange={v=>upd(s.id,"icon",v)} />
-              <Field label="URL"      value={s.url}   onChange={v=>upd(s.id,"url",v)} span="full" />
-              <div>
-                <div style={{ fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",marginBottom:5 }}>Màu</div>
-                <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                  <input type="color" value={s.color} onChange={e=>upd(s.id,"color",e.target.value)} style={{ width:40,height:36,border:"2px solid #dbe2f1",borderRadius:8,cursor:"pointer" }} />
-                  <div style={{ width:36,height:36,borderRadius:18,background:s.color,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontFamily:FONT_T,fontWeight:800,fontSize:13 }}>{s.icon}</div>
-                </div>
-              </div>
-            </div>
-            <DelBtn onClick={()=>setList(l=>l.filter(x=>x.id!==s.id))} />
-          </div>
-        ))}
-        <SaveBtn onSave={async ()=>{await setSupabaseConfig("socials", list); S.socials[1](list); flash();}} saved={saved} />
-      </div>
-    );
-  };
-
-
-
-  // ── Tab: Favicon ──
-  const TabFavicon = () => {
-    const [favUrl, setFavUrl] = useState(S.footer[0]?.faviconUrl || '');
-    const save = async () => {
-      const updated = { ...S.footer[0], faviconUrl: favUrl };
-      await setSupabaseConfig('footer', updated);
-      S.footer[1](updated);
-      flash();
-    };
-    return (
-      <div style={{ maxWidth:480 }}>
-        <SectionHeader title="🌐 Favicon" />
-        <div style={{ fontFamily:FONT_B,fontSize:13,color:'#5f6c8f',marginBottom:16,background:'#f2f5fb',borderRadius:10,padding:'10px 14px',border:'1px solid #dbe2f1' }}>
-          Favicon là icon nhỏ hiện trên tab trình duyệt. Tải lên ảnh vuông (PNG, 32×32 hoặc 64×64 là đẹp nhất).
-        </div>
-        {favUrl && (
-          <div style={{ display:'flex',alignItems:'center',gap:12,marginBottom:16,padding:'12px 16px',background:'#f0fdf4',border:'1px solid #86efac',borderRadius:12 }}>
-            <img src={favUrl} alt="favicon preview" style={{ width:32,height:32,borderRadius:4,border:'1px solid #ccc',imageRendering:'pixelated' }} />
-            <div style={{ fontFamily:FONT_B,fontSize:12,color:'#166534' }}>✅ Đã đặt favicon. Có thể mất vài phút để hiện trên tab trình duyệt sau khi deploy.</div>
-          </div>
-        )}
-        <ImgUp current={favUrl} onUpload={v=>setFavUrl(v)} label="Ảnh favicon (nên dùng PNG vuông)" aspect="100%" folder="brand" entityId="favicon" hint="Vuông 1:1 (icon nhỏ)" />
-        <div style={{ marginTop:16 }}>
-          <SaveBtn onSave={save} saved={saved} />
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div style={{ minHeight:'100vh', background:'#f2f5fb', fontFamily:FONT_B }}>
@@ -2781,18 +2368,9 @@ function HBox({ title, children }) {
         {tab==='inventory'  && <TabInventory S={S} />}
         {tab==='products'   && <TabProducts />}
 
-        {tab==='home' && (sub.home||'all')==='all'       && <TabHome />}
-        {tab==='home' && sub.home==='layout'             && <TabLayout />}
-        {tab==='home' && sub.home==='banners'            && <TabBanners />}
-        {tab==='home' && sub.home==='trust'              && <TabTrust />}
-        {tab==='home' && sub.home==='flash'              && <TabFlash />}
-        {tab==='home' && sub.home==='popup'              && <TabPopup />}
+        {tab==='home'  && <TabHome />}
 
-        {tab==='brand' && (sub.brand||'brandmain')==='brandmain' && <TabBrand />}
-        {tab==='brand' && sub.brand==='about'            && <TabAbout />}
-        {tab==='brand' && sub.brand==='footer'           && <TabFooter />}
-        {tab==='brand' && sub.brand==='socials'          && <TabSocials />}
-        {tab==='brand' && sub.brand==='favicon'          && <TabFavicon />}
+        {tab==='brand' && <TabBrand />}
 
         {tab==='promo' && (sub.promo||'vouchers')==='vouchers' && <TabVouchers />}
         {tab==='promo' && sub.promo==='categories'       && <TabCats />}
