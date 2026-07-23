@@ -1675,6 +1675,10 @@ function HBox({ title, children }) {
             <Field label='Chữ nhãn thẻ nổi bật (mặc định "Best choice" — đổi được, VD "Đáng mua nhất")' value={h.bestChoiceLabel||''} onChange={v=>set('bestChoiceLabel',v)} span="full" />
             <Field label='Tên thẻ tự sinh khi SP có phân loại mùi/màu (mặc định "Chai lẻ")' value={h.autoCardName||''} onChange={v=>set('autoCardName',v)} span="full" />
             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
+              <Field label="Đậm hoạ tiết icon mùi (0 = tắt, gợi ý 0.14)" value={h.scentPatternOpacity ?? 0.14} type="number" onChange={v=>set('scentPatternOpacity',Number(v))} />
+              <Field label="Đậm hoạ tiết monogram nền tối (0 = tắt, gợi ý 0.055)" value={h.mistyPatternOpacity ?? 0.055} type="number" onChange={v=>set('mistyPatternOpacity',Number(v))} />
+            </div>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
               <Field label="Tiêu đề nhóm Misty" value={h.mfHeading||''} onChange={v=>set('mfHeading',v)} />
               <Field label="Kicker nhóm Misty (trống = ẩn)" value={h.mfHeadKicker||''} onChange={v=>set('mfHeadKicker',v)} />
               <Field label="Tiêu đề nhóm Waterless" value={h.wbsHeading||''} onChange={v=>set('wbsHeading',v)} />
@@ -2051,10 +2055,10 @@ function HBox({ title, children }) {
           <div style={{ marginBottom:14 }}>
             <div style={{ fontFamily:FONT_T,fontSize:12,color:"#5f6c8f",marginBottom:10 }}>🖼 Ảnh Sản Phẩm (ảnh đầu = ảnh chính, các ảnh sau hiện trong slideshow)</div>
             <div className="hh-admin-grid2" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
-              <ImgUp current={p.img} onUpload={v=>upd(p.id,"img",v)} label="Ảnh 1 (chính)" aspect="100%" folder="products" entityId={p.id+"_0"} hint="Vuông 1:1, chủ thể ở GIỮA — trang chủ cắt kín khung ngang 4:3, trang chi tiết hiện vuông" />
+              <ImgUp current={p.img} onUpload={v=>upd(p.id,"img",v)} label="Ảnh 1 (chính)" aspect="100%" folder="products" entityId={p.id+"_0"} hint="VUÔNG 1:1 (VD 1100×1100), chủ thể ở giữa — phủ kín khung thẻ trang chủ, mọi nơi hiển thị đều khung vuông" />
               {(p.images||[]).map((img,idx)=>(
                 <div key={idx}>
-                  <ImgUp current={img} onUpload={v=>{const arr=[...(p.images||[])];arr[idx]=v;upd(p.id,"images",arr);}} label={`Ảnh ${idx+2}`} aspect="100%" folder="products" entityId={p.id+"_"+(idx+1)} hint="Vuông 1:1 (slideshow trang chi tiết)" />
+                  <ImgUp current={img} onUpload={v=>{const arr=[...(p.images||[])];arr[idx]=v;upd(p.id,"images",arr);}} label={`Ảnh ${idx+2}`} aspect="100%" folder="products" entityId={p.id+"_"+(idx+1)} hint="VUÔNG 1:1 — slideshow trang chi tiết (khung vuông)" />
                   <button onClick={()=>{const arr=(p.images||[]).filter((_,i)=>i!==idx);upd(p.id,"images",arr);}} style={{ marginTop:5,background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:7,padding:"3px 10px",fontSize:11,fontFamily:FONT_T,cursor:"pointer",width:"100%" }}>✕ Xóa ảnh này</button>
                 </div>
               ))}
@@ -2111,7 +2115,7 @@ function HBox({ title, children }) {
             {(p.variants||[]).map((v,vi)=>(
               <div key={v.id} style={{ background:"#fff",border:"1px solid #dbe2f1",borderRadius:12,padding:12,marginBottom:10 }}>
                 <div style={{ display:"grid",gridTemplateColumns:"90px 1fr",gap:12 }}>
-                  <ImgUp current={v.img} onUpload={val=>{const nv=[...p.variants];nv[vi]={...nv[vi],img:val};upd(p.id,"variants",nv);}} label="Ảnh" aspect="100%" folder="products" entityId={p.id+"_v"+vi} hint="Vuông 1:1, chủ thể giữa — trang chủ cắt kín 4:3 khi chọn loại này" />
+                  <ImgUp current={v.img} onUpload={val=>{const nv=[...p.variants];nv[vi]={...nv[vi],img:val};upd(p.id,"variants",nv);}} label="Ảnh" aspect="100%" folder="products" entityId={p.id+"_v"+vi} hint="VUÔNG 1:1, chủ thể giữa — phủ kín khung thẻ trang chủ khi chọn loại này" />
                   <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
                     <Field label="Tên loại" value={v.name||""} onChange={val=>{const nv=[...p.variants];nv[vi]={...nv[vi],name:val};upd(p.id,"variants",nv);}} span="full" />
                     <Field label="Giá bán (₫)" value={v.price||0} type="number" onChange={val=>{const nv=[...p.variants];nv[vi]={...nv[vi],price:Number(val)};upd(p.id,"variants",nv);}} />
@@ -2139,7 +2143,7 @@ function HBox({ title, children }) {
             {(p.combos||[]).map((c,ci)=>(
               <div key={c.id||ci} style={{ background:"#fff",border:"1px solid #dbe2f1",borderRadius:12,padding:12,marginBottom:10 }}>
                 <div style={{ display:"grid",gridTemplateColumns:"90px 1fr",gap:12 }}>
-                  <ImgUp current={c.img} onUpload={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],img:val};upd(p.id,"combos",nc);}} label="Ảnh" aspect="75%" folder="products" entityId={p.id+"_c"+ci} hint="Ngang 4:3 (VD 1200×900) — hiện phủ kín khung thẻ trang chủ" />
+                  <ImgUp current={c.img} onUpload={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],img:val};upd(p.id,"combos",nc);}} label="Ảnh" aspect="100%" folder="products" entityId={p.id+"_c"+ci} hint="VUÔNG 1:1 (VD 1100×1100) — phủ kín khung thẻ trang chủ" />
                   <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
                     <Field label='Tên combo (VD: "Combo Tiết Kiệm")' value={c.name||""} onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],name:val};upd(p.id,"combos",nc);}} span="full" />
                     <Field label='Kicker (dòng nhỏ trên tên — VD: "Misty Fresh")' value={c.kicker||""} onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],kicker:val};upd(p.id,"combos",nc);}} span="full" />

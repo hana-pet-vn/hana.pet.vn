@@ -124,7 +124,11 @@ const DEFAULTS = {
      (tab Trang chủ → Sản phẩm). Mascot BẮT BUỘC nằm ổ tròn trắng trên
      navy (pet nâu trên navy tương phản 1.09 = tàng hình, mục 2.2 V19). */
   bestChoiceLabel: 'Best choice',
-  /* Tên thẻ tự sinh khi SP tick "phân loại là mùi/màu" (VD chai lẻ WBS) */
+  /* v21: hoạ tiết ô ảnh — WBS phủ icon mùi tint theo màu mùi, Misty phủ
+     monogram H rất mờ. Đặt 0 để tắt hẳn lớp hoạ tiết của bên đó. */
+  scentPatternOpacity: 0.14,
+  mistyPatternOpacity: 0.055,
+  /* Tên thẻ tự sinh khi SP có phân loại mùi/màu (VD chai lẻ WBS) */
   autoCardName: 'Chai lẻ',
   mfHeading:    'Khử mùi an toàn cho thú cưng',
   mfHeadKicker: 'Sạch khuẩn · khử mùi',
@@ -327,6 +331,28 @@ function VideoEmbed({ url, poster, label }) {
    kho) → "còn bán được" TỰ TÍNH từ kho món con, kho chỉ có 1 nguồn.
    ============================================================ */
 
+/* v21: HOẠ TIẾT Ô ẢNH — icon mùi vẽ nét mảnh (SVG path 24×24).
+   Khớp theo TÊN mùi trong tab Trang chủ. Mùi không khớp → dùng giọt
+   tròn mặc định. Nếu sau này up icon riêng vào ô "icon" của mùi thì
+   ảnh đó thắng (xem patternUrl). */
+const SCENT_ICONS = {
+  'baby powder': 'M12 3c2 3.5 4.5 4.8 4.5 8a4.5 4.5 0 1 1-9 0c0-3.2 2.5-4.5 4.5-8z',
+  'lavender':    'M12 2c1.2 2 1.2 3.6 0 5.4-1.2-1.8-1.2-3.4 0-5.4zm0 6.2c1.4 2.1 1.4 3.9 0 6-1.4-2.1-1.4-3.9 0-6zM12 16c1 1.9 1 3.4 0 5.6-1-2.2-1-3.7 0-5.6z',
+  'peach yogurt':'M12 6.5c3 0 5.5 2.4 5.5 5.4S15 18 12 18s-5.5-2.6-5.5-6.1S9 6.5 12 6.5zm.4-4c.6 1.4.2 2.6-1 3.2-.5-1.4 0-2.6 1-3.2z',
+  'quince':      'M12 5.6c3.1 0 5.6 2.9 5.6 6.4S15.1 18.8 12 18.8 6.4 15.5 6.4 12 8.9 5.6 12 5.6zm0-3.2c.4 1.2 1.3 1.9 2.6 2.1-1.1.7-1.8 1.5-2.6 2.6-.6-1.1-1.4-1.9-2.5-2.6 1.2-.2 2.1-.9 2.5-2.1z',
+  'cotton candy':'M12 4a4 4 0 0 1 3.9 3.1A3.2 3.2 0 0 1 18 10c0 1.3-.9 2.4-2.1 2.8L14 21h-4l-1.9-8.2A3.2 3.2 0 0 1 6 10c0-1.4 1-2.6 2.1-2.9A4 4 0 0 1 12 4z',
+};
+const ICON_FALLBACK = 'M12 3.5c2.4 3.6 4.6 5.4 4.6 8.4a4.6 4.6 0 1 1-9.2 0c0-3 2.2-4.8 4.6-8.4z';
+/* Monogram H của Hanapet — hoạ tiết nền thẻ Misty */
+const MONOGRAM = 'M6 17V7.5a1.6 1.6 0 0 1 3.2 0V11h5.6V7.5a1.6 1.6 0 0 1 3.2 0V17a1.6 1.6 0 0 1-3.2 0v-3.4H9.2V17a1.6 1.6 0 0 1-3.2 0z';
+
+/* Lưới hoạ tiết lặp. Trả về giá trị background-image.
+   Ảnh icon do người dùng up (scent.icon) được ưu tiên hơn path vẽ sẵn. */
+function patternUrl(path, color, opacity, size = 52) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><path d="${path}" fill="${color}" opacity="${opacity}"/></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
 /* Số combo còn bán được, tính từ kho món con theo BOM.
    Không có BOM (kiểu cũ) → dùng kho tự nhập của combo. */
 function comboAvail(combo, prod, scVariant) {
@@ -388,11 +414,29 @@ function ComboCard({ card, prod, S, light, scents, scent, setScent, vsel, setVse
   const title = chipsMode ? (vv ? vv.name : card.name) : card.name;
   const save = original > price ? Math.round((1 - price / original) * 100) : 0;
   const out = stockN <= 0;
+  /* v21: nền ô ảnh = màu MÙI đang chọn (c1→c2 lấy từ tab Trang chủ),
+     phủ lưới icon mùi. Thẻ nền tối (Misty) phủ monogram H rất mờ.
+     Không bóng đổ, không vòng sáng — chỉ nền + hoạ tiết + chai. */
+  const patOp = light ? (Number(S.scentPatternOpacity) || 0) : (Number(S.mistyPatternOpacity) || 0);
+  let patStyle = null;
+  if (patOp > 0) {
+    if (light && sc && sc.name) {
+      const icon = SCENT_ICONS[String(sc.name).toLowerCase().trim()] || ICON_FALLBACK;
+      patStyle = sc.icon
+        ? { backgroundImage: `url(${sc.icon})`, backgroundSize: '52px 52px', opacity: patOp * 2 }
+        : { backgroundImage: patternUrl(icon, sc.dot || '#8fa3c8', patOp) };
+    } else if (!light) {
+      patStyle = { backgroundImage: patternUrl(MONOGRAM, '#ffffff', patOp, 58) };
+    }
+  }
+  const bgStyle = light && sc && sc.c1
+    ? { background: `linear-gradient(158deg,${sc.c1},${sc.c2 || sc.c1})` }
+    : undefined;
   return (
-    <article className="ccard">
+    <article className={'ccard' + (light ? ' light' : '')}>
       {card.best && <span className="pill">{S.bestChoiceLabel}</span>}
-      <div className={'cc-img' + (light ? ' light' : '')}
-           style={light && sc ? { background: `linear-gradient(160deg,${sc.c1 || '#dde5f5'},${sc.c2 || '#c9d6ee'})` } : undefined}>
+      <div className={'cc-img' + (light ? ' light' : '')} style={bgStyle}>
+        {patStyle && <span className="cc-pat" style={patStyle} aria-hidden="true" />}
         <Img src={img} alt={title} text={`ẢNH|${title}`} dark={!light} />
       </div>
       <div className="cc-body">
@@ -1331,16 +1375,36 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .pill{position:absolute;top:12px;right:12px;z-index:3;background:#e3ca22;color:#3a2f00;
   font-size:11px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;
   padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.22);font-family:'Nunito'}
-/* v20.3: ảnh PHỦ KÍN khung (Tung yêu cầu) — cover edge-to-edge,
-   khung khoá tỉ lệ 4:3, hết cảnh chai rúm 58% giữa nền trống.
-   Ảnh up nên là ảnh đã dàn cảnh/có nền; PNG trong suốt vẫn chạy
-   (gradient nền lộ qua phần trong suốt). */
-.cc-img{position:relative;background:linear-gradient(160deg,#26396a,#18284e);
-  display:grid;place-items:center;aspect-ratio:4/3;overflow:hidden;transition:background .45s}
-.cc-img.light{background:linear-gradient(160deg,#dde5f5,#c9d6ee)}
-.cc-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
-  transition:transform .3s cubic-bezier(.2,.7,.3,1)}
-.ccard:hover .cc-img img{transform:scale(1.04)}
+/* v21: Ô ẢNH = nền + hoạ tiết + chai. KHÔNG bóng đổ, KHÔNG vòng sáng
+   (Tung bác: "quê, lạc quẻ"). Nền thẻ WBS chạy theo màu mùi đang chọn,
+   chuyển mượt khi bấm chấm mùi — đây là điểm nhấn duy nhất của khu SP. */
+.cc-img{position:relative;background:linear-gradient(158deg,#26396a,#18284e);
+  display:grid;place-items:center;aspect-ratio:1;overflow:hidden;
+  transition:background .55s cubic-bezier(.4,0,.2,1)}
+.cc-img.light{background:linear-gradient(158deg,#dde5f5,#c9d6ee)}
+.cc-pat{position:absolute;inset:0;background-repeat:repeat;background-position:center;
+  pointer-events:none;transition:background-image .45s,opacity .45s}
+/* Chai: contain khoá cỡ → CỠ ĐỀU NHAU ở mọi thẻ (cắt sát chai thì mỗi
+   ảnh một cỡ, nhìn lệch). Phần "đầy ô" do hoạ tiết đảm nhiệm. */
+.cc-img img{position:relative;z-index:2;width:auto;height:auto;max-width:60%;max-height:76%;
+  object-fit:contain;transition:transform .34s cubic-bezier(.2,.7,.3,1)}
+.ccard:hover .cc-img img{transform:translateY(-4px) scale(1.03)}
+/* Thẻ nền sáng: đảo chữ sang navy cho đủ tương phản trên pastel */
+.ccard.light{background:#eef2fa}
+.ccard.light .cc-t{color:var(--navy)}
+.ccard.light .cc-k{color:#7d8db0}
+.ccard.light .cc-price{color:var(--navy)}
+.ccard.light .cc-was{color:#8b99b8}
+.ccard.light .cc-save{background:#dde5f5;color:#42557f}
+.ccard.light .cc-stock{color:#7d8db0}
+.ccard.light .cc-buy{background:var(--navy);color:#fff}
+.ccard.light .cc-more{border-color:#c3cee6;color:#5f6c8f}
+.ccard.light .cc-more:hover{border-color:var(--navy);color:var(--navy)}
+.ccard.light .scentmini button{border-color:#c3cee6}
+.ccard.light .scentmini button.on{border-color:var(--navy);box-shadow:0 0 0 2px #eef2fa}
+.ccard.light .scentmini b{color:#42557f}
+.ccard.light .vchips button{background:#dde5f5;border-color:#c3cee6;color:#42557f}
+.ccard.light .vchips button.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .cc-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:8px;flex:1}
 .cc-k{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8fa3c8;font-family:'Nunito'}
 .cc-scentlabel{margin-top:2px}
@@ -1394,7 +1458,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
     -webkit-overflow-scrolling:touch;scrollbar-width:none}
   .crow::-webkit-scrollbar{display:none}
   .crow .ccard{flex:0 0 82%;scroll-snap-align:center;scroll-snap-stop:always}
-  .cc-img{aspect-ratio:4/3}
+  .cc-img{aspect-ratio:1}
   .cc-t{font-size:16px}
   .cc-price{font-size:22px}
 }
