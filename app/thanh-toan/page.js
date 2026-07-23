@@ -338,14 +338,14 @@ function Styles() {
     <style jsx global>{`
 :root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Nunito Sans',system-ui,sans-serif;color:var(--ink);background:var(--cream)}
-h1,h2{font-family:'Nunito',system-ui,sans-serif;font-weight:900;letter-spacing:-.02em}
+body{font-family:var(--f-body);color:var(--ink);background:var(--cream)}
+h1,h2{font-family:var(--f-display);font-weight:900;letter-spacing:-.02em}
 img{display:block;max-width:100%}
 button,input,select,textarea{font:inherit}
 
 .co-load{padding:90px 5vw;text-align:center;color:rgba(27,36,64,.5);font-weight:600}
 .co-nav{display:flex;align-items:center;justify-content:space-between;padding:14px 5vw;background:var(--navy)}
-.co-brand{font-family:'Nunito';font-weight:900;font-size:20px;color:#fff;text-decoration:none}
+.co-brand{font-family:var(--f-display);font-weight:900;font-size:20px;color:#fff;text-decoration:none}
 .co-back{color:rgba(255,255,255,.82);text-decoration:none;font-weight:700;font-size:14px}
 .co-back:hover{color:#fff}
 
@@ -386,9 +386,9 @@ button,input,select,textarea{font:inherit}
   min-width:21px;height:21px;display:grid;place-items:center;font-size:11.5px;font-weight:800;font-style:normal;
   border:2px solid #fff}
 .co-itx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.co-itx b{font-family:'Nunito';font-weight:800;font-size:13.5px;color:var(--navy);line-height:1.3}
+.co-itx b{font-family:var(--f-display);font-weight:800;font-size:13.5px;color:var(--navy);line-height:1.3}
 .co-itx span{font-size:12px;color:rgba(27,36,64,.55);font-weight:600}
-.co-itp{font-family:'Nunito';font-weight:900;font-size:14.5px;color:var(--navy);white-space:nowrap}
+.co-itp{font-family:var(--f-display);font-weight:900;font-size:14.5px;color:var(--navy);white-space:nowrap}
 
 .co-vch{display:flex;gap:8px;margin:16px 0 0}
 .co-vch input{flex:1;min-width:0;padding:11px 14px;border-radius:11px;border:1.5px solid rgba(24,40,78,.16);font-size:14px}
@@ -409,7 +409,7 @@ button,input,select,textarea{font:inherit}
 .co-total{display:flex;justify-content:space-between;align-items:baseline;padding:15px 0 18px;
   border-top:1px solid rgba(24,40,78,.12)}
 .co-total span{font-weight:700;color:var(--navy);font-size:15px}
-.co-total b{font-family:'Nunito';font-weight:900;font-size:26px;color:var(--navy)}
+.co-total b{font-family:var(--f-display);font-weight:900;font-size:26px;color:var(--navy)}
 
 .co-err{background:#fdeeee;color:#c23b3b;border:1px solid #f2c9c9;border-radius:11px;padding:11px 14px;
   font-size:13.5px;font-weight:700;margin-bottom:13px;line-height:1.5}

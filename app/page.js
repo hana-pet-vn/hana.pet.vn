@@ -123,11 +123,13 @@ const DEFAULTS = {
   /* v20: khu SP = combo A/B/C. Tiêu đề nhóm + mascot sửa trong admin
      (tab Trang chủ → Sản phẩm). Mascot BẮT BUỘC nằm ổ tròn trắng trên
      navy (pet nâu trên navy tương phản 1.09 = tàng hình, mục 2.2 V19). */
+  /* v21.1: FONT TOÀN TRANG — đổi trong admin (tab Thương hiệu).
+     fontDisplay = tiêu đề/giá/nút; fontBody = chữ chạy.
+     Tên phải đúng như trên Google Fonts (VD 'Be Vietnam Pro'). */
+  fontDisplay: 'Nunito',
+  fontBody: 'Nunito Sans',
+
   bestChoiceLabel: 'Best choice',
-  /* v21: hoạ tiết ô ảnh — WBS phủ icon mùi tint theo màu mùi, Misty phủ
-     monogram H rất mờ. Đặt 0 để tắt hẳn lớp hoạ tiết của bên đó. */
-  scentPatternOpacity: 0.14,
-  mistyPatternOpacity: 0.055,
   /* Tên thẻ tự sinh khi SP có phân loại mùi/màu (VD chai lẻ WBS) */
   autoCardName: 'Chai lẻ',
   mfHeading:    'Khử mùi an toàn cho thú cưng',
@@ -180,21 +182,6 @@ const DEFAULTS = {
     { n: '92%',    l: 'khách mua lại' },
   ],
 
-  cbKicker: 'Tiết kiệm hơn',
-  cbTitle: 'Mua theo gói, rẻ hơn mua lẻ',
-  cbSub: 'Ba gói cho ba kiểu dùng. Gói giữa được chọn nhiều nhất.',
-  cbBtn: 'Chọn gói này',
-  // Mỗi gói combo là 1 SẢN PHẨM trong bảng products (ngài tạo trong tab
-  // Sản phẩm, đặt tên "Gói Thử"... rồi điền giá + kho). Ở đây chỉ khai báo
-  // gói nào khớp sản phẩm nào, gói nào nổi bật, và dòng mô tả gạch đầu dòng.
-  comboTiers: [
-    { key: 'gói thử', flag: '', best: false, image: '',
-      items: ['1 chai Misty Fresh 250ml', 'Dùng khoảng 1 tháng', 'Hợp bé mới thử lần đầu'] },
-    { key: 'quen thuộc', flag: 'Được chọn nhiều nhất', best: true, image: '',
-      items: ['1 chai Misty Fresh 250ml', '1 lõi refill 250ml', 'Dùng khoảng 3 tháng', 'Tặng khăn lau Hanapet'] },
-    { key: 'cả nhà', flag: '', best: false, image: '',
-      items: ['1 chai Misty Fresh 250ml', '3 lõi refill 250ml', 'Dùng khoảng 8 tháng', 'Hợp nhà nuôi 2 bé trở lên'] },
-  ],
 
   labelCart: 'Thêm vào giỏ',
   labelDetail: 'Chi tiết',
@@ -331,28 +318,6 @@ function VideoEmbed({ url, poster, label }) {
    kho) → "còn bán được" TỰ TÍNH từ kho món con, kho chỉ có 1 nguồn.
    ============================================================ */
 
-/* v21: HOẠ TIẾT Ô ẢNH — icon mùi vẽ nét mảnh (SVG path 24×24).
-   Khớp theo TÊN mùi trong tab Trang chủ. Mùi không khớp → dùng giọt
-   tròn mặc định. Nếu sau này up icon riêng vào ô "icon" của mùi thì
-   ảnh đó thắng (xem patternUrl). */
-const SCENT_ICONS = {
-  'baby powder': 'M12 3c2 3.5 4.5 4.8 4.5 8a4.5 4.5 0 1 1-9 0c0-3.2 2.5-4.5 4.5-8z',
-  'lavender':    'M12 2c1.2 2 1.2 3.6 0 5.4-1.2-1.8-1.2-3.4 0-5.4zm0 6.2c1.4 2.1 1.4 3.9 0 6-1.4-2.1-1.4-3.9 0-6zM12 16c1 1.9 1 3.4 0 5.6-1-2.2-1-3.7 0-5.6z',
-  'peach yogurt':'M12 6.5c3 0 5.5 2.4 5.5 5.4S15 18 12 18s-5.5-2.6-5.5-6.1S9 6.5 12 6.5zm.4-4c.6 1.4.2 2.6-1 3.2-.5-1.4 0-2.6 1-3.2z',
-  'quince':      'M12 5.6c3.1 0 5.6 2.9 5.6 6.4S15.1 18.8 12 18.8 6.4 15.5 6.4 12 8.9 5.6 12 5.6zm0-3.2c.4 1.2 1.3 1.9 2.6 2.1-1.1.7-1.8 1.5-2.6 2.6-.6-1.1-1.4-1.9-2.5-2.6 1.2-.2 2.1-.9 2.5-2.1z',
-  'cotton candy':'M12 4a4 4 0 0 1 3.9 3.1A3.2 3.2 0 0 1 18 10c0 1.3-.9 2.4-2.1 2.8L14 21h-4l-1.9-8.2A3.2 3.2 0 0 1 6 10c0-1.4 1-2.6 2.1-2.9A4 4 0 0 1 12 4z',
-};
-const ICON_FALLBACK = 'M12 3.5c2.4 3.6 4.6 5.4 4.6 8.4a4.6 4.6 0 1 1-9.2 0c0-3 2.2-4.8 4.6-8.4z';
-/* Monogram H của Hanapet — hoạ tiết nền thẻ Misty */
-const MONOGRAM = 'M6 17V7.5a1.6 1.6 0 0 1 3.2 0V11h5.6V7.5a1.6 1.6 0 0 1 3.2 0V17a1.6 1.6 0 0 1-3.2 0v-3.4H9.2V17a1.6 1.6 0 0 1-3.2 0z';
-
-/* Lưới hoạ tiết lặp. Trả về giá trị background-image.
-   Ảnh icon do người dùng up (scent.icon) được ưu tiên hơn path vẽ sẵn. */
-function patternUrl(path, color, opacity, size = 52) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><path d="${path}" fill="${color}" opacity="${opacity}"/></svg>`;
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-}
-
 /* Số combo còn bán được, tính từ kho món con theo BOM.
    Không có BOM (kiểu cũ) → dùng kho tự nhập của combo. */
 function comboAvail(combo, prod, scVariant) {
@@ -392,7 +357,7 @@ function cardsOf(prod, S) {
   return [...auto, ...(prod.combos || [])];
 }
 
-function ComboCard({ card, prod, S, light, scents, scent, setScent, vsel, setVsel, onBuy, onDetail }) {
+function ComboCard({ card, prod, S, scents, scent, setScent, vsel, setVsel, onBuy, onDetail }) {
   const items = (card.items || []).filter(Boolean);
   const vlist = prod.variants || [];
   /* Thẻ picker: có bảng mùi → chấm màu (scent state), không có → chip tên (vsel) */
@@ -407,37 +372,28 @@ function ComboCard({ card, prod, S, light, scents, scent, setScent, vsel, setVse
   const stockN   = card.autoPicker ? (picked ? picked.stock : 0)
                  : card.autoBase ? card.stock
                  : comboAvail(card, prod, scV);
+  /* Combo: LUÔN dùng ảnh admin up, KHÔNG mượn ảnh mùi. Chỉ thẻ tự sinh
+     mới chạy ảnh theo lựa chọn (chip phân loại / chấm mùi). */
   const img = card.autoPicker
     ? ((picked && picked.img) || (sc && sc.image) || prod.img)
-    : card.img || (sc && (sc.image || (scV && scV.img))) || prod.img;
+    : card.img || prod.img;
   /* Chip mode: tên thẻ = tên phân loại đang chọn (Chai xịt 250ml / Lõi refill) */
   const title = chipsMode ? (vv ? vv.name : card.name) : card.name;
   const save = original > price ? Math.round((1 - price / original) * 100) : 0;
   const out = stockN <= 0;
-  /* v21: nền ô ảnh = màu MÙI đang chọn (c1→c2 lấy từ tab Trang chủ),
-     phủ lưới icon mùi. Thẻ nền tối (Misty) phủ monogram H rất mờ.
-     Không bóng đổ, không vòng sáng — chỉ nền + hoạ tiết + chai. */
-  const patOp = light ? (Number(S.scentPatternOpacity) || 0) : (Number(S.mistyPatternOpacity) || 0);
-  let patStyle = null;
-  if (patOp > 0) {
-    if (light && sc && sc.name) {
-      const icon = SCENT_ICONS[String(sc.name).toLowerCase().trim()] || ICON_FALLBACK;
-      patStyle = sc.icon
-        ? { backgroundImage: `url(${sc.icon})`, backgroundSize: '52px 52px', opacity: patOp * 2 }
-        : { backgroundImage: patternUrl(icon, sc.dot || '#8fa3c8', patOp) };
-    } else if (!light) {
-      patStyle = { backgroundImage: patternUrl(MONOGRAM, '#ffffff', patOp, 58) };
-    }
-  }
-  const bgStyle = light && sc && sc.c1
+  /* v21.4: THÂN THẺ navy hết (trật tự thị giác do viên nhãn vàng quyết),
+     RIÊNG Ô ẢNH của thẻ tự sinh đổi màu theo MÙI đang chọn — màu mùi
+     sống đúng chỗ của nó. Thẻ COMBO giữ ô ảnh navy: Tung tự up ảnh
+     combo có nền sẵn. Không hoạ tiết, không bóng đổ. */
+  const isCombo = !card.autoPicker && !card.autoBase;
+  const imgBg = (!isCombo && sc && sc.c1)
     ? { background: `linear-gradient(158deg,${sc.c1},${sc.c2 || sc.c1})` }
     : undefined;
   return (
-    <article className={'ccard' + (light ? ' light' : '')}>
+    <article className="ccard">
       {card.best && <span className="pill">{S.bestChoiceLabel}</span>}
-      <div className={'cc-img' + (light ? ' light' : '')} style={bgStyle}>
-        {patStyle && <span className="cc-pat" style={patStyle} aria-hidden="true" />}
-        <Img src={img} alt={title} text={`ẢNH|${title}`} dark={!light} />
+      <div className={'cc-img' + (imgBg ? ' tinted' : '')} style={imgBg}>
+        <Img src={img} alt={title} text={`ẢNH|${title}`} dark={!imgBg} />
       </div>
       <div className="cc-body">
         <span className="cc-k">{card.kicker || prod.name}</span>
@@ -546,6 +502,26 @@ export default function Home() {
   const mfRowRef = useRef(null);   /* v20: hàng thẻ combo Misty (auto-lock mobile) */
   const wbsRowRef = useRef(null);  /* v20: hàng thẻ combo WBS */
   const { add, openDrawer, count } = useCart();
+
+  /* v21.1: nạp file font từ Google khi admin đổi font. Không nạp thì
+     đổi tên font trong admin sẽ không hiện gì (trình duyệt không có
+     file). Thẻ <link> cũ được gỡ trước khi chèn cái mới. Font mặc
+     định Nunito/Nunito Sans đã nạp sẵn ở layout.js nên bỏ qua. */
+  useEffect(() => {
+    const fams = [S.fontDisplay, S.fontBody]
+      .filter(f => f && !['Nunito', 'Nunito Sans'].includes(f));
+    const el = document.getElementById('hp-dyn-font');
+    if (el) el.remove();
+    if (!fams.length) return;
+    const q = [...new Set(fams)]
+      .map(f => 'family=' + encodeURIComponent(f) + ':wght@400;600;700;800;900')
+      .join('&');
+    const link = document.createElement('link');
+    link.id = 'hp-dyn-font';
+    link.rel = 'stylesheet';
+    link.href = `https://fonts.googleapis.com/css2?${q}&display=swap`;
+    document.head.appendChild(link);
+  }, [S.fontDisplay, S.fontBody]);
 
   /* nạp config từ Supabase */
   useEffect(() => {
@@ -673,10 +649,12 @@ export default function Home() {
   const wbsStockN = scV ? scV.stock : (wbsProd?.stock ?? 0);
   const wbsSave  = wbsWas > wbsPrice ? Math.round((1 - wbsPrice / wbsWas) * 100) : 0;
 
-  // Gói combo: mỗi gói là 1 sản phẩm riêng trong bảng products
-  const combos = useMemo(() => (S.comboTiers || [])
-    .map(t => ({ ...t, prod: matchProduct(products, t.key, t.name) }))
-    .filter(t => t.prod), [S.comboTiers, products]);
+  /* v21.5: ĐÃ XOÁ khối "gói combo" cũ (comboTiers).
+     Lý do: nó coi mỗi gói là 1 SẢN PHẨM RIÊNG rồi trừ products.stock,
+     KHÔNG biết BOM → bán 1 gói không trừ chai/refill nào. Hai hệ combo
+     song song = hai nguồn kho, đúng thứ đang gây loạn.
+     Combo giờ CHỈ có 1 nơi: product.combos (tab Combo trong admin),
+     kho trừ theo BOM. */
 
   /* Thêm vào giỏ — hiệu ứng mascot vẫn chạy nhờ class .cta-buy */
   const addToCart = (prod, variant, img) => {
@@ -736,7 +714,7 @@ export default function Home() {
 
   return (
     <>
-      <Styles />
+      <Styles fd={S.fontDisplay} fb={S.fontBody} />
 
       <nav id="nav">
         <div className="nav-in">
@@ -871,7 +849,7 @@ export default function Home() {
               <ComboGroup heading={S.wbsHeading} kicker={S.wbsHeadKicker}
                           mascot={S.wbsHeadMascot} cards={cardsOf(wbsProd, S)} rowRef={wbsRowRef}>
                 {(c, i) => (
-                  <ComboCard key={c.id || i} card={c} prod={wbsProd} S={S} light
+                  <ComboCard key={c.id || i} card={c} prod={wbsProd} S={S}
                              scents={scents} scent={scent} setScent={setScent}
                              vsel={0} setVsel={() => {}}
                              onBuy={buyCombo(wbsProd)}
@@ -925,45 +903,6 @@ export default function Home() {
               ))}
             </div>
           )}
-        </section>
-      )}
-
-      {/* ---------------- COMBO ---------------- */}
-      {combos.length > 0 && (
-        <section className="combo" id="combo">
-          <div className="combo-in">
-            <div className="shead">
-              <div className="kicker">{S.cbKicker}</div>
-              <h2>{S.cbTitle}</h2>
-              <p>{S.cbSub}</p>
-            </div>
-            <div className="tiers">
-              {combos.map((t, i) => {
-                const p = t.prod;
-                const save = p.original > p.price ? Math.round((1 - p.price / p.original) * 100) : 0;
-                return (
-                  <div className={'tier' + (t.best ? ' best' : '')} key={p.id || i}>
-                    {t.flag && <span className="tflag">{t.flag}</span>}
-                    <div className="timg">
-                      <Img src={t.image || p.img} alt={p.name} text={`ẢNH|${p.name}`} dark={!t.best} />
-                    </div>
-                    <h3>{p.name}</h3>
-                    <div className="tprice">
-                      {vnd(p.price)}{p.original > p.price && <s>{vnd(p.original)}</s>}
-                    </div>
-                    {save > 0 && <span className="tsave">Rẻ hơn {save}%</span>}
-                    <ul className="tlist">
-                      {(t.items || []).map((x, k) => <li key={k}>{x}</li>)}
-                    </ul>
-                    <button type="button" className="btn t-btn cta-buy" disabled={p.stock <= 0}
-                            onClick={() => addToCart(p, null, t.image || p.img)}>
-                      {p.stock <= 0 ? S.txtOutOfStock : S.cbBtn}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         </section>
       )}
 
@@ -1054,16 +993,21 @@ export default function Home() {
 /* ============================================================
    STYLES
    ============================================================ */
-function Styles() {
+function Styles({ fd, fb }) {
   return (
     <style jsx global>{`
-:root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440;--nav-h:78px}
+      :root{--f-display:'${fd || 'Nunito'}',system-ui,sans-serif;
+            --f-body:'${fb || 'Nunito Sans'}',system-ui,sans-serif}
+/* v21.1: FONT ĐỔI ĐƯỢC TỪ ADMIN. Mọi chỗ dùng var(--f-display)/
+   var(--f-body) — KHÔNG hardcode tên font nữa (trước có 28 chỗ). */
+:root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440;--nav-h:78px;
+  --f-display:'Nunito',system-ui,sans-serif;--f-body:'Nunito Sans',system-ui,sans-serif}
 *{box-sizing:border-box;margin:0;padding:0}
 /* Nền mép: navy ở trên (dưới hero), kem ở dưới — không để lộ dải trắng
    khi màn hình rất rộng hoặc khi cuộn quá đà (overscroll). */
 html{scroll-behavior:smooth;scroll-padding-top:var(--nav-h);background:var(--navy);overscroll-behavior-y:none}
-body{font-family:'Nunito Sans',system-ui,sans-serif;color:var(--ink);background:var(--cream);-webkit-font-smoothing:antialiased;overflow-x:hidden}
-h1,h2,h3{font-family:'Nunito',system-ui,sans-serif;font-weight:900;letter-spacing:-.02em}
+body{font-family:var(--f-body);color:var(--ink);background:var(--cream);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3{font-family:var(--f-display);font-weight:900;letter-spacing:-.02em}
 img{display:block;max-width:100%}
 button{font:inherit}
 
@@ -1077,7 +1021,7 @@ button{font:inherit}
 nav{position:fixed;top:0;left:0;right:0;z-index:50;padding:0 5vw;height:var(--nav-h);
   background:var(--navy);border-bottom:1px solid rgba(255,255,255,.09)}
 .nav-in{max-width:1180px;height:100%;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
-.brand{display:flex;align-items:center;gap:10px;color:#fff;font-family:'Nunito';font-weight:900;font-size:20px;
+.brand{display:flex;align-items:center;gap:10px;color:#fff;font-family:var(--f-display);font-weight:900;font-size:20px;
   text-decoration:none;transition:.2s}
 .brand:hover{opacity:.85}
 .brand .mark{width:34px;height:34px;border-radius:10px;background:#fff;overflow:hidden}
@@ -1116,7 +1060,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:50;padding:0 5vw;height:var(--na
 .eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:#fff;flex-shrink:0}
 h1{font-size:clamp(40px,min(6.6vw,9.4vh),94px);line-height:.97;margin-bottom:clamp(10px,1.7vh,16px);color:#fff}
 h1 .l2{display:block}
-.support{font-family:'Nunito';font-weight:700;font-size:clamp(16px,1.5vw,21px);color:rgba(255,255,255,.66);margin-bottom:clamp(16px,3vh,32px)}
+.support{font-family:var(--f-display);font-weight:700;font-size:clamp(16px,1.5vw,21px);color:rgba(255,255,255,.66);margin-bottom:clamp(16px,3vh,32px)}
 .bens{list-style:none;display:flex;flex-direction:column;gap:clamp(7px,1.2vh,11px);margin:0 0 clamp(18px,3vh,32px)}
 .bens li{display:flex;gap:11px;align-items:flex-start;font-size:15.5px;font-weight:600;color:rgba(255,255,255,.86);line-height:1.45;max-width:40ch}
 .bens li::before{content:"";flex-shrink:0;width:19px;height:19px;border-radius:50%;margin-top:1px;background:#fff;
@@ -1261,7 +1205,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
   transition:max-width .26s cubic-bezier(.2,.7,.3,1),opacity .2s}
 .scent.on b{max-width:150px;opacity:1}
 .pricerow{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;padding-top:4px}
-.price{font-family:'Nunito';font-weight:900;font-size:25px;color:var(--navy);letter-spacing:-.02em}
+.price{font-family:var(--f-display);font-weight:900;font-size:25px;color:var(--navy);letter-spacing:-.02em}
 .was{font-size:15px;color:rgba(27,36,64,.36);text-decoration:line-through}
 .save{font-size:12px;font-weight:800;color:var(--navy);background:rgba(24,40,78,.09);padding:4px 9px;border-radius:6px}
 .stock{font-size:12px;color:#2e7d4f;font-weight:700;display:flex;align-items:center;gap:6px}
@@ -1330,7 +1274,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .invite{display:flex;align-items:center;gap:16px;padding:2px;grid-column:1/-1}
 .invite .msc{width:62px;height:62px;flex-shrink:0;overflow:visible;background:rgba(24,40,78,.06);border-radius:14px}
 .invite .msc img{width:100%;height:100%;object-fit:contain}
-.invite p{font-family:'Nunito';font-weight:800;font-size:clamp(16px,1.9vw,23px);color:var(--navy);line-height:1.35}
+.invite p{font-family:var(--f-display);font-weight:800;font-size:clamp(16px,1.9vw,23px);color:var(--navy);line-height:1.35}
 .invite .arrow{flex:1;height:1px;background:linear-gradient(90deg,rgba(24,40,78,.3),transparent);min-width:20px}
 @media(max-width:720px){.invite .arrow{display:none}}
 
@@ -1349,7 +1293,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
   box-shadow:0 6px 18px rgba(24,40,78,.14);line-height:0}
 .pbanner img,.pbanner video{width:100%;height:auto;display:block;object-fit:cover;max-height:340px}
 .pbanner-t{position:absolute;left:20px;bottom:16px;background:rgba(24,40,78,.86);color:#fff;
-  font-family:'Nunito';font-weight:900;font-size:clamp(14px,1.8vw,19px);line-height:1.3;
+  font-family:var(--f-display);font-weight:900;font-size:clamp(14px,1.8vw,19px);line-height:1.3;
   padding:9px 16px;border-radius:12px;max-width:70%}
 .ghead{display:flex;align-items:center;gap:14px;background:linear-gradient(100deg,#18284e,#22345f);
   border-radius:16px 16px 8px 8px;padding:14px 20px;margin-bottom:12px;box-shadow:0 6px 16px rgba(24,40,78,.18)}
@@ -1360,7 +1304,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .ghead .pod img{width:42px;height:42px;object-fit:contain;filter:drop-shadow(0 1px 2px rgba(0,0,0,.15))}
 .ghead .pod .ph{font-size:16px}
 .gk{display:block;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#9fb0d0;margin-bottom:3px}
-.ghead h3{margin:0;font-size:clamp(18px,2.2vw,22px);font-weight:900;color:#fff;line-height:1.12;letter-spacing:-.01em;font-family:'Nunito'}
+.ghead h3{margin:0;font-size:clamp(18px,2.2vw,22px);font-weight:900;color:#fff;line-height:1.12;letter-spacing:-.01em;font-family:var(--f-display)}
 .crow{display:grid;grid-template-columns:repeat(var(--ncards,3),1fr);gap:14px;align-items:stretch}
 /* 3 thẻ CÙNG shape — B KHÔNG nhô, KHÔNG viền màu, KHÔNG đổi nút.
    Chỉ khác đúng viên nhãn (Tung chốt: "đừng khác shape"). */
@@ -1374,61 +1318,45 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
    Thẻ ló mép phải màn (mobile) bị cắt nhãn là BÌNH THƯỜNG (thẻ peek). */
 .pill{position:absolute;top:12px;right:12px;z-index:3;background:#e3ca22;color:#3a2f00;
   font-size:11px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;
-  padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.22);font-family:'Nunito'}
-/* v21: Ô ẢNH = nền + hoạ tiết + chai. KHÔNG bóng đổ, KHÔNG vòng sáng
-   (Tung bác: "quê, lạc quẻ"). Nền thẻ WBS chạy theo màu mùi đang chọn,
-   chuyển mượt khi bấm chấm mùi — đây là điểm nhấn duy nhất của khu SP. */
+  padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.22);font-family:var(--f-display)}
+/* v21.1: Ô ẢNH = NỀN TRƠN + chai. Không hoạ tiết, không bóng đổ,
+   không vòng sáng (Tung bác cả 3). Điểm nhấn duy nhất: nền thẻ WBS
+   chuyển màu theo mùi đang chọn. Chai contain khoá cỡ → đều mọi thẻ. */
+/* .tinted = ô ảnh thẻ lẻ đang nhuộm màu mùi (nền sáng) → viền trong
+   rất nhạt cho tách khỏi thân thẻ navy. */
+.cc-img.tinted{box-shadow:inset 0 0 0 1px rgba(24,40,78,.06)}
 .cc-img{position:relative;background:linear-gradient(158deg,#26396a,#18284e);
   display:grid;place-items:center;aspect-ratio:1;overflow:hidden;
   transition:background .55s cubic-bezier(.4,0,.2,1)}
-.cc-img.light{background:linear-gradient(158deg,#dde5f5,#c9d6ee)}
-.cc-pat{position:absolute;inset:0;background-repeat:repeat;background-position:center;
-  pointer-events:none;transition:background-image .45s,opacity .45s}
 /* Chai: contain khoá cỡ → CỠ ĐỀU NHAU ở mọi thẻ (cắt sát chai thì mỗi
-   ảnh một cỡ, nhìn lệch). Phần "đầy ô" do hoạ tiết đảm nhiệm. */
-.cc-img img{position:relative;z-index:2;width:auto;height:auto;max-width:60%;max-height:76%;
+   ảnh một cỡ, nhìn lệch). */
+.cc-img img{position:relative;z-index:2;width:auto;height:auto;max-width:72%;max-height:86%;
   object-fit:contain;transition:transform .34s cubic-bezier(.2,.7,.3,1)}
 .ccard:hover .cc-img img{transform:translateY(-4px) scale(1.03)}
-/* Thẻ nền sáng: đảo chữ sang navy cho đủ tương phản trên pastel */
-.ccard.light{background:#eef2fa}
-.ccard.light .cc-t{color:var(--navy)}
-.ccard.light .cc-k{color:#7d8db0}
-.ccard.light .cc-price{color:var(--navy)}
-.ccard.light .cc-was{color:#8b99b8}
-.ccard.light .cc-save{background:#dde5f5;color:#42557f}
-.ccard.light .cc-stock{color:#7d8db0}
-.ccard.light .cc-buy{background:var(--navy);color:#fff}
-.ccard.light .cc-more{border-color:#c3cee6;color:#5f6c8f}
-.ccard.light .cc-more:hover{border-color:var(--navy);color:var(--navy)}
-.ccard.light .scentmini button{border-color:#c3cee6}
-.ccard.light .scentmini button.on{border-color:var(--navy);box-shadow:0 0 0 2px #eef2fa}
-.ccard.light .scentmini b{color:#42557f}
-.ccard.light .vchips button{background:#dde5f5;border-color:#c3cee6;color:#42557f}
-.ccard.light .vchips button.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .cc-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:8px;flex:1}
-.cc-k{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8fa3c8;font-family:'Nunito'}
+.cc-k{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8fa3c8;font-family:var(--f-display)}
 .cc-scentlabel{margin-top:2px}
-.cc-t{font-size:18px;font-weight:900;color:#fff;line-height:1.2;margin:0;font-family:'Nunito'}
+.cc-t{font-size:18px;font-weight:900;color:#fff;line-height:1.2;margin:0;font-family:var(--f-display)}
 .cc-list{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
-.cc-list li{font-size:12.5px;color:#c3cde0;display:flex;align-items:center;gap:6px;font-family:'Nunito'}
+.cc-list li{font-size:12.5px;color:#c3cde0;display:flex;align-items:center;gap:6px;font-family:var(--f-display)}
 .cc-list li::before{content:"✓";color:#7dd3a8;font-weight:900;font-size:11px}
 .scentmini{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
 .scentmini button{width:18px;height:18px;border-radius:50%;border:1.5px solid #3d5589;cursor:pointer;padding:0;transition:.2s}
 .scentmini button:hover{border-color:#fff}
 .scentmini button.on{border-color:#fff;box-shadow:0 0 0 2px #22355f}
 .scentmini button.out{opacity:.4}
-.scentmini b{font-size:11.5px;font-weight:800;color:#c3cde0;margin-left:3px;font-family:'Nunito'}
+.scentmini b{font-size:11.5px;font-weight:800;color:#c3cde0;margin-left:3px;font-family:var(--f-display)}
 /* v20.2: chip chọn phân loại trong thẻ tự sinh (Chai xịt / Lõi refill) */
 .vchips{display:flex;gap:6px;flex-wrap:wrap}
 .vchips button{padding:6px 13px;border-radius:999px;border:1px solid #3d5589;background:#22355f;
-  color:#c3cde0;font-size:12px;font-weight:800;cursor:pointer;transition:.2s;font-family:'Nunito'}
+  color:#c3cde0;font-size:12px;font-weight:800;cursor:pointer;transition:.2s;font-family:var(--f-display)}
 .vchips button:hover{border-color:#fff}
 .vchips button.on{background:#fff;color:var(--navy);border-color:#fff}
 .vchips button.out{opacity:.45}
 .cc-pricerow{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-top:auto;padding-top:6px}
-.cc-price{font-family:'Nunito';font-weight:900;font-size:24px;color:#fff;letter-spacing:-.02em}
+.cc-price{font-family:var(--f-display);font-weight:900;font-size:24px;color:#fff;letter-spacing:-.02em}
 .cc-was{font-size:13px;color:#8fa3c8;text-decoration:line-through}
-.cc-save{font-size:11px;font-weight:800;color:#c3cde0;background:#22355f;padding:3px 7px;border-radius:6px;font-family:'Nunito'}
+.cc-save{font-size:11px;font-weight:800;color:#c3cde0;background:#22355f;padding:3px 7px;border-radius:6px;font-family:var(--f-display)}
 .cc-stock{font-size:11.5px;color:#8fa3c8;font-weight:700;display:flex;align-items:center;gap:6px}
 .cc-stock::before{content:"";width:6px;height:6px;border-radius:50%;background:#7dd3a8}
 .cc-stock.out{color:#e5a3a3}
@@ -1479,21 +1407,21 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .tvid{position:relative;aspect-ratio:3/4;overflow:hidden;background:linear-gradient(165deg,#22345d,#141f3d)}
 /* Thẻ chỉ có chữ (chưa gắn video) — cao vừa phải, không giả làm video */
 .tsay{background:var(--navy);color:#fff;padding:26px 20px 22px;display:flex;align-items:center;min-height:132px}
-.tsay p{font-family:'Nunito';font-weight:800;font-size:15px;line-height:1.45;letter-spacing:-.01em}
-.tsay::before{content:"\u201C";position:absolute;top:6px;left:16px;font-family:'Nunito';font-size:52px;
+.tsay p{font-family:var(--f-display);font-weight:800;font-size:15px;line-height:1.45;letter-spacing:-.01em}
+.tsay::before{content:"\u201C";position:absolute;top:6px;left:16px;font-family:var(--f-display);font-size:52px;
   font-weight:900;color:rgba(255,255,255,.16);line-height:1;pointer-events:none}
 .tcard.tquote{position:relative}
 .tvid iframe,.tvid video,.tvid img{width:100%;height:100%;border:0;object-fit:cover}
 .tvid .play{width:48px;height:48px}
 .tvid .play::after{border-left:14px solid var(--navy);border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:18px}
 .tmeta{padding:13px 15px 15px;display:flex;flex-direction:column;gap:5px}
-.tmeta .who{font-family:'Nunito';font-weight:900;font-size:14px;color:var(--navy)}
+.tmeta .who{font-family:var(--f-display);font-weight:900;font-size:14px;color:var(--navy)}
 .tmeta .pet{font-size:12px;color:rgba(27,36,64,.55);font-weight:600}
 .tmeta .quote{font-size:13px;color:rgba(27,36,64,.72);line-height:1.5;margin-top:3px}
 .tstats{max-width:1180px;margin:clamp(20px,2.5vw,30px) auto 0;display:flex;gap:clamp(20px,4vw,54px);flex-wrap:wrap;
   padding-top:22px;border-top:1px solid rgba(24,40,78,.12);justify-content:center;text-align:center}
 .tstat{transition:.2s}
-.tstat b{display:block;font-family:'Nunito';font-weight:900;font-size:clamp(22px,2.6vw,30px);color:var(--navy)}
+.tstat b{display:block;font-family:var(--f-display);font-weight:900;font-size:clamp(22px,2.6vw,30px);color:var(--navy)}
 .tstat span{font-size:13px;color:rgba(27,36,64,.58);font-weight:600}
 
 /* Bong bong thò lên khi bấm nút mua — bo cuc P3 (style L).
@@ -1513,7 +1441,7 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
    O trang cung noi lien mach voi vien trang bao ngoai -> mot khoi thong nhat. */
 .peek img{display:block;width:34px;height:34px;flex:0 0 auto;border-radius:50%;
   background:#fff;object-fit:contain;padding:3px}
-.peek span{font-family:'Nunito',system-ui,sans-serif;font-weight:900;font-size:14.5px;
+.peek span{font-family:var(--f-display);font-weight:900;font-size:14.5px;
   letter-spacing:.2px;color:#fff;text-transform:uppercase;white-space:nowrap}
 /* Bo goc LECH: 3 goc tron, 1 goc gan vuong. Goc gan vuong doi cho moi dang. */
 .peek.v1{border-radius:30px 30px 30px 11px;--rot:-3deg}
@@ -1540,49 +1468,13 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .bb-img img{width:100%;height:100%;object-fit:contain}
 .bb-img .ph{font-size:8px}
 .bb-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.bb-name{font-family:'Nunito';font-weight:900;font-size:14px;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bb-name{font-family:var(--f-display);font-weight:900;font-size:14px;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bb-price{display:flex;align-items:baseline;gap:7px}
-.bb-price b{font-family:'Nunito';font-weight:900;font-size:17px;color:var(--navy)}
+.bb-price b{font-family:var(--f-display);font-weight:900;font-size:17px;color:var(--navy)}
 .bb-price s{font-size:12.5px;color:rgba(27,36,64,.4)}
 .buybar .btn{padding:13px 22px;font-size:14px;flex-shrink:0}
 .buybar .btn:hover:not(:disabled){transform:translateY(-2px)}
 @media(max-width:520px){.bb-img{display:none}.buybar .btn{padding:13px 18px}}
-
-.combo{background:var(--navy);color:#fff;position:relative;overflow:hidden}
-.combo::before{content:"";position:absolute;inset:0;background:radial-gradient(58% 76% at 50% 0%,rgba(255,255,255,.13),transparent 66%)}
-.combo-in{position:relative;z-index:2;max-width:1180px;margin:0 auto}
-.combo .shead{margin-bottom:clamp(22px,2.6vw,30px)}
-.combo .kicker{color:rgba(255,255,255,.62);opacity:1}
-.combo .shead h2{color:#fff}
-.combo .shead p{color:rgba(255,255,255,.72)}
-.tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:18px;align-items:stretch}
-.tier{background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.18);border-radius:22px;padding:22px 20px 20px;
-  display:flex;flex-direction:column;gap:12px;transition:.26s cubic-bezier(.2,.7,.3,1);position:relative}
-.tier:hover{background:rgba(255,255,255,.11);transform:translateY(-5px)}
-.tier.best{background:#fff;color:var(--ink);border-color:#fff;transform:scale(1.045);z-index:2;box-shadow:0 26px 60px rgba(0,0,0,.34)}
-.tier.best:hover{transform:scale(1.045) translateY(-5px)}
-@media(max-width:820px){.tier.best{transform:none}.tier.best:hover{transform:translateY(-5px)}}
-.tflag{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;font-size:10.5px;
-  font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:6px 15px;border-radius:999px;border:2px solid #fff;white-space:nowrap}
-.tier h3{font-size:19px;color:#fff}
-.tier.best h3{color:var(--navy)}
-.timg{aspect-ratio:16/10;border-radius:14px;overflow:hidden;background:rgba(255,255,255,.08);border:1px dashed rgba(255,255,255,.26)}
-.timg img{width:100%;height:100%;object-fit:contain}
-.tier.best .timg{background:rgba(24,40,78,.05);border-color:rgba(24,40,78,.2)}
-.tprice{font-family:'Nunito';font-weight:900;font-size:30px;color:#fff;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
-.tier.best .tprice{color:var(--navy)}
-.tprice s{font-family:'Nunito Sans';font-size:15px;font-weight:600;opacity:.45}
-.tsave{align-self:flex-start;font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.15);color:#fff}
-.tier.best .tsave{background:var(--navy);color:#fff}
-.tlist{list-style:none;display:flex;flex-direction:column;gap:8px;font-size:13.5px;color:rgba(255,255,255,.8);line-height:1.45;flex:1}
-.tier.best .tlist{color:rgba(27,36,64,.74)}
-.tlist li{display:flex;gap:9px}
-.tlist li::before{content:"·";font-weight:900;opacity:.6}
-.tier .btn{width:100%;padding:14px;font-size:14.5px;margin-top:4px}
-.t-btn{border:2px solid rgba(255,255,255,.36);color:#fff}
-.t-btn:hover{border-color:#fff;background:rgba(255,255,255,.1)}
-.tier.best .t-btn{background:var(--navy);color:#fff;border-color:var(--navy)}
-.tier.best .t-btn:hover{background:var(--navy-deep)}
 
 .about{background:var(--navy);color:#fff;position:relative;overflow:hidden}
 .about::before{content:"";position:absolute;inset:0;background:radial-gradient(60% 80% at 88% 28%,rgba(255,255,255,.12),transparent 65%)}
@@ -1597,17 +1489,17 @@ section{padding:clamp(48px,5.5vw,76px) 5vw}
 .about .btn{margin-top:12px}
 .facts{display:grid;gap:18px}
 .fact{border-left:3px solid rgba(255,255,255,.55);padding:4px 0 4px 18px}
-.fact b{display:block;font-family:'Nunito';font-weight:900;font-size:clamp(22px,2.8vw,31px);margin-bottom:4px;color:#fff}
+.fact b{display:block;font-family:var(--f-display);font-weight:900;font-size:clamp(22px,2.8vw,31px);margin-bottom:4px;color:#fff}
 .fact span{font-size:14px;color:rgba(255,255,255,.64);line-height:1.5}
 @media(max-width:820px){.about-in{grid-template-columns:1fr}}
 
 /* Chân trang 3 cột: thương hiệu / điều khoản / dấu Bộ Công Thương. */
 footer{background:var(--navy-deep);color:rgba(255,255,255,.55);padding:clamp(40px,5vw,60px) 5vw 96px;font-size:13.5px}
 .foot-in{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:clamp(24px,4vw,60px)}
-.foot-in h4{font-family:'Nunito';font-weight:900;font-size:14.5px;color:#fff;margin-bottom:14px}
+.foot-in h4{font-family:var(--f-display);font-weight:900;font-size:14.5px;color:#fff;margin-bottom:14px}
 .f-brand{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .f-brand img{width:34px;height:34px;object-fit:contain}
-.f-brand b{font-family:'Nunito';font-weight:900;font-size:19px;color:#fff}
+.f-brand b{font-family:var(--f-display);font-weight:900;font-size:19px;color:#fff}
 .f-desc{line-height:1.7;max-width:38ch}
 .f-lines{margin-top:12px;display:flex;flex-direction:column;gap:6px;line-height:1.6}
 .f-links{list-style:none;display:flex;flex-direction:column;gap:9px}

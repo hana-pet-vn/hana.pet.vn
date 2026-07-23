@@ -90,13 +90,13 @@ export default function CartPage() {
       <style jsx global>{`
 :root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Nunito Sans',system-ui,sans-serif;color:var(--ink);background:var(--cream)}
-h1,h2{font-family:'Nunito',system-ui,sans-serif;font-weight:900;letter-spacing:-.02em}
+body{font-family:var(--f-body);color:var(--ink);background:var(--cream)}
+h1,h2{font-family:var(--f-display);font-weight:900;letter-spacing:-.02em}
 img{display:block;max-width:100%}
 button{font:inherit}
 
 .ct-nav{display:flex;align-items:center;justify-content:space-between;padding:14px 5vw;background:var(--navy)}
-.ct-brand{font-family:'Nunito';font-weight:900;font-size:20px;color:#fff;text-decoration:none}
+.ct-brand{font-family:var(--f-display);font-weight:900;font-size:20px;color:#fff;text-decoration:none}
 .ct-shop{color:rgba(255,255,255,.82);text-decoration:none;font-weight:700;font-size:14px}
 .ct-shop:hover{color:#fff}
 
@@ -122,7 +122,7 @@ button{font:inherit}
   background:linear-gradient(160deg,#2b3f70,#16244a);display:grid;place-items:center;font-size:26px}
 .ct-img img{width:100%;height:100%;object-fit:contain}
 .ct-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
-.ct-mid b{font-family:'Nunito';font-weight:800;font-size:16px;color:var(--navy);line-height:1.3}
+.ct-mid b{font-family:var(--f-display);font-weight:800;font-size:16px;color:var(--navy);line-height:1.3}
 .ct-var{font-size:13px;color:rgba(27,36,64,.55);font-weight:600}
 .ct-unit{font-size:13px;color:rgba(27,36,64,.5);font-weight:600}
 .ct-ctl{display:flex;align-items:center;gap:12px;margin-top:9px}
@@ -133,7 +133,7 @@ button{font:inherit}
 .ct-qty span{min-width:28px;text-align:center;font-weight:800;font-size:14px;color:var(--navy)}
 .ct-rm{background:none;border:none;color:rgba(27,36,64,.45);font-size:13px;font-weight:700;cursor:pointer}
 .ct-rm:hover{color:#d64545}
-.ct-line{font-family:'Nunito';font-weight:900;font-size:18px;color:var(--navy);white-space:nowrap}
+.ct-line{font-family:var(--f-display);font-weight:900;font-size:18px;color:var(--navy);white-space:nowrap}
 @media(max-width:560px){
   .ct-row{flex-wrap:wrap}
   .ct-line{width:100%;text-align:right}
@@ -151,7 +151,7 @@ button{font:inherit}
 .ct-total{display:flex;justify-content:space-between;align-items:baseline;padding:16px 0 18px;margin-top:6px;
   border-top:1px solid rgba(24,40,78,.12)}
 .ct-total span{font-weight:700;color:var(--navy);font-size:15px}
-.ct-total b{font-family:'Nunito';font-weight:900;font-size:25px;color:var(--navy)}
+.ct-total b{font-family:var(--f-display);font-weight:900;font-size:25px;color:var(--navy)}
 .ct-checkout{display:block;text-align:center;background:var(--navy);color:#fff;padding:16px;border-radius:999px;
   font-weight:800;font-size:15.5px;text-decoration:none;transition:.22s}
 .ct-checkout:hover{background:var(--navy-deep)}

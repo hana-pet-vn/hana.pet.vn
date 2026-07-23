@@ -112,12 +112,12 @@ export default function CartDrawer() {
 .hp-scrim:not(.on){transition:opacity .3s ease 0s}
 .hp-drawer{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);background:#fff;z-index:901;
   display:flex;flex-direction:column;transform:translateX(100%);transition:transform .62s cubic-bezier(.18,.72,.24,1) .76s;
-  box-shadow:-10px 0 40px rgba(24,40,78,.2);font-family:'Nunito Sans',system-ui,sans-serif}
+  box-shadow:-10px 0 40px rgba(24,40,78,.2);font-family:var(--f-body)}
 .hp-drawer.on{transform:translateX(0)}
 .hp-drawer:not(.on){transition:transform .34s cubic-bezier(.4,0,.7,.5) 0s}
 .hp-drawer header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;
   border-bottom:1px solid rgba(24,40,78,.1)}
-.hp-drawer header b{font-family:'Nunito';font-weight:900;font-size:19px;color:#18284e}
+.hp-drawer header b{font-family:var(--f-display);font-weight:900;font-size:19px;color:#18284e}
 .hp-drawer header em{font-style:normal;opacity:.55;font-weight:700}
 .hp-drawer header button{width:36px;height:36px;border-radius:50%;border:none;background:rgba(24,40,78,.07);
   color:#18284e;font-size:15px;cursor:pointer}
@@ -127,9 +127,9 @@ export default function CartDrawer() {
   background:linear-gradient(160deg,#2b3f70,#16244a);display:grid;place-items:center;font-size:22px}
 .hp-thumb img{width:100%;height:100%;object-fit:contain}
 .hp-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.hp-info b{font-family:'Nunito';font-weight:800;font-size:14.5px;color:#18284e;line-height:1.3}
+.hp-info b{font-family:var(--f-display);font-weight:800;font-size:14.5px;color:#18284e;line-height:1.3}
 .hp-var{font-size:12.5px;color:rgba(27,36,64,.55);font-weight:600}
-.hp-pr{font-family:'Nunito';font-weight:900;font-size:16px;color:#18284e;margin-top:2px}
+.hp-pr{font-family:var(--f-display);font-weight:900;font-size:16px;color:#18284e;margin-top:2px}
 .hp-qty{display:flex;align-items:center;gap:6px;margin-top:7px}
 .hp-qty button{width:29px;height:29px;border-radius:8px;border:1.5px solid rgba(24,40,78,.18);background:#fff;
   color:#18284e;font-size:15px;font-weight:700;cursor:pointer;line-height:1}
@@ -141,7 +141,7 @@ export default function CartDrawer() {
 .hp-drawer footer{padding:16px 20px 20px;border-top:1px solid rgba(24,40,78,.1);background:#fafbfd}
 .hp-sum{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
 .hp-sum span{font-size:14px;color:rgba(27,36,64,.65);font-weight:600}
-.hp-sum b{font-family:'Nunito';font-weight:900;font-size:23px;color:#18284e}
+.hp-sum b{font-family:var(--f-display);font-weight:900;font-size:23px;color:#18284e}
 .hp-note{font-size:12px;color:rgba(27,36,64,.5);margin:0 0 13px;line-height:1.5}
 .hp-checkout{display:block;text-align:center;background:#18284e;color:#fff;padding:15px;border-radius:999px;
   font-weight:800;font-size:15px;text-decoration:none;transition:.2s}
@@ -159,7 +159,7 @@ export default function CartDrawer() {
   box-shadow:0 14px 40px rgba(12,20,40,.35);animation:hptoast .3s cubic-bezier(.2,.8,.3,1);max-width:calc(100vw - 32px)}
 .hp-toast-ic{font-size:22px}
 .hp-toast div{display:flex;flex-direction:column;gap:2px;min-width:0}
-.hp-toast b{font-family:'Nunito';font-weight:900;font-size:14px}
+.hp-toast b{font-family:var(--f-display);font-weight:900;font-size:14px}
 .hp-toast span{font-size:12.5px;color:rgba(255,255,255,.7);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @keyframes hptoast{from{opacity:0;transform:translateX(-50%) translateY(16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 @media(prefers-reduced-motion:reduce){.hp-drawer,.hp-scrim,.hp-toast{transition:none;animation:none}}

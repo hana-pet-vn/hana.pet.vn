@@ -61,8 +61,8 @@ function Success() {
       <style jsx global>{`
 :root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Nunito Sans',system-ui,sans-serif;color:var(--ink);background:var(--cream)}
-h1{font-family:'Nunito',system-ui,sans-serif;font-weight:900;letter-spacing:-.02em}
+body{font-family:var(--f-body);color:var(--ink);background:var(--cream)}
+h1{font-family:var(--f-display);font-weight:900;letter-spacing:-.02em}
 .ok-wrap{min-height:100vh;display:grid;place-items:center;padding:40px 5vw}
 .ok-card{background:#fff;border-radius:26px;border:1px solid rgba(24,40,78,.1);padding:44px 36px;
   max-width:520px;width:100%;text-align:center;box-shadow:0 18px 50px rgba(24,40,78,.1)}
@@ -72,7 +72,7 @@ h1{font-family:'Nunito',system-ui,sans-serif;font-weight:900;letter-spacing:-.02
 .ok-box{display:flex;justify-content:space-between;align-items:baseline;background:rgba(24,40,78,.05);
   border-radius:13px;padding:14px 18px;margin-bottom:11px;text-align:left}
 .ok-box span{font-size:13.5px;color:rgba(27,36,64,.62);font-weight:700}
-.ok-box b{font-family:'Nunito';font-weight:900;font-size:19px;color:var(--navy)}
+.ok-box b{font-family:var(--f-display);font-weight:900;font-size:19px;color:var(--navy)}
 .ok-next{list-style:none;text-align:left;display:flex;flex-direction:column;gap:10px;
   margin:24px 0;padding-top:22px;border-top:1px solid rgba(24,40,78,.1)}
 .ok-next li{display:flex;gap:10px;font-size:14px;color:rgba(27,36,64,.7);font-weight:600;line-height:1.55}

@@ -186,7 +186,7 @@ export default function ProductModal({ slug, onClose, S = {} }) {
   opacity:0;transition:opacity .3s}
 .pm-scrim.on{opacity:1}
 .pm-box{position:fixed;left:50%;top:50%;z-index:961;width:min(920px,94vw);max-height:90vh;
-  background:#fff;border-radius:20px;overflow:auto;font-family:'Nunito Sans',system-ui,sans-serif;
+  background:#fff;border-radius:20px;overflow:auto;font-family:var(--f-body);
   box-shadow:0 30px 80px rgba(24,40,78,.3);
   transform:translate(-50%,-46%) scale(.97);opacity:0;
   transition:transform .38s cubic-bezier(.18,.8,.24,1),opacity .3s}
@@ -195,7 +195,7 @@ export default function ProductModal({ slug, onClose, S = {} }) {
   background:rgba(24,40,78,.08);color:#18284e;font-size:15px;cursor:pointer;transition:.2s}
 .pm-x:hover{background:rgba(24,40,78,.16)}
 .pm-load{padding:70px 24px;text-align:center;color:rgba(27,36,64,.6);display:flex;flex-direction:column;gap:8px}
-.pm-load b{font-family:'Nunito';font-weight:900;font-size:19px;color:#18284e}
+.pm-load b{font-family:var(--f-display);font-weight:900;font-size:19px;color:#18284e}
 
 .pm-grid{display:grid;grid-template-columns:44% 1fr}
 .pm-left{background:linear-gradient(168deg,#22345d,#16244a);padding:26px;display:flex;flex-direction:column;gap:12px}
@@ -211,7 +211,7 @@ export default function ProductModal({ slug, onClose, S = {} }) {
 .pm-th img{width:100%;height:100%;object-fit:contain}
 
 .pm-right{padding:30px 32px;display:flex;flex-direction:column;gap:12px}
-.pm-right h2{font-family:'Nunito';font-weight:900;font-size:24px;color:#18284e;line-height:1.24;
+.pm-right h2{font-family:var(--f-display);font-weight:900;font-size:24px;color:#18284e;line-height:1.24;
   margin:0;padding-right:40px}
 .pm-desc{font-size:14.5px;color:rgba(27,36,64,.66);line-height:1.62;margin:0}
 .pm-lbl{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(24,40,78,.55)}
@@ -223,7 +223,7 @@ export default function ProductModal({ slug, onClose, S = {} }) {
 
 .pm-pricerow{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-top:4px;
   padding-top:14px;border-top:1px solid rgba(24,40,78,.11)}
-.pm-price{font-family:'Nunito';font-weight:900;font-size:30px;color:#18284e;letter-spacing:-.02em}
+.pm-price{font-family:var(--f-display);font-weight:900;font-size:30px;color:#18284e;letter-spacing:-.02em}
 .pm-was{font-size:15px;color:rgba(27,36,64,.36);text-decoration:line-through}
 .pm-save{font-size:11.5px;font-weight:800;color:#0f3b34;background:#d9f0eb;padding:4px 9px;border-radius:6px}
 .pm-stock{font-size:12.5px;color:#2e7d4f;font-weight:700;display:flex;align-items:center;gap:6px}
@@ -238,7 +238,7 @@ export default function ProductModal({ slug, onClose, S = {} }) {
   font-family:inherit}
 .pm-qty button:hover{background:rgba(24,40,78,.06)}
 .pm-qty span{min-width:32px;text-align:center;font-weight:800;font-size:15px;color:#18284e}
-.pm-add{flex:1;border:0;border-radius:999px;background:#18284e;color:#fff;font-family:'Nunito';
+.pm-add{flex:1;border:0;border-radius:999px;background:#18284e;color:#fff;font-family:var(--f-display);
   font-weight:900;font-size:15px;padding:15px 20px;cursor:pointer;transition:.2s}
 .pm-add:hover:not(:disabled){background:#0f1c3a}
 .pm-add:disabled{opacity:.45;cursor:not-allowed}

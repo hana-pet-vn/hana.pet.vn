@@ -234,14 +234,14 @@ function Styles() {
     <style jsx global>{`
 :root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Nunito Sans',system-ui,sans-serif;color:var(--ink);background:var(--cream)}
-h1,h2,h3{font-family:'Nunito',system-ui,sans-serif;font-weight:900;letter-spacing:-.02em}
+body{font-family:var(--f-body);color:var(--ink);background:var(--cream)}
+h1,h2,h3{font-family:var(--f-display);font-weight:900;letter-spacing:-.02em}
 img{display:block;max-width:100%}
 button{font:inherit}
 
 .pd-nav{position:sticky;top:0;z-index:60;display:flex;align-items:center;justify-content:space-between;
   padding:13px 5vw;background:var(--navy);color:#fff}
-.pd-brand{font-family:'Nunito';font-weight:900;font-size:20px;color:#fff;text-decoration:none}
+.pd-brand{font-family:var(--f-display);font-weight:900;font-size:20px;color:#fff;text-decoration:none}
 .pd-navr{display:flex;align-items:center;gap:18px}
 .pd-navr a{color:rgba(255,255,255,.82);text-decoration:none;font-weight:700;font-size:14px}
 .pd-navr a:hover{color:#fff}
@@ -295,7 +295,7 @@ button{font:inherit}
 .pd-rate em{font-style:normal;color:rgba(27,36,64,.5);font-size:13px}
 
 .pd-prices{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:24px}
-.pd-price{font-family:'Nunito';font-weight:900;font-size:clamp(30px,3.6vw,40px);color:var(--navy)}
+.pd-price{font-family:var(--f-display);font-weight:900;font-size:clamp(30px,3.6vw,40px);color:var(--navy)}
 .pd-was{font-size:17px;color:rgba(27,36,64,.36);text-decoration:line-through}
 .pd-save{font-size:12.5px;font-weight:800;color:var(--navy);background:rgba(24,40,78,.09);
   padding:5px 11px;border-radius:7px}
@@ -356,8 +356,8 @@ button{font:inherit}
 .pd-mimg{aspect-ratio:1;border-radius:13px;overflow:hidden;background:linear-gradient(160deg,#26396a,#18284e);
   display:grid;place-items:center;font-size:30px}
 .pd-mimg img{width:100%;height:100%;object-fit:contain}
-.pd-mcard b{font-family:'Nunito';font-size:14.5px;color:var(--navy);line-height:1.3}
-.pd-mcard em{font-style:normal;font-family:'Nunito';font-weight:900;font-size:16px;color:var(--navy)}
+.pd-mcard b{font-family:var(--f-display);font-size:14.5px;color:var(--navy);line-height:1.3}
+.pd-mcard em{font-style:normal;font-family:var(--f-display);font-weight:900;font-size:16px;color:var(--navy)}
 
 .pd-foot{background:var(--navy-deep);color:rgba(255,255,255,.5);padding:30px 5vw;font-size:13px}
     `}</style>

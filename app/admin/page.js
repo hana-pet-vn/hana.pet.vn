@@ -337,11 +337,16 @@ function Field({ label, value, onChange, type="text", rows, span }) {
   );
 }
 
-function SectionHeader({ title, children }) {
+/* v21.1: SectionHeader có thêm dòng chỉ dẫn ngắn (hint) — mỗi tab nói
+   rõ sửa ở đây thì ĐỔI CHỖ NÀO trên web, để không phải đoán. */
+function SectionHeader({ title, hint, children }) {
   return (
-    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,paddingBottom:12,borderBottom:"2px solid #dbe2f1" }}>
-      <div style={{ fontFamily:FONT_T,fontSize:15,color:"#0d142e",fontWeight:700 }}>{title}</div>
-      {children}
+    <div style={{ marginBottom:18,paddingBottom:12,borderBottom:"2px solid #dbe2f1" }}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:12 }}>
+        <div style={{ fontFamily:FONT_T,fontSize:15,color:"#0d142e",fontWeight:700 }}>{title}</div>
+        {children}
+      </div>
+      {hint && <div style={{ fontFamily:FONT_B,fontSize:11.5,color:"#8a93a8",marginTop:5,lineHeight:1.6 }}>{hint}</div>}
     </div>
   );
 }
@@ -1193,20 +1198,29 @@ function TabInventory({ S }) {
   const [bulk, setBulk] = useState(null); // {mode:'set'|'add', amount:number}
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkErr, setBulkErr] = useState(null);
-  const low = products.filter(p => p.stock <= (p.minStock||5));
+  /* v21.5: LIỆT KÊ THEO SKU THẬT. Trước đây tab này chỉ đọc/ghi
+     products.stock, trong khi kho thật của SP có phân loại nằm ở
+     variants[].stock → hiện sai số và sửa vào chỗ storefront không đọc.
+     Nay mỗi phân loại là 1 dòng riêng; SP không phân loại thì 1 dòng. */
+  const rows = products.flatMap(p =>
+    (p.variants||[]).length
+      ? p.variants.map(v => ({ key:p.id+'::'+v.id, prod:p, vid:v.id,
+          name:p.name+' — '+(v.name||'(chưa tên)'), stock:Number(v.stock)||0,
+          img:v.img||p.img, cat:p.category, sku:v.id }))
+      : [{ key:p.id, prod:p, vid:null, name:p.name, stock:Number(p.stock)||0,
+          img:p.img, cat:p.category, sku:p.sku }]
+  );
+  const minOf = (r) => Number(r.prod.minStock)||5;
+  const low = rows.filter(r => r.stock <= minOf(r));
   const toggleSel = (id) => setSelected(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
   const applyBulk = async () => {
     if (!bulk || selected.length===0) return;
     setBulkSaving(true); setBulkErr(null);
     try {
-      const targets = products.filter(p=>selected.includes(p.id));
-      const updated = [];
-      for (const p of targets) {
-        const newStock = bulk.mode==='set' ? Math.max(0,bulk.amount) : Math.max(0, p.stock + bulk.amount);
-        await updateProductStock(p.id, newStock);
-        updated.push({ id:p.id, stock:newStock });
+      for (const r of rows.filter(r=>selected.includes(r.key))) {
+        const newStock = bulk.mode==='set' ? Math.max(0,bulk.amount) : Math.max(0, r.stock + bulk.amount);
+        await saveStock(r, newStock);
       }
-      setProducts(prev => prev.map(x => { const u = updated.find(u=>u.id===x.id); return u ? {...x, stock:u.stock} : x; }));
       setSelected([]); setBulk(null);
     } catch(e) {
       setBulkErr(e?.message || "Cập nhật hàng loạt thất bại — vui lòng thử lại");
@@ -1215,10 +1229,18 @@ function TabInventory({ S }) {
     }
   };
 
-  const saveStock = async (p, newStock) => {
+  /* Ghi đúng nơi: có phân loại thì cập nhật variants[], không thì stock gốc */
+  const saveStock = async (row, newStock) => {
     try {
-      await updateProductStock(p.id, newStock);
-      setProducts(prev => prev.map(x => x.id===p.id ? {...x, stock:newStock} : x));
+      if (row.vid) {
+        const np = { ...row.prod, variants:(row.prod.variants||[]).map(v =>
+          v.id===row.vid ? { ...v, stock:newStock } : v) };
+        await upsertProduct(np);
+        setProducts(prev => prev.map(x => x.id===np.id ? np : x));
+      } else {
+        await updateProductStock(row.prod.id, newStock);
+        setProducts(prev => prev.map(x => x.id===row.prod.id ? {...x, stock:newStock} : x));
+      }
     } catch(e) { alert("Lỗi cập nhật tồn kho: "+e.message); }
   };
 
@@ -1226,11 +1248,11 @@ function TabInventory({ S }) {
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <div style={{fontFamily:FONT_T,fontSize:16,color:"#0d142e"}}>Quản Lý Tồn Kho</div>
-        {low.length>0&&<div style={{background:"#FEF3C7",border:"2px solid #F59E0B",borderRadius:10,padding:"6px 14px",fontFamily:FONT_T,fontSize:12,color:"#92400E"}}>⚠️ {low.length} sản phẩm sắp hết hàng</div>}
+        {low.length>0&&<div style={{background:"#FEF3C7",border:"2px solid #F59E0B",borderRadius:10,padding:"6px 14px",fontFamily:FONT_T,fontSize:12,color:"#92400E"}}>⚠️ {low.length} mặt hàng sắp hết</div>}
       </div>
       {low.length>0&&<div style={{background:"#FEF3C7",border:"2px solid #F59E0B",borderRadius:14,padding:16,marginBottom:20}}>
         <div style={{fontFamily:FONT_T,fontSize:13,color:"#92400E",marginBottom:8}}>⚠️ Cảnh báo sắp hết hàng</div>
-        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>{low.map(p=><div key={p.id} style={{background:"#fff",borderRadius:10,padding:"8px 14px",border:"1px solid #F59E0B"}}><div style={{fontFamily:FONT_T,fontSize:13,color:"#0d142e"}}>{p.name}</div><div style={{fontFamily:"monospace",fontSize:12,color:"#EF4444",fontWeight:700}}>Còn {p.stock} / tối thiểu {p.minStock||5}</div></div>)}</div>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>{low.map(r=><div key={r.key} style={{background:"#fff",borderRadius:10,padding:"8px 14px",border:"1px solid #F59E0B"}}><div style={{fontFamily:FONT_T,fontSize:13,color:"#0d142e"}}>{r.name}</div><div style={{fontFamily:"monospace",fontSize:12,color:"#EF4444",fontWeight:700}}>Còn {r.stock} / tối thiểu {minOf(r)}</div></div>)}</div>
       </div>}
       {/* API Platform connections */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
@@ -1261,18 +1283,19 @@ function TabInventory({ S }) {
           <input type="checkbox" checked={selected.length>0 && selected.length===products.length} onChange={e=>setSelected(e.target.checked?products.map(p=>p.id):[])} />
           {["Sản Phẩm","SKU","Tồn Kho","Tồn tối thiểu",""].map(h=><div key={h} style={{fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",letterSpacing:1}}>{h}</div>)}
         </div>
-        {products.map(p=>{
-          const isLow=p.stock<=(p.minStock||5);
-          return <div key={p.id} style={{display:"grid",gridTemplateColumns:"32px 2fr 1fr 1fr 1fr 80px",padding:"12px 16px",borderTop:"1px solid #dbe2f1",alignItems:"center",gap:8,background:selected.includes(p.id)?"#FFF5E8":isLow?"#FFFBEB":"#fff"}}>
-            <input type="checkbox" checked={selected.includes(p.id)} onChange={()=>toggleSel(p.id)} />
+        {rows.map(r=>{
+          const isLow=r.stock<=minOf(r);
+          const p=r.prod;
+          return <div key={r.key} style={{display:"grid",gridTemplateColumns:"32px 2fr 1fr 1fr 1fr 80px",padding:"12px 16px",borderTop:"1px solid #dbe2f1",alignItems:"center",gap:8,background:selected.includes(r.key)?"#FFF5E8":isLow?"#FFFBEB":"#fff"}}>
+            <input type="checkbox" checked={selected.includes(r.key)} onChange={()=>toggleSel(r.key)} />
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{width:40,height:40,borderRadius:8,overflow:"hidden",background:"#f2f5fb",flexShrink:0}}>{p.img?<img src={p.img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",fontSize:18}}>📦</div>}</div>
-              <div><div style={{fontFamily:FONT_T,fontSize:13,color:"#0d142e"}}>{p.name}</div><div style={{fontFamily:FONT_B,fontSize:11,color:"#5f6c8f"}}>{p.category}</div></div>
+              <div style={{width:40,height:40,borderRadius:8,overflow:"hidden",background:"#f2f5fb",flexShrink:0}}>{r.img?<img src={r.img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",fontSize:18}}>📦</div>}</div>
+              <div><div style={{fontFamily:FONT_T,fontSize:13,color:"#0d142e"}}>{r.name}</div><div style={{fontFamily:FONT_B,fontSize:11,color:"#5f6c8f"}}>{r.cat}</div></div>
             </div>
-            <div style={{fontFamily:"monospace",fontSize:12,color:"#4a5573"}}>{p.sku||"—"}</div>
-            <div style={{fontFamily:"monospace",fontSize:15,fontWeight:700,color:isLow?"#EF4444":"#22C55E"}}>{p.stock}</div>
+            <div style={{fontFamily:"monospace",fontSize:12,color:"#4a5573"}}>{r.sku||"—"}</div>
+            <div style={{fontFamily:"monospace",fontSize:15,fontWeight:700,color:isLow?"#EF4444":"#22C55E"}}>{r.stock}</div>
             <div><input type="number" value={p.minStock||5} onChange={e=>{const v=Number(e.target.value);setProducts(prev=>prev.map(x=>x.id===p.id?{...x,minStock:v}:x));}} onBlur={async()=>{try{await upsertProduct(products.find(x=>x.id===p.id));}catch(e){alert("Lỗi cập nhật tồn tối thiểu: "+e.message);}}} style={{width:55,padding:"4px 8px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:"monospace",fontSize:13,textAlign:"center"}}/></div>
-            <button onClick={()=>{setAdj(p);setAdjAmt(0);}} style={{background:"#f2f5fb",color:brand.primary,border:"1px solid #dbe2f1",borderRadius:8,padding:"5px 10px",fontFamily:FONT_T,fontSize:11,cursor:"pointer"}}>+/−</button>
+            <button onClick={()=>{setAdj(r);setAdjAmt(0);}} style={{background:"#f2f5fb",color:brand.primary,border:"1px solid #dbe2f1",borderRadius:8,padding:"5px 10px",fontFamily:FONT_T,fontSize:11,cursor:"pointer"}}>+/−</button>
           </div>;
         })}
       </div>
@@ -1380,6 +1403,7 @@ export default function AdminPage() {
     ['orders','📋 Đơn hàng', pendingCount],
     ['inventory','📊 Tồn kho', null],
     ['products','📦 Sản phẩm', null],
+    ['combos','🧩 Combo', null],
     ['home','🏠 Trang chủ', null],
     ['brand','🎨 Thương hiệu', null],
     ['promo','🎟 Khuyến mãi', null],
@@ -1587,18 +1611,13 @@ function HBox({ title, children }) {
 
 
     const GROUPS = [
-      ['hero','Hero'], ['sp','Sản phẩm'], ['tm','Đánh giá'],
-      ['cb','Combo'],  ['ab','Giới thiệu'], ['txt','Chữ & nút'], ['pet','Mascot'],
+      ['hero','Đầu trang'], ['sp','Khu sản phẩm'], ['tm','Đánh giá'],
+      ['ab','Giới thiệu'], ['txt','Chữ & nút'], ['pet','Mascot'],
     ];
 
     return (
       <div style={{ maxWidth:640 }}>
-        <SectionHeader title="🏠 Trang chủ — toàn bộ nội dung" />
-        <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:14,lineHeight:1.7 }}>
-          Mọi chữ, ảnh, giá hiển thị trên trang chủ đều sửa ở đây. Lưu vào <b>key &quot;home&quot;</b> —
-          đúng nơi trang chủ đọc. Để trống ô nào thì dùng mặc định.
-        </div>
-
+        <SectionHeader title="🏠 Trang chủ" hint="Chữ, ảnh và nút hiển thị trên trang chủ. Chọn nhóm bên dưới để tới đúng phần cần sửa." />
         <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:16 }}>
           {GROUPS.map(([k,l])=>(
             <button key={k} onClick={()=>setGrp(k)} style={{ padding:"7px 15px",borderRadius:999,
@@ -1664,7 +1683,7 @@ function HBox({ title, children }) {
         </>)}
 
         {grp==='sp' && (<>
-          <Field label="Kicker" value={h.spKicker||''} onChange={v=>set('spKicker',v)} span="full" />
+          <Field label="Dòng nhỏ phía trên tiêu đề" value={h.spKicker||''} onChange={v=>set('spKicker',v)} span="full" />
           <Field label="Tiêu đề mục" value={h.spTitle||''} onChange={v=>set('spTitle',v)} span="full" />
           <Field label="Mô tả mục" value={h.spSub||''} onChange={v=>set('spSub',v)} span="full" />
 
@@ -1674,15 +1693,12 @@ function HBox({ title, children }) {
           <HBox title="🧩 Nhóm combo A/B/C (thanh tiêu đề + nhãn)">
             <Field label='Chữ nhãn thẻ nổi bật (mặc định "Best choice" — đổi được, VD "Đáng mua nhất")' value={h.bestChoiceLabel||''} onChange={v=>set('bestChoiceLabel',v)} span="full" />
             <Field label='Tên thẻ tự sinh khi SP có phân loại mùi/màu (mặc định "Chai lẻ")' value={h.autoCardName||''} onChange={v=>set('autoCardName',v)} span="full" />
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
-              <Field label="Đậm hoạ tiết icon mùi (0 = tắt, gợi ý 0.14)" value={h.scentPatternOpacity ?? 0.14} type="number" onChange={v=>set('scentPatternOpacity',Number(v))} />
-              <Field label="Đậm hoạ tiết monogram nền tối (0 = tắt, gợi ý 0.055)" value={h.mistyPatternOpacity ?? 0.055} type="number" onChange={v=>set('mistyPatternOpacity',Number(v))} />
-            </div>
+
             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
               <Field label="Tiêu đề nhóm Misty" value={h.mfHeading||''} onChange={v=>set('mfHeading',v)} />
-              <Field label="Kicker nhóm Misty (trống = ẩn)" value={h.mfHeadKicker||''} onChange={v=>set('mfHeadKicker',v)} />
+              <Field label="Dòng nhỏ nhóm Misty (trống = ẩn)" value={h.mfHeadKicker||''} onChange={v=>set('mfHeadKicker',v)} />
               <Field label="Tiêu đề nhóm Waterless" value={h.wbsHeading||''} onChange={v=>set('wbsHeading',v)} />
-              <Field label="Kicker nhóm Waterless (trống = ẩn)" value={h.wbsHeadKicker||''} onChange={v=>set('wbsHeadKicker',v)} />
+              <Field label="Dòng nhỏ nhóm Waterless (trống = ẩn)" value={h.wbsHeadKicker||''} onChange={v=>set('wbsHeadKicker',v)} />
             </div>
             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:10 }}>
               <ImgUp current={h.mfHeadMascot||''} onUpload={v=>set('mfHeadMascot',v)} label="Mascot nhóm Misty"
@@ -1735,7 +1751,7 @@ function HBox({ title, children }) {
         </>)}
 
         {grp==='tm' && (<>
-          <Field label="Kicker" value={h.tmKicker||''} onChange={v=>set('tmKicker',v)} span="full" />
+          <Field label="Dòng nhỏ phía trên tiêu đề" value={h.tmKicker||''} onChange={v=>set('tmKicker',v)} span="full" />
           <Field label="Tiêu đề" value={h.tmTitle||''} onChange={v=>set('tmTitle',v)} span="full" />
           <HRows idKey="testimonials" value={h.testimonials} onChange={v=>set('testimonials',v)} label="💬 Đánh giá khách"
                 cols={[['who','Tên tài khoản'],['pet','Bé nhà ai'],['quote','Câu nói','full'],['embed','Link TikTok / video','full'],['thumb','Ảnh bìa','img']]}
@@ -1745,19 +1761,12 @@ function HBox({ title, children }) {
                 cols={[['n','Con số'],['l','Chú thích']]} blank={{n:'',l:''}} />
         </>)}
 
-        {grp==='cb' && (<>
-          <Field label="Kicker" value={h.cbKicker||''} onChange={v=>set('cbKicker',v)} span="full" />
-          <Field label="Tiêu đề" value={h.cbTitle||''} onChange={v=>set('cbTitle',v)} span="full" />
-          <Field label="Mô tả" value={h.cbSub||''} onChange={v=>set('cbSub',v)} span="full" />
-          <Field label="Chữ nút" value={h.cbBtn||''} onChange={v=>set('cbBtn',v)} span="full" />
-          <HRows idKey="comboTiers" value={h.comboTiers} onChange={v=>set('comboTiers',v)} label="📦 Các gói combo"
-                cols={[['key','Từ khoá khớp sản phẩm'],['flag','Nhãn nổi bật'],['image','Ảnh gói','img']]}
-                blank={{key:'',flag:'',best:false,image:'',items:[]}}
-                hint="Mỗi gói phải là 1 sản phẩm trong tab Sản phẩm (có giá + tồn kho). Ở đây chỉ khai báo gói nào khớp sản phẩm nào." />
-        </>)}
-
+        {/* v21.5: ĐÃ XOÁ nhóm "Khối gói riêng" (comboTiers) — trang chủ
+            không còn render khối này. Nó là hệ combo THỨ HAI: mỗi gói là 1
+            sản phẩm riêng, bán ra trừ products.stock mà KHÔNG biết BOM →
+            hai nguồn kho. Combo giờ chỉ có 1 nơi: tab 🧩 Combo. */}
         {grp==='ab' && (<>
-          <Field label="Kicker" value={h.abKicker||''} onChange={v=>set('abKicker',v)} span="full" />
+          <Field label="Dòng nhỏ phía trên tiêu đề" value={h.abKicker||''} onChange={v=>set('abKicker',v)} span="full" />
           <Field label="Tiêu đề" value={h.abTitle||''} onChange={v=>set('abTitle',v)} span="full" />
           <Field label="Đoạn 1" value={h.abBody1||''} onChange={v=>set('abBody1',v)} rows={3} span="full" />
           <Field label="Đoạn 2" value={h.abBody2||''} onChange={v=>set('abBody2',v)} rows={3} span="full" />
@@ -1872,14 +1881,51 @@ function HBox({ title, children }) {
   // ── Tab: Brand ──
   const TabBrand = () => {
     const [b,setB] = useState({...S.brand[0]});
+    /* v21.1: font lưu vào key 'home' (nơi trang chủ đọc), KHÔNG lưu
+       vào 'brand' — trang chủ không đọc key brand cho font. */
+    const [hb,setHbState] = useState({...(S.home[0]||{})});
+    const setHb = (k,v) => setHbState(x=>({...x,[k]:v}));
     return (
       <div style={{ maxWidth:520 }}>
-        <SectionHeader title="🎨 Branding & Màu Sắc" />
+        <SectionHeader title="🎨 Thương hiệu" hint="Tên cửa hàng, logo và phông chữ dùng cho toàn website." />
         <div className="hh-admin-grid2" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:14 }}>
           <Field label="Tên thương hiệu" value={b.name}    onChange={v=>setB(x=>({...x,name:v}))} span="full" />
           <Field label="Khẩu hiệu"         value={b.tagline} onChange={v=>setB(x=>({...x,tagline:v}))} span="full" />
-          <Field label="Màu chính"       value={b.primary}   onChange={v=>setB(x=>({...x,primary:v}))}   type="color" />
-          <Field label="Màu phụ (nhấn)"value={b.secondary} onChange={v=>setB(x=>({...x,secondary:v}))} type="color" />
+          <Field label="Màu nút trong trang quản trị" value={b.primary}   onChange={v=>setB(x=>({...x,primary:v}))}   type="color" />
+          <Field label="Màu phụ trong trang quản trị" value={b.secondary} onChange={v=>setB(x=>({...x,secondary:v}))} type="color" />
+        </div>
+        <div style={{ fontFamily:FONT_B,fontSize:11.5,color:"#8a93a8",marginTop:6,lineHeight:1.6 }}>
+          Hai màu này chỉ đổi màu nút trong trang quản trị. Màu của website là navy cố định theo bộ nhận diện.
+        </div>
+
+        {/* v21.1: FONT TOÀN TRANG */}
+        <div style={{ marginTop:18,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
+          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:4 }}>🔠 Phông chữ website</div>
+          <div style={{ fontFamily:FONT_B,fontSize:11.5,color:"#5f6c8f",marginBottom:12,lineHeight:1.65 }}>
+            Áp cho toàn bộ website (trang chủ, chi tiết sản phẩm, giỏ hàng, thanh toán).
+            Bấm chọn bên dưới, hoặc gõ tên bất kỳ phông nào có trên Google Fonts — gõ đúng tên, phân biệt hoa thường.
+          </div>
+          {[['fontDisplay','Phông tiêu đề — tên sản phẩm, giá, nút'],
+            ['fontBody','Phông chữ chạy — mô tả, đoạn văn']].map(([key,lbl])=>(
+            <div key={key} style={{ marginBottom:14 }}>
+              <div style={{ fontFamily:FONT_T,fontSize:12,color:"#5f6c8f",marginBottom:6 }}>{lbl}</div>
+              <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:8 }}>
+                {['Nunito','Nunito Sans','Be Vietnam Pro','Quicksand','Baloo 2','Montserrat','Lexend','Poppins'].map(f=>{
+                  const on=(hb[key]||(key==='fontDisplay'?'Nunito':'Nunito Sans'))===f;
+                  return <button key={f} onClick={()=>setHb(key,f)} style={{ padding:"7px 14px",borderRadius:999,
+                    background:on?"#18284e":"#fff",color:on?"#fff":"#5f6c8f",
+                    border:"2px solid "+(on?"#18284e":"#dbe2f1"),fontFamily:FONT_T,fontWeight:700,fontSize:12,cursor:"pointer" }}>{f}</button>
+                })}
+              </div>
+              <Field label="hoặc gõ tên phông khác từ Google Fonts" value={hb[key]||''} onChange={v=>setHb(key,v)} span="full" placeholder={key==='fontDisplay'?'Nunito':'Nunito Sans'} />
+            </div>
+          ))}
+          <div style={{ background:"#fff",borderRadius:10,padding:14,border:"1px solid #dbe2f1" }}>
+            <div style={{ fontFamily:FONT_B,fontSize:10.5,color:"#8a93a8",marginBottom:6,letterSpacing:".06em" }}>XEM TRƯỚC</div>
+            <div style={{ fontFamily:`'${hb.fontDisplay||'Nunito'}',sans-serif`,fontWeight:900,fontSize:22,color:"#18284e",letterSpacing:"-.02em" }}>Chai xịt 250ml · 245.000đ</div>
+            <div style={{ fontFamily:`'${hb.fontBody||'Nunito Sans'}',sans-serif`,fontSize:13,color:"#5f6c8f",marginTop:5,lineHeight:1.6 }}>Xịt lên lông, 30 giây sau hết mùi, bé liếm phải vẫn an toàn.</div>
+            <div style={{ fontFamily:FONT_B,fontSize:10.5,color:"#8a93a8",marginTop:8 }}>Xem trước cần phông đã tải xong — mở website để thấy kết quả thật.</div>
+          </div>
         </div>
         <div style={{ marginTop:18 }}>
           <div style={{ fontFamily:FONT_T,fontSize:12,color:"#5f6c8f",marginBottom:8 }}>🖼 Logo cửa hàng (hiện ở đầu trang — để trống sẽ dùng icon HH mặc định)</div>
@@ -1898,12 +1944,132 @@ function HBox({ title, children }) {
             <div style={{ background:b.primary,color:"#fff",borderRadius:8,padding:"8px 16px",fontFamily:FONT_T,fontSize:13 }}>Nút chính</div>
           </div>
         </div>
-        <SaveBtn onSave={async ()=>{await setSupabaseConfig("brand", b); S.brand[1](b); flash();}} saved={saved} />
+        <SaveBtn onSave={async ()=>{
+          await setSupabaseConfig("brand", b); S.brand[1](b);
+          const merged={...(S.home[0]||{}),fontDisplay:hb.fontDisplay||'',fontBody:hb.fontBody||''};
+          await setSupabaseConfig("home", merged); S.home[1](merged);
+          flash();
+        }} saved={saved} />
       </div>
     );
   };
 
   // ── Tab: Products ──
+  /* ── v21.5: TAB COMBO RIÊNG ───────────────────────────────────────
+     Tách khỏi tab Sản phẩm: tab kia quản SKU đơn lẻ (thông tin, ảnh,
+     phân loại, kho), tab này CHỈ quản gói bán.
+     Kho combo KHÔNG nhập tay — khai BOM, trừ thẳng kho SKU (1 nguồn). */
+  const TabCombos = () => {
+    const [list,setList] = useState(S.products[0].map(x=>({...x})));
+    const [sel,setSel] = useState(list[0]?.id || null);
+    const [saving,setSaving] = useState(false);
+    const p = list.find(x=>x.id===sel);
+    const upd = (id,k,v) => setList(l=>l.map(x=>x.id===id?{...x,[k]:v}:x));
+    const stockOf = (c) => {
+      const bom = c.bom||[];
+      if(!bom.length) return null;
+      let m = Infinity;
+      for(const r of bom){
+        let st;
+        if(r.variantId==='*scent*') st = Math.min(...((p.variants||[]).map(v=>Number(v.stock)||0)), Infinity);
+        else if(r.variantId){ const v=(p.variants||[]).find(x=>x.id===r.variantId); st=v?Number(v.stock)||0:0; }
+        else st = Number(p.stock)||0;
+        m = Math.min(m, Math.floor(st/(Number(r.qty)||1)));
+      }
+      return m===Infinity?0:m;
+    };
+    return (
+      <div style={{ maxWidth:760 }}>
+        <SectionHeader title="🧩 Combo" hint="Gói bán hiện thành thẻ trong khu sản phẩm trang chủ. Thẻ đầu nhóm đã tự tạo từ tab Sản phẩm — ở đây chỉ thêm gói." />
+        <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:16 }}>
+          {list.map(x=>(
+            <button key={x.id} onClick={()=>setSel(x.id)} style={{ padding:"8px 16px",borderRadius:999,
+              background:sel===x.id?"#18284e":"#fff",color:sel===x.id?"#fff":"#5f6c8f",
+              border:"2px solid "+(sel===x.id?"#18284e":"#dbe2f1"),fontFamily:FONT_T,fontWeight:700,fontSize:12.5,cursor:"pointer" }}>
+              {x.name} {(x.combos||[]).length>0 && <span style={{ opacity:.7 }}>· {(x.combos||[]).length}</span>}
+            </button>
+          ))}
+        </div>
+        {!p ? <div style={{ fontFamily:FONT_B,fontSize:13,color:"#5f6c8f" }}>Chưa có sản phẩm nào. Thêm sản phẩm ở tab Sản phẩm trước.</div> : (
+        <>
+          <div style={{ background:"#f2f5fb",border:"1px solid #dbe2f1",borderRadius:12,padding:12,marginBottom:14 }}>
+            <div style={{ fontFamily:FONT_T,fontSize:12,color:"#18284e",marginBottom:6 }}>Kho hiện có của {p.name}</div>
+            <div style={{ display:"flex",gap:14,flexWrap:"wrap",fontFamily:FONT_B,fontSize:12,color:"#5f6c8f" }}>
+              {(p.variants||[]).length>0
+                ? (p.variants||[]).map(v=><span key={v.id}>{v.name||"(chưa tên)"}: <b style={{ color:"#18284e" }}>{v.stock||0}</b></span>)
+                : <span>Sản phẩm gốc: <b style={{ color:"#18284e" }}>{p.stock||0}</b></span>}
+            </div>
+          </div>
+          {/* ── v20: Combo A/B/C (CHIỀU DỮ LIỆU MỚI, tách khỏi Phân loại) ──
+              Phân loại của WBS vẫn là 5 MÙI — không đụng. Combo là gói bán
+              (chai lẻ / combo vừa / combo lớn) hiện thành 3 thẻ ở trang chủ. */}
+          <div style={{ marginTop:18,padding:16,background:"#fdf9ec",border:"2px dashed #e3ca22",borderRadius:14 }}>
+            <div style={{ fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",marginBottom:4 }}>🧩 Combo (khu sản phẩm trang chủ)</div>
+            <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12 }}>
+              Thẻ đầu nhóm ở trang chủ TỰ SINH từ sản phẩm gốc/phân loại — KHÔNG cần nhập lại chai lẻ ở đây.
+              Chỉ thêm các GÓI (combo đôi, set...). KHO KHÔNG NHẬP TAY: khai &quot;Gồm những món nào trong kho&quot; —
+              số còn bán được tự tính từ kho phân loại/SP gốc, bán combo trừ thẳng kho món con (1 nguồn duy nhất).
+              Combo tick 🎨 &quot;Cho khách chọn mùi&quot; thì thêm được dòng kho &quot;Mùi khách chọn&quot;.
+              Thẻ combo luôn nền navy và dùng đúng ảnh bạn up — không đổi màu theo mùi.
+            </div>
+            {(p.combos||[]).map((c,ci)=>(
+              <div key={c.id||ci} style={{ background:"#fff",border:"1px solid #dbe2f1",borderRadius:12,padding:12,marginBottom:10 }}>
+                <div style={{ display:"grid",gridTemplateColumns:"90px 1fr",gap:12 }}>
+                  <ImgUp current={c.img} onUpload={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],img:val};upd(p.id,"combos",nc);}} label="Ảnh" aspect="100%" folder="products" entityId={p.id+"_c"+ci} hint="VUÔNG 1:1 (VD 1100×1100). Nền thẻ combo là navy trơn — ảnh nên có nền sẵn hoặc PNG nền trong suốt." />
+                  <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
+                    <Field label='Tên combo (VD: "Combo Tiết Kiệm")' value={c.name||""} onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],name:val};upd(p.id,"combos",nc);}} span="full" />
+                    <Field label='Dòng nhỏ trên tên (VD: "Misty Fresh")' value={c.kicker||""} onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],kicker:val};upd(p.id,"combos",nc);}} span="full" />
+                    <Field label="Giá bán (₫)" value={c.price||0} type="number" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],price:Number(val)};upd(p.id,"combos",nc);}} />
+                    <Field label="Giá gốc (₫)" value={c.original||0} type="number" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],original:Number(val)};upd(p.id,"combos",nc);}} />
+                    <Field label="Trong combo có gì — CHỮ HIỂN THỊ trên thẻ (MỖI DÒNG 1 MÓN)" value={(c.items||[]).join("\n")} rows={3} span="full" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],items:val.split("\n")};upd(p.id,"combos",nc);}} placeholder={"1 Chai xịt 250ml\n1 Lõi refill 250ml"} />
+
+                    {/* ── BOM: kho 1 nguồn ── */}
+                    <div style={{ gridColumn:"1 / -1",background:"#f2f5fb",border:"1px solid #dbe2f1",borderRadius:10,padding:10 }}>
+                      <div style={{ fontFamily:FONT_T,fontSize:12,color:"#18284e",marginBottom:6 }}>📦 Gồm những món nào trong kho (bán 1 combo trừ đúng từng món)</div>
+                      {(c.bom||[]).map((b,bi)=>(
+                        <div key={bi} style={{ display:"flex",gap:8,alignItems:"center",marginBottom:6 }}>
+                          <select value={b.variantId||""} onChange={e=>{const nc=[...p.combos];const nb=[...(nc[ci].bom||[])];nb[bi]={...nb[bi],variantId:e.target.value};nc[ci]={...nc[ci],bom:nb};upd(p.id,"combos",nc);}} style={{ flex:1,padding:"7px 10px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13 }}>
+                            <option value="">— Sản phẩm gốc —</option>
+                            {(p.variants||[]).map(v=><option key={v.id} value={v.id}>{v.name||"(chưa tên)"} (kho {v.stock||0})</option>)}
+                            {c.scentPick && <option value="*scent*">🎨 Mùi khách chọn</option>}
+                          </select>
+                          <span style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f" }}>×</span>
+                          <input type="number" min={1} value={b.qty||1} onChange={e=>{const nc=[...p.combos];const nb=[...(nc[ci].bom||[])];nb[bi]={...nb[bi],qty:Number(e.target.value)||1};nc[ci]={...nc[ci],bom:nb};upd(p.id,"combos",nc);}} style={{ width:60,padding:"7px 8px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13,textAlign:"center" }} />
+                          <button onClick={()=>{const nc=[...p.combos];const nb=(nc[ci].bom||[]).filter((_,x)=>x!==bi);nc[ci]={...nc[ci],bom:nb};upd(p.id,"combos",nc);}} style={{ background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"6px 10px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>✕</button>
+                        </div>
+                      ))}
+                      <button onClick={()=>{const nc=[...p.combos];nc[ci]={...nc[ci],bom:[...(nc[ci].bom||[]),{variantId:(p.variants||[])[0]?.id||"",qty:1}]};upd(p.id,"combos",nc);}} style={{ background:"#fff",color:S.brand[0].primary,border:`2px solid ${S.brand[0].primary}`,borderRadius:8,padding:"6px 12px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ Thêm món</button>
+                      {(c.bom||[]).length===0 && <div style={{ fontFamily:FONT_B,fontSize:11,color:"#d64545",marginTop:6 }}>⚠️ Chưa khai món nào — combo sẽ hiện HẾT HÀNG cho tới khi thêm món.</div>}
+                    </div>
+
+                    <label style={{ display:"flex",alignItems:"center",gap:7,fontFamily:FONT_T,fontSize:12.5,cursor:"pointer" }}>
+                      <input type="checkbox" checked={!!c.best} onChange={e=>{const nc=[...p.combos];nc[ci]={...nc[ci],best:e.target.checked};upd(p.id,"combos",nc);}} />
+                      ⭐ Best choice (viên vàng góc ảnh)
+                    </label>
+                    <label style={{ display:"flex",alignItems:"center",gap:7,fontFamily:FONT_T,fontSize:12.5,cursor:"pointer" }}>
+                      <input type="checkbox" checked={!!c.scentPick} onChange={e=>{const nc=[...p.combos];nc[ci]={...nc[ci],scentPick:e.target.checked};upd(p.id,"combos",nc);}} />
+                      🎨 Cho khách chọn mùi (chỉ để trừ đúng kho mùi — nền thẻ vẫn navy, ảnh dùng ảnh bạn up)
+                    </label>
+                    <button onClick={()=>{const nc=p.combos.filter((_,x)=>x!==ci);upd(p.id,"combos",nc);}} style={{ gridColumn:"1 / -1",background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"8px 0",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>✕ Xóa combo</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button onClick={()=>{const nc=[...(p.combos||[]),{id:"c_"+uid(),name:"",kicker:"",items:[],price:p.price||0,original:p.original||0,stock:0,best:false,scentPick:false,img:"",bom:[]}];upd(p.id,"combos",nc);}} style={{ background:"#fff",color:S.brand[0].primary,border:`2px solid ${S.brand[0].primary}`,borderRadius:10,padding:"9px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ Thêm combo</button>
+          </div>
+          <div style={{ display:"flex",gap:10,marginTop:16 }}>
+            <button disabled={saving} onClick={async()=>{
+              setSaving(true);
+              try{ await upsertProduct(p); S.products[1](list); }
+              catch(e){ alert("Lỗi khi lưu: "+e.message); }
+              finally{ setSaving(false); }
+            }} style={{ background:S.brand[0].primary,color:"#fff",border:"none",borderRadius:10,padding:"11px 26px",fontFamily:FONT_T,fontSize:13,cursor:"pointer",opacity:saving?.6:1 }}>{saving?"Đang lưu...":"Lưu combo"}</button>
+          </div>
+        </>)}
+      </div>
+    );
+  }
+
   const TabProducts = () => {
     const cats = S.categories[0];
     const [list,setList] = useState([...S.products[0]]);
@@ -2129,62 +2295,10 @@ function HBox({ title, children }) {
             <button onClick={()=>{const nv=[...(p.variants||[]),{id:"v_"+uid(),name:"",price:p.price||0,original:p.original||0,stock:0,img:""}];upd(p.id,"variants",nv);}} style={{ background:"#fff",color:S.brand[0].primary,border:`2px solid ${S.brand[0].primary}`,borderRadius:10,padding:"9px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ Thêm phân loại</button>
           </div>
 
-          {/* ── v20: Combo A/B/C (CHIỀU DỮ LIỆU MỚI, tách khỏi Phân loại) ──
-              Phân loại của WBS vẫn là 5 MÙI — không đụng. Combo là gói bán
-              (chai lẻ / combo vừa / combo lớn) hiện thành 3 thẻ ở trang chủ. */}
-          <div style={{ marginTop:18,padding:16,background:"#fdf9ec",border:"2px dashed #e3ca22",borderRadius:14 }}>
-            <div style={{ fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",marginBottom:4 }}>🧩 Combo (khu sản phẩm trang chủ)</div>
-            <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12 }}>
-              Thẻ đầu nhóm ở trang chủ TỰ SINH từ sản phẩm gốc/phân loại — KHÔNG cần nhập lại chai lẻ ở đây.
-              Chỉ thêm các GÓI (combo đôi, set...). KHO KHÔNG NHẬP TAY: khai &quot;Gồm những món nào trong kho&quot; —
-              số còn bán được tự tính từ kho phân loại/SP gốc, bán combo trừ thẳng kho món con (1 nguồn duy nhất).
-              Combo tick 🎨 &quot;Cho chọn mùi&quot; có thể thêm dòng kho &quot;Mùi khách chọn&quot;.
-            </div>
-            {(p.combos||[]).map((c,ci)=>(
-              <div key={c.id||ci} style={{ background:"#fff",border:"1px solid #dbe2f1",borderRadius:12,padding:12,marginBottom:10 }}>
-                <div style={{ display:"grid",gridTemplateColumns:"90px 1fr",gap:12 }}>
-                  <ImgUp current={c.img} onUpload={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],img:val};upd(p.id,"combos",nc);}} label="Ảnh" aspect="100%" folder="products" entityId={p.id+"_c"+ci} hint="VUÔNG 1:1 (VD 1100×1100) — phủ kín khung thẻ trang chủ" />
-                  <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
-                    <Field label='Tên combo (VD: "Combo Tiết Kiệm")' value={c.name||""} onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],name:val};upd(p.id,"combos",nc);}} span="full" />
-                    <Field label='Kicker (dòng nhỏ trên tên — VD: "Misty Fresh")' value={c.kicker||""} onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],kicker:val};upd(p.id,"combos",nc);}} span="full" />
-                    <Field label="Giá bán (₫)" value={c.price||0} type="number" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],price:Number(val)};upd(p.id,"combos",nc);}} />
-                    <Field label="Giá gốc (₫)" value={c.original||0} type="number" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],original:Number(val)};upd(p.id,"combos",nc);}} />
-                    <Field label="Trong combo có gì — CHỮ HIỂN THỊ trên thẻ (MỖI DÒNG 1 MÓN)" value={(c.items||[]).join("\n")} rows={3} span="full" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],items:val.split("\n")};upd(p.id,"combos",nc);}} placeholder={"1 Chai xịt 250ml\n1 Lõi refill 250ml"} />
+          {/* v21.5: Ô combo ĐÃ CHUYỂN sang tab riêng "🧩 Combo" —
+              tab này giờ chỉ quản SKU đơn lẻ (thông tin + phân loại + kho).
+              Tách để không lẫn 2 việc khác nhau trong 1 màn hình dài. */}
 
-                    {/* ── BOM: kho 1 nguồn ── */}
-                    <div style={{ gridColumn:"1 / -1",background:"#f2f5fb",border:"1px solid #dbe2f1",borderRadius:10,padding:10 }}>
-                      <div style={{ fontFamily:FONT_T,fontSize:12,color:"#18284e",marginBottom:6 }}>📦 Gồm những món nào trong kho (bán 1 combo trừ đúng từng món)</div>
-                      {(c.bom||[]).map((b,bi)=>(
-                        <div key={bi} style={{ display:"flex",gap:8,alignItems:"center",marginBottom:6 }}>
-                          <select value={b.variantId||""} onChange={e=>{const nc=[...p.combos];const nb=[...(nc[ci].bom||[])];nb[bi]={...nb[bi],variantId:e.target.value};nc[ci]={...nc[ci],bom:nb};upd(p.id,"combos",nc);}} style={{ flex:1,padding:"7px 10px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13 }}>
-                            <option value="">— Sản phẩm gốc —</option>
-                            {(p.variants||[]).map(v=><option key={v.id} value={v.id}>{v.name||"(chưa tên)"} (kho {v.stock||0})</option>)}
-                            {c.scentPick && <option value="*scent*">🎨 Mùi khách chọn</option>}
-                          </select>
-                          <span style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f" }}>×</span>
-                          <input type="number" min={1} value={b.qty||1} onChange={e=>{const nc=[...p.combos];const nb=[...(nc[ci].bom||[])];nb[bi]={...nb[bi],qty:Number(e.target.value)||1};nc[ci]={...nc[ci],bom:nb};upd(p.id,"combos",nc);}} style={{ width:60,padding:"7px 8px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13,textAlign:"center" }} />
-                          <button onClick={()=>{const nc=[...p.combos];const nb=(nc[ci].bom||[]).filter((_,x)=>x!==bi);nc[ci]={...nc[ci],bom:nb};upd(p.id,"combos",nc);}} style={{ background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"6px 10px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>✕</button>
-                        </div>
-                      ))}
-                      <button onClick={()=>{const nc=[...p.combos];nc[ci]={...nc[ci],bom:[...(nc[ci].bom||[]),{variantId:(p.variants||[])[0]?.id||"",qty:1}]};upd(p.id,"combos",nc);}} style={{ background:"#fff",color:S.brand[0].primary,border:`2px solid ${S.brand[0].primary}`,borderRadius:8,padding:"6px 12px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ Thêm món</button>
-                      {(c.bom||[]).length===0 && <div style={{ fontFamily:FONT_B,fontSize:11,color:"#d64545",marginTop:6 }}>⚠️ Chưa khai món nào — combo sẽ hiện HẾT HÀNG cho tới khi thêm món.</div>}
-                    </div>
-
-                    <label style={{ display:"flex",alignItems:"center",gap:7,fontFamily:FONT_T,fontSize:12.5,cursor:"pointer" }}>
-                      <input type="checkbox" checked={!!c.best} onChange={e=>{const nc=[...p.combos];nc[ci]={...nc[ci],best:e.target.checked};upd(p.id,"combos",nc);}} />
-                      ⭐ Best choice (viên vàng góc ảnh)
-                    </label>
-                    <label style={{ display:"flex",alignItems:"center",gap:7,fontFamily:FONT_T,fontSize:12.5,cursor:"pointer" }}>
-                      <input type="checkbox" checked={!!c.scentPick} onChange={e=>{const nc=[...p.combos];nc[ci]={...nc[ci],scentPick:e.target.checked};upd(p.id,"combos",nc);}} />
-                      🎨 Cho chọn mùi (SP có phân loại mùi/màu)
-                    </label>
-                    <button onClick={()=>{const nc=p.combos.filter((_,x)=>x!==ci);upd(p.id,"combos",nc);}} style={{ gridColumn:"1 / -1",background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"8px 0",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>✕ Xóa combo</button>
-                  </div>
-                </div>
-              </div>
-            ))}
-            <button onClick={()=>{const nc=[...(p.combos||[]),{id:"c_"+uid(),name:"",kicker:"",items:[],price:p.price||0,original:p.original||0,stock:0,best:false,scentPick:false,img:"",bom:[]}];upd(p.id,"combos",nc);}} style={{ background:"#fff",color:S.brand[0].primary,border:`2px solid ${S.brand[0].primary}`,borderRadius:10,padding:"9px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ Thêm combo</button>
-          </div>
           <div style={{ marginTop:12,display:"flex",alignItems:"center",gap:12 }}>
             <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer" }}>
               <input type="checkbox" checked={p.flashSale||false} onChange={e=>upd(p.id,"flashSale",e.target.checked)} />
@@ -2235,7 +2349,7 @@ function HBox({ title, children }) {
     }
     return (
       <div>
-        <SectionHeader title="📦 Sản Phẩm"><AddBtn onClick={()=>{const np={id:"new_"+uid(),name:"Sản Phẩm Mới",price:100000,original:130000,category:cats[0]||"Đồ ăn",rating:4.5,stock:10,flashSale:false,flashEnd:0,tags:"",story:"",img:"",reviews:[]};setList(l=>[...l,np]);setEditing(np.id);}} label="Thêm Sản Phẩm" /></SectionHeader>
+        <SectionHeader title="📦 Sản phẩm" hint="Ảnh, giá, kho và combo. Trang chủ tự tạo thẻ từ đây — không cần nhập lại."><AddBtn onClick={()=>{const np={id:"new_"+uid(),name:"Sản Phẩm Mới",price:100000,original:130000,category:cats[0]||"Đồ ăn",rating:4.5,stock:10,flashSale:false,flashEnd:0,tags:"",story:"",img:"",reviews:[]};setList(l=>[...l,np]);setEditing(np.id);}} label="Thêm Sản Phẩm" /></SectionHeader>
 
         <div style={{ background:"#f2f5fb",border:"2px dashed #dbe2f1",borderRadius:14,padding:16,marginBottom:18 }}>
           <div style={{ fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",marginBottom:10 }}>📊 Nhập hàng loạt qua CSV / Excel</div>
@@ -2303,7 +2417,7 @@ function HBox({ title, children }) {
     const [err,setErr]=useState(null);
     return (
       <div style={{ maxWidth:400 }}>
-        <SectionHeader title="🏷 Categories Sản Phẩm" />
+        <SectionHeader title="🏷 Danh mục" hint="Danh sách nhóm hàng để gán cho sản phẩm khi thêm mới." />
         <div style={{ display:"flex",gap:8,marginBottom:16 }}>
           <input value={newCat} onChange={e=>setNewCat(e.target.value)} placeholder="Tên danh mục mới..." style={{ flex:1,padding:"9px 12px",borderRadius:10,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13 }} />
           <PrimaryBtn onClick={()=>{if(newCat.trim()&&!list.includes(newCat.trim())){setList(l=>[...l,newCat.trim()]);setNewCat("");}}} label="+ Thêm" />
@@ -2346,7 +2460,7 @@ function HBox({ title, children }) {
     if (loading) return <div style={{ fontFamily:FONT_B,fontSize:13,color:'#5f6c8f',padding:'20px 0' }}>⏳ Đang tải mã giảm giá...</div>;
     return (
       <div style={{ maxWidth:480 }}>
-        <SectionHeader title="🎟 Mã Giảm Giá"><AddBtn onClick={()=>setList(l=>[...l,{id:'new_'+uid(),code:"CODE"+Math.floor(Math.random()*100),pct:10}])} label="Thêm mã" /></SectionHeader>
+        <SectionHeader title="🎟 Mã giảm giá" hint="Khách nhập mã ở bước thanh toán để được trừ theo phần trăm."><AddBtn onClick={()=>setList(l=>[...l,{id:'new_'+uid(),code:"CODE"+Math.floor(Math.random()*100),pct:10}])} label="Thêm mã" /></SectionHeader>
         <div style={{ fontFamily:FONT_B,fontSize:11,color:'#5f6c8f',marginBottom:12,background:'#f0fdf4',border:'1px solid #86efac',borderRadius:8,padding:'8px 12px' }}>🔒 Mã giảm giá giờ được lưu riêng tư — khách không đọc trộm được qua API nữa.</div>
         {loadErr&&<div style={{ marginBottom:12,padding:'8px 12px',borderRadius:8,fontFamily:FONT_B,fontSize:12,background:'#fdeeee',color:'#d64545',border:'1px solid #f0c4c4' }}>❌ {loadErr}</div>}
         {list.map(v=>(
@@ -2411,6 +2525,7 @@ function HBox({ title, children }) {
         {tab==='orders'     && <TabOrders S={S} />}
         {tab==='inventory'  && <TabInventory S={S} />}
         {tab==='products'   && <TabProducts />}
+        {tab==='combos'     && <TabCombos />}
 
         {tab==='home'  && <TabHome />}
 

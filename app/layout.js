@@ -33,6 +33,12 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
         <style>{`
+          /* v21.1: biến font MẶC ĐỊNH cho MỌI trang. Trang chủ ghi đè
+             bằng font chọn trong admin (component Styles). Các trang
+             phụ (giỏ, thanh toán, chi tiết SP) dùng giá trị này —
+             không hardcode 'Nunito' nữa. */
+          :root{--f-display:'Nunito',system-ui,sans-serif;
+                --f-body:'Nunito Sans',system-ui,sans-serif}
           *{-webkit-tap-highlight-color:transparent}
           html,body{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
           button,a,[role="button"]{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
