@@ -503,25 +503,10 @@ export default function Home() {
   const wbsRowRef = useRef(null);  /* v20: hàng thẻ combo WBS */
   const { add, openDrawer, count } = useCart();
 
-  /* v21.1: nạp file font từ Google khi admin đổi font. Không nạp thì
-     đổi tên font trong admin sẽ không hiện gì (trình duyệt không có
-     file). Thẻ <link> cũ được gỡ trước khi chèn cái mới. Font mặc
-     định Nunito/Nunito Sans đã nạp sẵn ở layout.js nên bỏ qua. */
-  useEffect(() => {
-    const fams = [S.fontDisplay, S.fontBody]
-      .filter(f => f && !['Nunito', 'Nunito Sans'].includes(f));
-    const el = document.getElementById('hp-dyn-font');
-    if (el) el.remove();
-    if (!fams.length) return;
-    const q = [...new Set(fams)]
-      .map(f => 'family=' + encodeURIComponent(f) + ':wght@400;600;700;800;900')
-      .join('&');
-    const link = document.createElement('link');
-    link.id = 'hp-dyn-font';
-    link.rel = 'stylesheet';
-    link.href = `https://fonts.googleapis.com/css2?${q}&display=swap`;
-    document.head.appendChild(link);
-  }, [S.fontDisplay, S.fontBody]);
+  /* v22: bộ nạp phông đã chuyển sang app/_components/FontVars.js gắn
+     trong layout.js — chạy cho MỌI trang, không riêng trang chủ.
+     ĐỪNG thêm lại bộ nạp ở đây: hai chỗ cùng quản thẻ <link> id
+     'hp-dyn-font' sẽ gỡ của nhau, gây nháy phông lúc tải. */
 
   /* nạp config từ Supabase */
   useEffect(() => {
@@ -999,9 +984,13 @@ function Styles({ fd, fb }) {
       :root{--f-display:'${fd || 'Nunito'}',system-ui,sans-serif;
             --f-body:'${fb || 'Nunito Sans'}',system-ui,sans-serif}
 /* v21.1: FONT ĐỔI ĐƯỢC TỪ ADMIN. Mọi chỗ dùng var(--f-display)/
-   var(--f-body) — KHÔNG hardcode tên font nữa (trước có 28 chỗ). */
-:root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440;--nav-h:78px;
-  --f-display:'Nunito',system-ui,sans-serif;--f-body:'Nunito Sans',system-ui,sans-serif}
+   var(--f-body) — KHÔNG hardcode tên font nữa (trước có 28 chỗ).
+   v22 SỬA LỖI: khối :root dưới đây TỪNG khai lại --f-display:'Nunito'
+   và --f-body:'Nunito Sans'. Hai khối :root cùng cấp, khối sau thắng
+   → font chọn trong admin luôn bị kéo về Nunito. Đã xoá hai dòng đó.
+   ĐỪNG THÊM LẠI. Giá trị mặc định đã có sẵn ở dòng fd || 'Nunito'
+   ngay trên, và ở layout.js cho các trang phụ. */
+:root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440;--nav-h:78px}
 *{box-sizing:border-box;margin:0;padding:0}
 /* Nền mép: navy ở trên (dưới hero), kem ở dưới — không để lộ dải trắng
    khi màn hình rất rộng hoặc khi cuộn quá đà (overscroll). */

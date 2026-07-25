@@ -1,5 +1,6 @@
 import { CartProvider } from '../lib/cart';
 import CartDrawer from './_components/CartDrawer';
+import FontVars from './_components/FontVars';
 
 export const metadata = {
   title: 'Hanapet — Xịt khử mùi & tắm khô cho thú cưng',
@@ -45,6 +46,7 @@ export default function RootLayout({ children }) {
         `}</style>
       </head>
       <body style={{ margin: 0, padding: 0 }}>
+        <FontVars />
         <CartProvider>
           {children}
           <CartDrawer />
