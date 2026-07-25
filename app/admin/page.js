@@ -6,7 +6,7 @@ import {
   supabase, adminSignOut,
   getProducts, upsertProduct, deleteProduct, updateProductStock, saveProductOrder,
   getOrders, updateOrderDB, restockOrder,
-  getAllConfigs, setConfig as setSupabaseConfig,
+  getAllConfigs, setConfig as setSupabaseConfig, mergeConfig,
   getCategories, saveCategories, getVouchers, saveVouchers,
   addSubscriber,
 } from '../../lib/supabase'
@@ -1870,8 +1870,10 @@ function HBox({ title, children }) {
               .map(x => (typeof x === 'string' ? x : x?.src))
               .filter(Boolean);
           }
-          await setSupabaseConfig('home', clean);
-          S.home[1](clean);
+          /* v22: merge thay vì đè — giữ nguyên fontDisplay/fontBody mà
+             tab Thương hiệu đã ghi, và mọi field không thuộc tab này. */
+          const merged = await mergeConfig('home', clean);
+          S.home[1](merged);
           flash();
         }} />
       </div>
@@ -1946,8 +1948,14 @@ function HBox({ title, children }) {
         </div>
         <SaveBtn onSave={async ()=>{
           await setSupabaseConfig("brand", b); S.brand[1](b);
-          const merged={...(S.home[0]||{}),fontDisplay:hb.fontDisplay||'',fontBody:hb.fontBody||''};
-          await setSupabaseConfig("home", merged); S.home[1](merged);
+          /* v22: chỉ ghi ĐÚNG 2 field font, merge vào bản home mới nhất
+             trong DB — không đè cả cục 'home' bằng snapshot cũ (trước đây
+             chính đây làm font lưu xong lại mất khi tab Trang chủ ghi sau). */
+          const merged = await mergeConfig("home", {
+            fontDisplay: hb.fontDisplay || '',
+            fontBody:    hb.fontBody    || '',
+          });
+          S.home[1](merged);
           flash();
         }} saved={saved} />
       </div>
