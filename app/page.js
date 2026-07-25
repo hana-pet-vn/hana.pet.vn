@@ -1,1523 +1,2547 @@
-'use client';
+'use client'
+// app/admin/page.js — Full-screen admin dashboard with all CMS controls
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  supabase, adminSignOut,
+  getProducts, upsertProduct, deleteProduct, updateProductStock, saveProductOrder,
+  getOrders, updateOrderDB, restockOrder,
+  getAllConfigs, setConfig as setSupabaseConfig, mergeConfig,
+  getCategories, saveCategories, getVouchers, saveVouchers,
+  addSubscriber,
+} from '../../lib/supabase'
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js';
-import { useCart, vnd } from '../lib/cart';
-import { fetchProducts, matchProduct } from '../lib/catalog';
-import ProductModal from './_components/ProductModal';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+const FONT_T = "'Baloo 2','Be Vietnam Pro','Segoe UI',sans-serif"
+const FONT_B = "'Be Vietnam Pro','Segoe UI',sans-serif"
+const PRIMARY_DEFAULT = '#1b295b'
 
 
-/* ============================================================
-   NOI KEY CU  ->  KEY TRANG CHU
-   Admin dang ghi vao nhieu key rieng (brand, about, footer,
-   trustBar, socials...) tu thoi trang chu CU. Trang chu moi doc
-   key 'home'. Ham nay DICH cac key cu sang ten truong trang chu
-   dung, de moi tab admin cu VAN chay, khong phai viet lai admin.
-
-   Thu tu uu tien:  DEFAULTS  <  key cu  <  key 'home'
-   -> Sua o tab "Trang chu" luon thang the, khong bao gio bi key cu de len.
-   ============================================================ */
-function bridgeLegacy(cfg) {
-  const out = {};
-  const put = (k, v) => { if (v !== undefined && v !== null && v !== '') out[k] = v; };
-
-  const brand = cfg.brand || {};
-  put('brandName', brand.name);
-  put('logo',      brand.logoImg);
-
-  /* Tab Hero cu: heroTitle 1 dong -> trang chu tach 2 dong.
-     Co dau phay thi cat sau dau phay, khong thi de ca cum o dong 1. */
-  put('heroEyebrow', brand.heroEyebrow);
-  if (brand.heroTitle) {
-    const i = String(brand.heroTitle).indexOf(',');
-    if (i > 0) {
-      put('heroTitle1', brand.heroTitle.slice(0, i + 1).trim());
-      put('heroTitle2', brand.heroTitle.slice(i + 1).trim());
-    } else {
-      put('heroTitle1', brand.heroTitle);
-      put('heroTitle2', '');
-    }
-  }
-  put('heroSupport',     brand.heroSub);
-  put('heroBtn1',        brand.heroBtn1);
-  put('heroImage',       brand.heroImg1);
-  put('heroRefillImage', brand.heroImg2);
-  put('heroVideo',       brand.heroVideo);
-  put('labelCart',       brand.labelAddCart);
-  put('labelDetail',     brand.labelDetail);
-  put('mfBadge',         brand.labelMisty);
-  put('wbsBadge',        brand.labelWbs);
-
-  const about = cfg.about || {};
-  put('abTitle', about.heading);
-  put('abBody1', about.body);
-  put('abImage', about.img);
-
-  const footer = cfg.footer || {};
-  put('footerText', footer.tagline2);
-
-  /* Trust bar cu la [{title, sub, icon}] -> thanh tin cay [{icon, t}] */
-  const tb = cfg.trustBar ?? cfg.trustbar;
-  if (Array.isArray(tb) && tb.length) {
-    out.heroTrust = tb.map(x => ({ icon: x.icon || 'check', t: x.title || x.sub || '' }))
-                      .filter(x => x.t);
-  }
-  return out;
+// ─── STORAGE — backed by Supabase ────────────────────────────────────────────
+// usePersist still works for local-only UI state. Categories are now saved to Supabase (see TabCats).
+// Main data (products, orders, configs) load from Supabase in App
+function usePersist(key, def) {
+  const [v, setV]   = useState(def);
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) setV(JSON.parse(raw));
+    } catch(_) {}
+    setOk(true);
+  }, [key]);
+  const save = useCallback((next) => {
+    const val = typeof next === "function" ? next(v) : next;
+    setV(val);
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch(_) {}
+  }, [key, v]);
+  return [v, save, ok];
 }
 
-/* ============================================================
-   DEFAULTS — chỉ dùng khi Supabase chưa có dữ liệu.
-   Admin panel ghi vào site_config (key='home') sẽ ghi đè hết.
-   ============================================================ */
-const DEFAULTS = {
-  brandName: 'Hanapet',
-  logo: '/logo.png',
-  navShop: 'Cửa hàng',
-  navAbout: 'Về Hanapet',
-  navCart: 'Giỏ hàng',
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+const fmt = n => n.toLocaleString("en-GB") + "đ";
+const pct = (p,o) => Math.round((1-p/o)*100);
+const uid = () => Math.random().toString(36).slice(2,8);
 
-  heroEyebrow: 'Misty Fresh · Xịt khử mùi HOCl',
-  heroTitle1: 'Khử mùi,',
-  heroTitle2: 'khử lo âu.',
-  heroSupport: 'Sạch mùi sau 30 giây!',
-  heroBenefits: [
-    'An toàn kể cả khi bé liếm phải',
-    'Xịt xong là xong — không cần lau, không cần tắm lại',
-    'Diệt vi khuẩn gây mùi, không phủ mùi',
-  ],
-  // Nút CTA hero: chữ ghép với giá thật lấy từ bảng products.
-  // {gia} sẽ được thay bằng giá rẻ nhất của sản phẩm chủ lực.
-  heroBtn1: 'Mua Misty Fresh — {gia}',
-  heroBtn1Link: '#sp',
-  heroMicro: 'Giao Hà Nội trong 24h · Đổi trả 7 ngày',
-  heroImage: '',
-  heroSkuName: 'Misty Fresh',
-  heroVideo: '',
-  heroShowVideo: false,
-  // Ảnh nền cả khối hero. Bỏ trống = nền navy trơn như cũ.
-  pmFullPage: 'Xem trang đầy đủ',
-  heroBg: '',
-  // Độ đậm lớp phủ navy trên ảnh nền (0-1). Cao hơn = chữ dễ đọc hơn.
-  heroBgDim: 0.72,
-  // Ảnh lõi refill nép sau chai chính trong hero. Bỏ trống = ẩn.
-  heroRefillImage: '',
-  // Bố cục kéo-thả từ admin: {main:{l,w}, refill:{l,w}} theo %.
-  heroLayout: null,
-  // Thanh tin cậy dưới hero. icon dùng tên Tabler (ti-truck...), bỏ trống = ẩn cả thanh.
-  heroTrust: [
-    { icon: 'truck',         t: 'Giao Hà Nội 24h' },
-    { icon: 'shield-check',  t: 'Không cồn, không paraben' },
-    { icon: 'refresh',       t: 'Đổi trả 7 ngày' },
-    { icon: 'star',          t: '4.9/5 trên Shopee' },
-  ],
+function useCountdown(end) {
+  const [t,setT] = useState(Math.max(0,end-Date.now()));
+  useEffect(()=>{ const iv=setInterval(()=>setT(Math.max(0,end-Date.now())),1000); return()=>clearInterval(iv); },[end]);
+  return { h:String(Math.floor(t/3600000)).padStart(2,"0"), m:String(Math.floor((t%3600000)/60000)).padStart(2,"0"), s:String(Math.floor((t%60000)/1000)).padStart(2,"0") };
+}
 
-  spKicker: 'Cửa hàng',
-  spTitle: 'Chọn loại phù hợp với bé',
-  spSub: 'Giá đổi theo lựa chọn — không cần mở thêm trang.',
-
-  /* v20: khu SP = combo A/B/C. Tiêu đề nhóm + mascot sửa trong admin
-     (tab Trang chủ → Sản phẩm). Mascot BẮT BUỘC nằm ổ tròn trắng trên
-     navy (pet nâu trên navy tương phản 1.09 = tàng hình, mục 2.2 V19). */
-  /* v21.1: FONT TOÀN TRANG — đổi trong admin (tab Thương hiệu).
-     fontDisplay = tiêu đề/giá/nút; fontBody = chữ chạy.
-     Tên phải đúng như trên Google Fonts (VD 'Be Vietnam Pro'). */
-  fontDisplay: 'Nunito',
-  fontBody: 'Nunito Sans',
-
-  bestChoiceLabel: 'Best choice',
-  /* Tên thẻ tự sinh khi SP có phân loại mùi/màu (VD chai lẻ WBS) */
-  autoCardName: 'Chai lẻ',
-  mfHeading:    'Khử mùi an toàn cho thú cưng',
-  mfHeadKicker: 'Sạch khuẩn · khử mùi',
-  mfHeadMascot: '/mascots/pet-01.png',
-  wbsHeading:    'Spa bỏ túi',
-  wbsHeadKicker: 'Thơm tho · nâng niu',
-  wbsHeadMascot: '/mascots/pet-09.png',
-
-  // mfKey: khớp với sản phẩm trong bảng products (theo tên hoặc mã SP).
-  // Giá, giá gốc, tồn kho, danh sách phân loại → LẤY TỪ ADMIN, không ghi ở đây.
-  mfKey: 'misty',
-  mfBadge: 'Bán chạy nhất',
-  mfName: 'Misty Fresh — Xịt khử mùi HOCl',
-  mfDesc: 'HOCl là chất cơ thể tự tạo ra để diệt khuẩn. Xịt lên lông, 30 giây sau hết mùi, bé liếm phải vẫn an toàn.',
-  mfOptLabel: 'Chọn loại',
-  mfImage: '',
-
-  inviteText: 'Muốn cún thơm như vừa đi spa về?',
-  inviteMascot: '/mascots/pet-09.png',
-
-  // wbsKey: khớp với sản phẩm trong bảng products. Giá + tồn kho lấy từ admin.
-  // wbsScents chỉ giữ MÀU và ẢNH của từng mùi — tên mùi khớp với phân loại
-  // (variant) mà ngài tạo trong tab Sản phẩm.
-  wbsKey: 'bubble',
-  wbsBadge: '5 mùi',
-  wbsName: 'Waterless Bubble Shampoo',
-  wbsDesc: 'Tắm khô dạng bọt, không cần nước — sạch thơm mà không stress. Đầu cọ massage silicone dịu da.',
-  wbsOptLabel: 'Chọn mùi hương',
-  wbsScents: [
-    { name: 'Baby Powder',  c1: '#dbe4f4', c2: '#b3c4e2', dot: '#a9bfe0', icon: '', image: '' },
-    { name: 'Lavender',     c1: '#ded4f2', c2: '#b9a8e2', dot: '#b49fe0', icon: '', image: '' },
-    { name: 'Peach Yogurt', c1: '#f7d3bd', c2: '#eba884', dot: '#eda683', icon: '', image: '' },
-    { name: 'Quince',       c1: '#f5e3ad', c2: '#e7ca70', dot: '#e8c96d', icon: '', image: '' },
-    { name: 'Cotton Candy', c1: '#f6cadd', c2: '#eb9ec2', dot: '#ec9cc1', icon: '', image: '' },
-  ],
-
-  tmKicker: 'Ba mẹ pet nói gì',
-  tmTitle: 'Ba mẹ nói gì về xịt khử mùi top sàn TMĐT?',
-  testimonials: [
-    { who: '@minhchau.pet',   pet: 'Sen của Miu — mèo Anh lông ngắn', quote: 'Xịt xong nằm ngủ luôn, không né như mọi lần.', embed: '', thumb: '' },
-    { who: '@nhatlinh_corgi', pet: 'Sen của Bơ — Corgi 2 tuổi',       quote: 'Mùa mưa không tắm được, cứu tinh thật sự.',    embed: '', thumb: '' },
-    { who: '@thuytrang.home', pet: 'Sen của Nút — Poodle nhỏ',        quote: 'Bé liếm phải mà mình không lo nữa.',           embed: '', thumb: '' },
-    { who: '@dogdad.hn',      pet: 'Sen của Bear — Golden 4 tuổi',    quote: 'Chó to lông dày, xịt vẫn ăn mùi.',             embed: '', thumb: '' },
-    { who: '@catlover.vn',    pet: 'Sen của Sữa — mèo ta',            quote: 'Mèo ghét nước nên cái này hợp lắm.',           embed: '', thumb: '' },
-  ],
-  tmStats: [
-    { n: '5.000+', l: 'chai đã bán' },
-    { n: '4.9/5',  l: 'đánh giá Shopee' },
-    { n: '92%',    l: 'khách mua lại' },
-  ],
-
-
-  labelCart: 'Thêm vào giỏ',
-  labelDetail: 'Chi tiết',
-
-  abKicker: 'Về Hanapet',
-  abTitle: 'Chúng mình chỉ làm hai thứ — và làm cho tới.',
-  abBody1: 'Hanapet bắt đầu từ một câu hỏi đơn giản: vì sao chăm bé cưng lại phiền đến vậy? Bé sợ nước, nhà không có chỗ, mùa đông thì lạnh.',
-  abBody2: 'Thay vì bày ra ba mươi món, chúng mình chọn hai. Công thức thử đi thử lại trên chính những bé cưng ở nhà trước khi bán cho ai.',
-  abBtn: 'Xem sản phẩm →',
-  abImage: '',
-  facts: [
-    { t: 'HOCl',           s: 'Chất cơ thể tự tạo để diệt khuẩn. Không cồn, không paraben.' },
-    { t: 'Thử tại nhà',    s: 'Mỗi công thức dùng thật ít nhất 8 tuần trước khi lên kệ.' },
-    { t: 'Đổi trả 7 ngày', s: 'Bé không hợp? Nhắn shop, đổi hoặc hoàn tiền.' },
-  ],
-
-  /* Mascot hien trong bong bong khi bam mua. Sua + upload duoc trong admin.
-     CHI DUNG MASCOT NAU TOI. Do tuong phan tren nen TRANG:
-         pet-01 #47271d -> 13.33  ro
-         pet-09 #251c12 -> 16.75  ro
-         pet-04 #a7a08f ->  2.60  nhat nhoe   (da bo)
-         pet-08 #b59472 ->  2.82  nhat nhoe   (da bo)
-         pet-10 #b59472 ->  2.82  nhat nhoe   (da bo)
-     Them mascot moi thi phai kiem mau: tuong phan tren trang >= 4.5. */
-  cartPets: ['/mascots/pet-01.png','/mascots/pet-09.png'],
-  /* Cau co vu hien cung mascot. Sua duoc trong admin (tab Hero).
-     Nguyen tac: khen NGUOI MUA hoac reo vui trung tinh.
-     Tranh khen con thu ("Ngoan lam!") vi luc bam nut la CHU dang bam. */
-  cartCheers: ['Chọn khéo ghê!', 'Bé nhà mình sướng nha!', 'Cảm ơn bạn yêu!',
-               'Thơm rồi nè!', 'Hoan hô!', 'Chủ tâm lý ghê!'],
-
-  buybarBtn: 'Thêm giỏ',
-  buybarImage: '',
-
-  // ---- Chữ dùng chung cho giỏ hàng / chi tiết / thanh toán ----
-  // (để đúng luật: không hard-code chữ trong JSX)
-  txtOutOfStock: 'Tạm hết hàng',
-  txtInStock: 'Còn hàng · giao trong 24h',
-  txtAddedToCart: 'Đã thêm vào giỏ',
-  txtCartEmpty: 'Giỏ hàng đang trống',
-  txtCheckout: 'Thanh toán',
-  txtViewCart: 'Xem giỏ hàng',
-  txtSubtotal: 'Tạm tính',
-  txtShipFee: 'Phí vận chuyển',
-  txtTotal: 'Tổng cộng',
-  txtPlaceOrder: 'Đặt hàng',
-  txtCOD: 'Thanh toán khi nhận hàng (COD)',
-  txtCODNote: 'Trả tiền mặt cho shipper khi nhận. Kiểm tra hàng trước khi thanh toán.',
-  txtOrderOk: 'Đặt hàng thành công!',
-  txtOrderOkBody: 'Cảm ơn bạn đã tin tưởng Hanapet. Tụi mình sẽ gọi xác nhận trong ít phút nữa.',
-  trustPoints: [
-    'Đổi trả trong 7 ngày',
-    'Giao Hà Nội trong 24h',
-    'An toàn cho bé, không cồn không paraben',
-  ],
-
-  footerText: '© 2026 Hanapet · hana.pet.vn · Hà Nội',
-
-  /* Chân trang 3 cột: thương hiệu / điều khoản / Bộ Công Thương. */
-  logoWhite: '/logo-white.png',
-  footerDesc: 'Sạch thơm cho bé, an tâm cho cả nhà. Hai sản phẩm, làm cho tới.',
-  footerLines: ['Hà Nội, Việt Nam', 'hana.pet.vn'],
-  footerCol2Title: 'Điều khoản',
-  footerLinks: [
-    { t: 'Chính sách đổi trả', href: '#' },
-    { t: 'Chính sách bảo mật', href: '#' },
-    { t: 'Điều khoản sử dụng', href: '#' },
-  ],
-  footerCol3Title: 'Chứng nhận',
-  footerBctImg: '',
-  footerBctHref: 'http://online.gov.vn',
-};
-
-/* ---------- placeholder khi chưa có ảnh ---------- */
-function Ph({ text, dark = false, style = {} }) {
+// ─── ATOMS ────────────────────────────────────────────────────────────────────
+function Tag({ text, color }) {
+  return <span style={{ display:"inline-block", background:color+"18", color, border:`1px solid ${color}44`, borderRadius:20, padding:"2px 10px", fontSize:11, fontFamily:FONT_T, fontWeight:700 }}>{text}</span>;
+}
+function Stars({ rating, size=13 }) {
+  return <span style={{ fontSize:size }}>{"⭐".repeat(Math.floor(rating))}<span style={{ fontFamily:FONT_B, fontSize:size-2, color:"#999", marginLeft:4 }}>{rating.toFixed(1)}</span></span>;
+}
+function FlashTimer({ end }) {
+  const {h,m,s} = useCountdown(end);
   return (
-    <div className={'ph' + (dark ? ' ph-dark' : '')} style={style}>
-      {String(text).split('|').map((l, i) => <span key={i}>{l}</span>)}
-    </div>
+    <span style={{ display:"inline-flex", alignItems:"center", gap:3, background:"#0d142e", borderRadius:8, padding:"3px 8px" }}>
+      <span style={{ fontSize:11 }}>⚡</span>
+      {[h,m,s].map((v,i)=>(
+        <span key={i} style={{ display:"flex", alignItems:"center", gap:2 }}>
+          <span style={{ fontFamily:FONT_T, fontSize:12, color:"#ffffff", background:"#131c3d", borderRadius:4, padding:"1px 5px" }}>{v}</span>
+          {i<2&&<span style={{ color:"#ffffff",fontSize:12 }}>:</span>}
+        </span>
+      ))}
+    </span>
+  );
+}
+function HHLogo({ primary="#1b295b", size=40 }) {
+  return (
+    <svg width={size*0.6} height={size} viewBox="0 0 60 100">
+      <rect x="3" y="3" width="54" height="94" rx="13" fill={primary} stroke="white" strokeWidth="4"/>
+      <rect x="11" y="11" width="10" height="28" rx="4" fill="white"/>
+      <rect x="39" y="11" width="10" height="28" rx="4" fill="white"/>
+      <rect x="19" y="22" width="22" height="8"  rx="3" fill="white"/>
+      <rect x="11" y="52" width="10" height="28" rx="4" fill="white"/>
+      <rect x="39" y="52" width="10" height="28" rx="4" fill="white"/>
+      <rect x="19" y="63" width="22" height="8"  rx="3" fill="white"/>
+    </svg>
   );
 }
 
-function Img({ src, alt, text, dark, className = '', style = {} }) {
-  if (src) return <img src={src} alt={alt || ''} className={className} style={style} loading="lazy" />;
-  return <Ph text={text} dark={dark} style={style} />;
-}
-
-/* ---------- video đa nguồn ---------- */
-function embedUrl(u = '') {
-  if (!u) return '';
-  if (u.includes('youtube.com') || u.includes('youtu.be')) {
-    const id = u.includes('youtu.be') ? u.split('youtu.be/')[1]?.split(/[?&]/)[0]
-             : new URL(u).searchParams.get('v');
-    return id ? `https://www.youtube.com/embed/${id}` : '';
-  }
-  if (u.includes('tiktok.com')) {
-    const id = u.match(/video\/(\d+)/)?.[1];
-    return id ? `https://www.tiktok.com/embed/v2/${id}` : '';
-  }
-  if (u.includes('instagram.com')) {
-    return u.replace(/\/?$/, '/') + 'embed';
-  }
-  return '';
-}
-
-function VideoEmbed({ url, poster, label }) {
-  const [play, setPlay] = useState(false);
-  const src = embedUrl(url);
-  const isFile = url && url.match(/\.(mp4|webm|mov)$/i);
-
-  if (!url) return (<><Ph text={label || 'VIDEO 9:16'} dark /><span className="play" /></>);
-
-  if (!play) return (
+// ─── CURSOR ───────────────────────────────────────────────────────────────────
+function CustomCursor({ primary }) {
+  const dot  = useRef(); const ring = useRef();
+  const pos  = useRef({x:0,y:0}); const rp = useRef({x:0,y:0}); const raf = useRef();
+  const [hasMouse, setHasMouse] = useState(false);
+  useEffect(()=>{
+    // Only show the custom cursor on devices with a real mouse (not touch/mobile)
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(pointer: fine)");
+    const apply = () => setHasMouse(mq.matches);
+    apply();
+    mq.addEventListener ? mq.addEventListener("change", apply) : mq.addListener(apply);
+    return () => { mq.removeEventListener ? mq.removeEventListener("change", apply) : mq.removeListener(apply); };
+  },[]);
+  useEffect(()=>{
+    if (!hasMouse) return;
+    const mv = e => { pos.current={x:e.clientX,y:e.clientY}; };
+    const lp = () => {
+      rp.current.x += (pos.current.x-rp.current.x)*0.12;
+      rp.current.y += (pos.current.y-rp.current.y)*0.12;
+      if(dot.current)  dot.current.style.transform  = `translate(${pos.current.x-6}px,${pos.current.y-6}px)`;
+      if(ring.current) ring.current.style.transform = `translate(${rp.current.x-18}px,${rp.current.y-18}px)`;
+      raf.current = requestAnimationFrame(lp);
+    };
+    window.addEventListener("mousemove",mv);
+    raf.current = requestAnimationFrame(lp);
+    return()=>{ window.removeEventListener("mousemove",mv); cancelAnimationFrame(raf.current); };
+  },[hasMouse]);
+  // On touch / mobile devices: render nothing, keep the native cursor untouched
+  if (!hasMouse) return null;
+  return (
     <>
-      {poster ? <img src={poster} alt="" loading="lazy" /> : <Ph text={label || 'VIDEO 9:16'} dark />}
-      <button className="play" onClick={() => setPlay(true)} aria-label="Phát video" />
+      <style>{`@media (pointer: fine){*{cursor:none!important}}`}</style>
+      <div ref={dot}  style={{ position:"fixed",top:0,left:0,width:12,height:12,borderRadius:6,background:primary,zIndex:99999,pointerEvents:"none",boxShadow:`0 0 8px ${primary}88` }} />
+      <div ref={ring} style={{ position:"fixed",top:0,left:0,width:36,height:36,borderRadius:18,border:`2px solid ${primary}88`,zIndex:99998,pointerEvents:"none" }} />
     </>
   );
-
-  if (isFile) return <video src={url} controls autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
-  return <iframe src={src} allow="autoplay; encrypted-media; fullscreen" allowFullScreen title={label || 'video'} />;
 }
 
-/* ============================================================
-   v20.1: KHU SẢN PHẨM = THẺ TỰ SINH + COMBO, KHO 1 NGUỒN
-   ĐỊNH NGHĨA NGOÀI component cha (lỗi #8).
+// ─── IMAGE UPLOADER — Supabase Storage ───────────────────────────────────────
+// Uploads file to Supabase Storage via /api/upload, returns a public URL.
+// folder:   "products" | "banners" | "about"
+// entityId: product ID or banner ID (used for organized folder paths)
+// ── Freeform crop modal (pure canvas, no external lib) ───────────────────────
+function CropModal({ src, onCancel, onDone }) {
+  const imgRef = useRef(null);
+  const [dim, setDim]   = useState(null);   // {w,h} rendered image size
+  const [rect, setRect] = useState(null);   // {x,y,w,h} in rendered px, origin = image top-left
+  const drag = useRef(null);
 
-   HẾT NHẬP TRÙNG: thẻ đầu nhóm TỰ SINH từ sản phẩm gốc/phân loại
-   (ảnh, giá, kho lấy thẳng từ tab Sản phẩm — không upload lại):
-   - SP không phân loại            → 1 thẻ = SP gốc
-   - SP phân loại là HÀNG BÁN LẺ   → mỗi phân loại 1 thẻ (Misty: Chai + Refill)
-   - SP tick "phân loại là mùi/màu"→ 1 thẻ + bộ chọn trong thẻ (WBS)
-   Admin chỉ nhập thêm combo B/C. Combo khai BOM (gồm món nào trong
-   kho) → "còn bán được" TỰ TÍNH từ kho món con, kho chỉ có 1 nguồn.
-   ============================================================ */
+  const onImgLoad = () => {
+    const el = imgRef.current;
+    const w = el.clientWidth, h = el.clientHeight;
+    setDim({ w, h });
+    // Default a bit zoomed-in (trims ~8% edges) so stray borders/corners get cropped out
+    setRect({ x: w*0.08, y: h*0.08, w: w*0.84, h: h*0.84 });
+  };
+  const selectAll = () => { if(dim) setRect({ x:0, y:0, w:dim.w, h:dim.h }); };
 
-/* Số combo còn bán được, tính từ kho món con theo BOM.
-   Không có BOM (kiểu cũ) → dùng kho tự nhập của combo. */
-function comboAvail(combo, prod, scVariant) {
-  const bom = combo.bom || [];
-  if (!bom.length) return Number(combo.stock) || 0;
-  let avail = Infinity;
-  for (const row of bom) {
-    let s;
-    if (row.variantId === '*scent*') s = scVariant ? Number(scVariant.stock) || 0 : 0;
-    else if (row.variantId) {
-      const v = (prod.variants || []).find(x => x.id === row.variantId);
-      s = v ? Number(v.stock) || 0 : 0;
-    } else s = Number(prod.stock) || 0;
-    avail = Math.min(avail, Math.floor(s / (row.qty || 1)));
-  }
-  return avail === Infinity ? 0 : avail;
-}
+  const pointer = e => (e.touches && e.touches[0]) ? e.touches[0] : e;
 
-/* Ghép thẻ hiển thị: thẻ tự sinh trước, combo admin nhập sau.
-   v20.2: SP có phân loại → LUÔN 1 thẻ "sản phẩm lẻ" + BỘ CHỌN ngay
-   trong thẻ (giá/kho/ảnh đổi theo lựa chọn — giống thẻ cũ Tung quen):
-   - Có bảng mùi (scents truyền vào) → chấm màu (WBS)
-   - Không có     → chip tên phân loại (Misty: Chai xịt / Lõi refill)
-   Không cần cờ trong admin — tự nhận dạng, bớt 1 ô thừa. */
-function cardsOf(prod, S) {
-  if (!prod) return [];
-  const vs = prod.variants || [];
-  const auto = [];
-  if (!vs.length) {
-    auto.push({ id: 'auto_base', autoBase: true, name: prod.name, kicker: '',
-      items: [], price: prod.price, original: prod.original, stock: prod.stock,
-      img: prod.img, best: false, scentPick: false });
-  } else {
-    auto.push({ id: 'auto_picker', autoPicker: true, name: S.autoCardName,
-      kicker: prod.name, items: [], best: false, scentPick: true, img: '' });
-  }
-  return [...auto, ...(prod.combos || [])];
-}
-
-function ComboCard({ card, prod, S, scents, scent, setScent, vsel, setVsel, onBuy, onDetail }) {
-  const items = (card.items || []).filter(Boolean);
-  const vlist = prod.variants || [];
-  /* Thẻ picker: có bảng mùi → chấm màu (scent state), không có → chip tên (vsel) */
-  const chipsMode = card.autoPicker && scents.length === 0 && vlist.length > 0;
-  const dotsMode  = card.scentPick && scents.length > 0;
-  const sc = dotsMode ? (scents[Math.min(scent, Math.max(0, scents.length - 1))] || {}) : null;
-  const scV = sc && sc.variant;
-  const vv = chipsMode ? (vlist[Math.min(vsel, vlist.length - 1)] || null) : null;
-  const picked = card.autoPicker ? (chipsMode ? vv : scV) : null;
-  const price    = card.autoPicker ? (picked ? picked.price : 0) : card.price;
-  const original = card.autoPicker ? (picked ? picked.original : 0) : card.original;
-  const stockN   = card.autoPicker ? (picked ? picked.stock : 0)
-                 : card.autoBase ? card.stock
-                 : comboAvail(card, prod, scV);
-  /* Combo: LUÔN dùng ảnh admin up, KHÔNG mượn ảnh mùi. Chỉ thẻ tự sinh
-     mới chạy ảnh theo lựa chọn (chip phân loại / chấm mùi). */
-  const img = card.autoPicker
-    ? ((picked && picked.img) || (sc && sc.image) || prod.img)
-    : card.img || prod.img;
-  /* Chip mode: tên thẻ = tên phân loại đang chọn (Chai xịt 250ml / Lõi refill) */
-  const title = chipsMode ? (vv ? vv.name : card.name) : card.name;
-  const save = original > price ? Math.round((1 - price / original) * 100) : 0;
-  const out = stockN <= 0;
-  /* v21.4: THÂN THẺ navy hết (trật tự thị giác do viên nhãn vàng quyết),
-     RIÊNG Ô ẢNH của thẻ tự sinh đổi màu theo MÙI đang chọn — màu mùi
-     sống đúng chỗ của nó. Thẻ COMBO giữ ô ảnh navy: Tung tự up ảnh
-     combo có nền sẵn. Không hoạ tiết, không bóng đổ. */
-  const isCombo = !card.autoPicker && !card.autoBase;
-  const imgBg = (!isCombo && sc && sc.c1)
-    ? { background: `linear-gradient(158deg,${sc.c1},${sc.c2 || sc.c1})` }
-    : undefined;
-  return (
-    <article className="ccard">
-      {card.best && <span className="pill">{S.bestChoiceLabel}</span>}
-      <div className={'cc-img' + (imgBg ? ' tinted' : '')} style={imgBg}>
-        <Img src={img} alt={title} text={`ẢNH|${title}`} dark={!imgBg} />
-      </div>
-      <div className="cc-body">
-        <span className="cc-k">{card.kicker || prod.name}</span>
-        <h3 className="cc-t">{title}</h3>
-        {items.length > 0 && (
-          <ul className="cc-list">
-            {items.map((x, i) => <li key={i}>{x}</li>)}
-          </ul>
-        )}
-        {chipsMode && (
-          <>
-            <span className="cc-k cc-scentlabel">{prod.variantLabel || S.mfOptLabel}</span>
-            <div className="vchips">
-              {vlist.map((x, i) => (
-                <button key={x.id || i} type="button"
-                        className={(i === vsel ? 'on' : '') + (x.stock <= 0 ? ' out' : '')}
-                        onClick={() => setVsel(i)}>{x.name}</button>
-              ))}
-            </div>
-          </>
-        )}
-        {dotsMode && (
-          <>
-            <span className="cc-k cc-scentlabel">{S.wbsOptLabel}</span>
-            <div className="scentmini">
-              {scents.map((s, i) => (
-                <button key={i} type="button"
-                        className={(i === scent ? 'on' : '') + (s.variant && s.variant.stock <= 0 ? ' out' : '')}
-                        style={{ background: s.dot }}
-                        onClick={() => setScent(i)}
-                        title={s.name} aria-label={s.name} aria-pressed={i === scent} />
-              ))}
-              <b>{sc?.name || ''}</b>
-            </div>
-          </>
-        )}
-        <div className="cc-pricerow">
-          <span className="cc-price">{vnd(price)}</span>
-          {original > price && <span className="cc-was">{vnd(original)}</span>}
-          {save > 0 && <span className="cc-save">-{save}%</span>}
-        </div>
-        <div className={'cc-stock' + (out ? ' out' : '')}>
-          {out ? S.txtOutOfStock : S.txtInStock}
-        </div>
-        <div className="cc-btns">
-          <button type="button" className="btn cc-buy cta-buy" disabled={out}
-                  onClick={() => onBuy(card, { picked, sc, stockN, img })}>
-            {out ? S.txtOutOfStock : S.labelCart}
-          </button>
-          <button type="button" className="btn cc-more" onClick={onDetail}>{S.labelDetail}</button>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-/* Banner riêng của SP — v20.1: giờ RENDER THẬT phía trên nhóm
-   (trước đây admin có ô nhập mà trang chủ không render = hứa suông). */
-function ProductBanner({ prod }) {
-  if (!prod || (!prod.banner && !prod.bannerVideo)) return null;
-  return (
-    <div className="pbanner">
-      {prod.bannerVideo
-        ? <video src={prod.bannerVideo} autoPlay muted loop playsInline />
-        : <img src={prod.banner} alt="" loading="lazy" />}
-      {prod.bannerText && <span className="pbanner-t">{prod.bannerText}</span>}
-    </div>
-  );
-}
-
-function ComboGroup({ heading, kicker, mascot, cards, rowRef, children }) {
-  return (
-    <div className="cgrp">
-      <div className="ghead">
-        <div className="pod"><Img src={mascot} text="🐾" /></div>
-        <div>
-          {kicker && <span className="gk">{kicker}</span>}
-          <h3>{heading}</h3>
-        </div>
-      </div>
-      {/* Sàn 3 cột: nhóm mới có 1-2 thẻ thì thẻ vẫn cỡ 1/3 như thẻ
-         thường, KHÔNG stretch full màn (lỗi WBS 1 thẻ banh 1180px).
-         Trần 4 cột khi thêm nhiều combo. Mobile không ảnh hưởng (flex). */}
-      <div className="crow" ref={rowRef}
-           style={{ '--ncards': Math.min(Math.max(cards.length, 3), 4) }}>
-        {cards.map((c, i) => children(c, i))}
-      </div>
-    </div>
-  );
-}
-
-/* ============================================================
-   PAGE
-   ============================================================ */
-export default function Home() {
-  const [S, setS] = useState(DEFAULTS);
-  const [products, setProducts] = useState([]);
-  const [ready, setReady] = useState(false);
-  const [mfSel, setMfSel] = useState(0);
-  const [scent, setScent] = useState(0);
-  const [modalSlug, setModalSlug] = useState(null);
-  const [barOn, setBarOn] = useState(false);
-  const railRef = useRef(null);
-  const heroRef = useRef(null);
-  const footRef = useRef(null);
-  const mfRowRef = useRef(null);   /* v20: hàng thẻ combo Misty (auto-lock mobile) */
-  const wbsRowRef = useRef(null);  /* v20: hàng thẻ combo WBS */
-  const { add, openDrawer, count } = useCart();
-
-  /* v21.1: nạp file font từ Google khi admin đổi font. Không nạp thì
-     đổi tên font trong admin sẽ không hiện gì (trình duyệt không có
-     file). Thẻ <link> cũ được gỡ trước khi chèn cái mới. Font mặc
-     định Nunito/Nunito Sans đã nạp sẵn ở layout.js nên bỏ qua. */
-  useEffect(() => {
-    const fams = [S.fontDisplay, S.fontBody]
-      .filter(f => f && !['Nunito', 'Nunito Sans'].includes(f));
-    const el = document.getElementById('hp-dyn-font');
-    if (el) el.remove();
-    if (!fams.length) return;
-    const q = [...new Set(fams)]
-      .map(f => 'family=' + encodeURIComponent(f) + ':wght@400;600;700;800;900')
-      .join('&');
-    const link = document.createElement('link');
-    link.id = 'hp-dyn-font';
-    link.rel = 'stylesheet';
-    link.href = `https://fonts.googleapis.com/css2?${q}&display=swap`;
-    document.head.appendChild(link);
-  }, [S.fontDisplay, S.fontBody]);
-
-  /* nạp config từ Supabase */
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        /* Lay HET site_config, khong chi key 'home' — de con doc duoc
-           cac key cu ma admin dang ghi vao. */
-        const [cfgRes, prods] = await Promise.all([
-          supabase.from('site_config').select('key,value'),
-          fetchProducts(),
-        ]);
-        if (!alive) return;
-        const rows = cfgRes?.data || [];
-        const cfg  = Object.fromEntries(rows.map(r => [r.key, r.value]));
-        setS({ ...DEFAULTS, ...bridgeLegacy(cfg), ...(cfg.home || {}) });
-        setProducts(prods);
-      } catch (e) {
-        console.warn('load:', e?.message);
-      } finally {
-        if (alive) setReady(true);
-      }
-    })();
-    return () => { alive = false; };
-  }, []);
-
-  /* thanh mua (nav khong doi mau nua — luon navy) */
-  useEffect(() => {
-    const onScroll = () => {
-      const hh = heroRef.current?.offsetHeight || 600;
-      const ft = footRef.current?.getBoundingClientRect().top ?? 9999;
-      setBarOn(window.scrollY > hh * 0.72 && ft > window.innerHeight);
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => window.removeEventListener('scroll', onScroll);
-  }, [ready]);
-
-  /* thú cưng thò đầu — gắn cho MỌI nút chốt đơn */
-  const seen = useRef({});
-  const peek = useCallback((btn) => {
-    if (typeof window === 'undefined') return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    const host = btn.parentElement;
-    if (!host) return;
-    host.classList.add('peekwrap');
-    host.querySelectorAll('.peek,.pop').forEach(n => n.remove());
-
-    /* Bong bong P3: mascot + chu NAM CHUNG mot khoi navy vien trang.
-       Vien trang om ca hai -> mascot thanh mot phan cua bo nhan dien,
-       khong phai hinh dan them. Chu doc tu cartCheers (sua trong admin),
-       mascot doc tu cartPets (cung sua trong admin).
-       Moi lan hien: 1 cau + 1 mascot + 1 dang bo goc/nghieng (v1..v4). */
-    const cheers = (S.cartCheers || []).filter(Boolean);
-    /* Chiu duoc ca 2 dang: mang chuoi (DEFAULTS) va mang object {src}
-       (dang HRows dung trong admin). Phong khi luu nham dang. */
-    const pets = (S.cartPets || [])
-      .map(x => (typeof x === 'string' ? x : x?.src))
-      .filter(Boolean);
-    const key = btn.dataset.peekid || (btn.dataset.peekid = Math.random().toString(36).slice(2));
-    const first = !seen.current[key];
-    seen.current[key] = true;
-
-    const word = cheers.length
-      ? cheers[Math.floor(Math.random() * cheers.length)]
-      : 'Hoan hô!';
-
-    const el = document.createElement('div');
-    el.className = 'peek v' + (1 + Math.floor(Math.random() * 4)) + (first ? '' : ' small');
-    if (pets.length) {
-      const p = pets[Math.floor(Math.random() * pets.length)];
-      const img = document.createElement('img');
-      img.src = p; img.alt = '';
-      el.appendChild(img);
+  const startDrag = (mode, e) => {
+    e.preventDefault(); e.stopPropagation();
+    const pt = pointer(e);
+    drag.current = { mode, sx: pt.clientX, sy: pt.clientY, orig: { ...rect } };
+  };
+  const onMove = (e) => {
+    if (!drag.current || !dim) return;
+    const pt = pointer(e);
+    const dx = pt.clientX - drag.current.sx;
+    const dy = pt.clientY - drag.current.sy;
+    const o = drag.current.orig;
+    const M = dim, MIN = 30;
+    let { x, y, w, h } = o;
+    const mode = drag.current.mode;
+    if (mode === 'move') {
+      x = Math.max(0, Math.min(M.w - w, o.x + dx));
+      y = Math.max(0, Math.min(M.h - h, o.y + dy));
+    } else if (mode === 'se') {
+      w = Math.max(MIN, Math.min(M.w - o.x, o.w + dx));
+      h = Math.max(MIN, Math.min(M.h - o.y, o.h + dy));
+    } else if (mode === 'sw') {
+      const nx = Math.max(0, Math.min(o.x + o.w - MIN, o.x + dx));
+      w = o.w + (o.x - nx); x = nx;
+      h = Math.max(MIN, Math.min(M.h - o.y, o.h + dy));
+    } else if (mode === 'ne') {
+      const ny = Math.max(0, Math.min(o.y + o.h - MIN, o.y + dy));
+      h = o.h + (o.y - ny); y = ny;
+      w = Math.max(MIN, Math.min(M.w - o.x, o.w + dx));
+    } else if (mode === 'nw') {
+      const nx = Math.max(0, Math.min(o.x + o.w - MIN, o.x + dx));
+      const ny = Math.max(0, Math.min(o.y + o.h - MIN, o.y + dy));
+      w = o.w + (o.x - nx); x = nx;
+      h = o.h + (o.y - ny); y = ny;
     }
-    const tx = document.createElement('span');
-    tx.textContent = word;          /* textContent: khong dinh loi chen ma doc */
-    el.appendChild(tx);
+    setRect({ x, y, w, h });
+  };
+  const endDrag = () => { drag.current = null; };
 
-    host.appendChild(el);
-    setTimeout(() => el.remove(), 1950);
-  }, [S.cartCheers, S.cartPets]);
-
-  useEffect(() => {
-    const onClick = (e) => {
-      const b = e.target.closest('.cta-buy');
-      /* KHONG chay hieu ung o hero: nut hero chi cuon xuong, chua them gio. */
-      if (b && !b.closest('header')) peek(b);
-    };
-    document.addEventListener('click', onClick);
-    return () => document.removeEventListener('click', onClick);
-  }, [peek]);
-
-  /* ── Nối config với sản phẩm thật trong bảng products ────────────────────
-     Giá, giá gốc, tồn kho, danh sách phân loại đều lấy từ admin.
-     Nếu chưa nhập sản phẩm thì khối đó tự ẩn (không hiện giá ma). */
-  const mfProd = useMemo(() => matchProduct(products, S.mfKey, S.mfName), [products, S.mfKey, S.mfName]);
-  const wbsProd = useMemo(() => matchProduct(products, S.wbsKey, S.wbsName), [products, S.wbsKey, S.wbsName]);
-
-  // Misty: phân loại lấy thẳng từ sản phẩm
-  const mfVars = mfProd?.variants?.length ? mfProd.variants : (mfProd ? [null] : []);
-  const mfV = mfVars[Math.min(mfSel, mfVars.length - 1)] ?? null;
-  const mfPrice = mfV ? mfV.price : (mfProd?.price ?? 0);
-  const mfWas   = mfV ? mfV.original : (mfProd?.original ?? 0);
-  const mfStockN = mfV ? mfV.stock : (mfProd?.stock ?? 0);
-  const mfSave  = mfWas > mfPrice ? Math.round((1 - mfPrice / mfWas) * 100) : 0;
-
-  // WBS: mỗi mùi trong config ghép với phân loại cùng tên trong sản phẩm
-  const scents = useMemo(() => {
-    const list = S.wbsScents || [];
-    if (!wbsProd) return [];
-    return list.map(s => {
-      const v = (wbsProd.variants || []).find(
-        x => x.name.toLowerCase().trim() === String(s.name).toLowerCase().trim()
-      );
-      return { ...s, variant: v || null };
-    });
-  }, [S.wbsScents, wbsProd]);
-
-  const sc = scents[Math.min(scent, Math.max(0, scents.length - 1))] || {};
-  const scV = sc.variant;
-  const wbsPrice = scV ? scV.price : (wbsProd?.price ?? 0);
-  const wbsWas   = scV ? scV.original : (wbsProd?.original ?? 0);
-  const wbsStockN = scV ? scV.stock : (wbsProd?.stock ?? 0);
-  const wbsSave  = wbsWas > wbsPrice ? Math.round((1 - wbsPrice / wbsWas) * 100) : 0;
-
-  /* v21.5: ĐÃ XOÁ khối "gói combo" cũ (comboTiers).
-     Lý do: nó coi mỗi gói là 1 SẢN PHẨM RIÊNG rồi trừ products.stock,
-     KHÔNG biết BOM → bán 1 gói không trừ chai/refill nào. Hai hệ combo
-     song song = hai nguồn kho, đúng thứ đang gây loạn.
-     Combo giờ CHỈ có 1 nơi: product.combos (tab Combo trong admin),
-     kho trừ theo BOM. */
-
-  /* Thêm vào giỏ — hiệu ứng mascot vẫn chạy nhờ class .cta-buy */
-  const addToCart = (prod, variant, img) => {
-    if (!prod) return;
-    const stock = variant ? variant.stock : prod.stock;
-    if (stock <= 0) return;
-    add({
-      productId: prod.id,
-      variantId: variant ? variant.id : '',
-      scentId: (variant && variant.scentId) || '',
-      name: prod.name,
-      variantName: variant ? variant.name : '',
-      price: variant ? variant.price : prod.price,
-      img: img || prod.img || '',
-    }, 1);
-    openDrawer();
+  const apply = () => {
+    const el = imgRef.current;
+    const scaleX = el.naturalWidth / el.clientWidth;
+    const scaleY = el.naturalHeight / el.clientHeight;
+    const cw = rect.w * scaleX, ch = rect.h * scaleY;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(cw); canvas.height = Math.round(ch);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(el, rect.x*scaleX, rect.y*scaleY, cw, ch, 0, 0, cw, ch);
+    canvas.toBlob((blob) => {
+      if (blob) onDone(new File([blob], 'cropped.png', { type: 'image/png' }));
+    }, 'image/png');
   };
 
-  const railStep = () => (railRef.current?.querySelector('.tcard')?.offsetWidth || 220) + 16;
-
-  /* v20.1: mua từ thẻ — KHO 1 NGUỒN.
-     - Thẻ tự sinh từ phân loại/mùi → addToCart với variant THẬT
-       (trừ thẳng kho phân loại, đúng luồng cũ, không sinh kho thứ 2)
-     - Thẻ tự sinh từ SP gốc → variant null (trừ kho SP gốc)
-     - Combo admin nhập → combo đóng vai variant + mang scentId để
-       server trừ BOM đúng mùi khách chọn */
-  const buyCombo = (prod) => (card, { picked, sc, stockN, img }) => {
-    if (!prod) return;
-    /* Thẻ tự sinh: mua bằng variant THẬT đang chọn (chip/chấm mùi) →
-       trừ thẳng kho phân loại, kho 1 nguồn */
-    if (card.autoPicker) { if (picked) addToCart(prod, picked, img); return; }
-    if (card.autoBase)   { addToCart(prod, null, img); return; }
-    const scentName = sc?.name ? ` — ${sc.name}` : '';
-    addToCart(prod, {
-      id: card.id,
-      name: card.name + scentName,
-      price: card.price,
-      original: card.original,
-      stock: stockN,
-      img: card.img,
-      scentId: sc?.variant?.id || '',
-    }, img);
-  };
-
-  /* v20: MOBILE auto-lock — mở trang thì hàng thẻ cuộn khoá sẵn vào thẻ B
-     (.pill). Chỉ chạy ở màn hẹp; PC là lưới 3 cột không cuộn. */
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!window.matchMedia('(max-width:760px)').matches) return;
-    [mfRowRef, wbsRowRef].forEach(r => {
-      const row = r.current;
-      if (!row) return;
-      const best = row.querySelector('.pill')?.closest('.ccard');
-      if (best) row.scrollLeft = Math.max(0, best.offsetLeft - (row.clientWidth - best.clientWidth) / 2);
-    });
-  }, [products]);
+  const handle = (mode, pos) => (
+    <div onMouseDown={e=>startDrag(mode,e)} onTouchStart={e=>startDrag(mode,e)}
+      style={{ position:'absolute', ...pos, width:20, height:20, borderRadius:'50%', background:'#18284e', border:'2px solid #fff', boxShadow:'0 2px 6px rgba(0,0,0,0.3)', touchAction:'none' }} />
+  );
 
   return (
-    <>
-      <Styles fd={S.fontDisplay} fb={S.fontBody} />
+    <div onMouseMove={onMove} onMouseUp={endDrag} onMouseLeave={endDrag} onTouchMove={onMove} onTouchEnd={endDrag}
+      style={{ position:'fixed', inset:0, background:'rgba(10,16,38,0.75)', zIndex:6000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+      <div style={{ background:'#fff', borderRadius:20, padding:20, maxWidth:520, width:'100%' }}>
+        <div style={{ fontFamily:FONT_T, fontSize:15, color:'#0d142e', marginBottom:4 }}>✂️ Cắt ảnh (kéo tự do)</div>
+        <div style={{ fontFamily:FONT_B, fontSize:12, color:'#5f6c8f', marginBottom:12 }}>Kéo 4 góc để đổi kích thước · kéo giữa khung để di chuyển · hoặc bấm "Chọn toàn bộ ảnh".</div>
+        <div style={{ position:'relative', userSelect:'none', touchAction:'none', lineHeight:0, background:'#f4f4f4', borderRadius:10, overflow:'hidden', width:'fit-content', margin:'0 auto' }}>
+          <img ref={imgRef} src={src} onLoad={onImgLoad} alt="" draggable={false} style={{ maxWidth:'100%', maxHeight:'55vh', display:'block' }} />
+          {rect && (
+            <div onMouseDown={e=>startDrag('move',e)} onTouchStart={e=>startDrag('move',e)}
+              style={{ position:'absolute', left:rect.x, top:rect.y, width:rect.w, height:rect.h, border:'2px solid #18284e', boxShadow:'0 0 0 9999px rgba(0,0,0,0.45)', cursor:'move', boxSizing:'border-box', touchAction:'none' }}>
+              {handle('nw', { left:-10, top:-10, cursor:'nwse-resize' })}
+              {handle('ne', { right:-10, top:-10, cursor:'nesw-resize' })}
+              {handle('sw', { left:-10, bottom:-10, cursor:'nesw-resize' })}
+              {handle('se', { right:-10, bottom:-10, cursor:'nwse-resize' })}
+            </div>
+          )}
+        </div>
+        <div style={{ display:'flex', gap:10, marginTop:16 }}>
+          <button onClick={apply} style={{ flex:1, background:'#18284e', color:'#fff', border:'none', borderRadius:12, padding:'12px 0', fontFamily:FONT_T, fontSize:14, cursor:'pointer' }}>✓ Xong</button>
+          <button onClick={selectAll} style={{ background:'#f2f5fb', color:'#18284e', border:'2px solid #dbe2f1', borderRadius:12, padding:'12px 16px', fontFamily:FONT_T, fontSize:13, cursor:'pointer', whiteSpace:'nowrap' }}>⤢ Toàn bộ</button>
+          <button onClick={onCancel} style={{ background:'#f2f5fb', color:'#5f6c8f', border:'2px solid #dbe2f1', borderRadius:12, padding:'12px 20px', fontFamily:FONT_T, fontSize:14, cursor:'pointer' }}>Huỷ</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      <nav id="nav">
-        <div className="nav-in">
-        <div className="brand">
-          {S.logo ? <img className="mark-img" src={S.logo} alt={S.brandName} />
-                  : <span className="mark"><Ph text="LOGO" /></span>}
-          <span>{S.brandName}</span>
-        </div>
-        <div className="navlinks">
-          <a href="#sp">{S.navShop}</a>
-          <a href="#about">{S.navAbout}</a>
-          <button type="button" className="navcart" onClick={openDrawer}>
-            {S.navCart}{count > 0 && <em>{count}</em>}
-          </button>
-        </div>
-        </div>
-      </nav>
+function ImgUp({ current, onUpload, label="Ảnh", aspect="100%", folder="products", entityId="general", hint="" }) {
+  const [drag,   setDrag]    = useState(false);
+  const [loading,setLoading] = useState(false);
+  const [error,  setError]   = useState("");
+  const [cropSrc,setCropSrc] = useState(null);   // object URL of image awaiting crop
+  const inp = useRef();
 
-      {/* ---------------- HERO ---------------- */}
-      <header className="hero" ref={heroRef}>
-        {S.heroBg && (
-          <div className="hero-bg" aria-hidden="true">
-            <img src={S.heroBg} alt="" />
-            <div className="hero-bg-dim"
-                 style={{ opacity: S.heroBgDim ?? 0.72 }} />
+  // When a file is picked/dropped, show the crop modal first —
+  // except GIFs, which skip cropping so their animation is preserved.
+  const pickFile = (file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    setError("");
+    if (file.type === "image/gif") { upload(file); return; }
+    setCropSrc(URL.createObjectURL(file));
+  };
+
+  const upload = async (file) => {
+    if (!file) return;
+    setLoading(true); setError("");
+    try {
+      const sizeMB = file.size / (1024 * 1024);
+      if (sizeMB > 4) throw new Error(`Ảnh quá lớn (${sizeMB.toFixed(1)}MB). Vui lòng nén ảnh xuống dưới 4MB rồi thử lại.`);
+
+      // Get current session token to authenticate the upload
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("Chưa đăng nhập");
+
+      const fd = new FormData();
+      fd.append("file",     file);
+      fd.append("folder",   folder);
+      fd.append("entityId", entityId);
+      fd.append("oldUrl",   current || "");   // will be archived server-side
+
+      const res  = await fetch("/api/upload", {
+        method:  "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body:    fd,
+      });
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(res.status === 413
+          ? "Ảnh quá lớn để tải lên. Vui lòng nén ảnh xuống dưới 4MB rồi thử lại."
+          : `Lỗi máy chủ (${res.status}). Vui lòng thử lại.`);
+      }
+      if (!data.success) throw new Error(data.error || "Tải ảnh thất bại");
+      onUpload(data.url);
+    } catch(e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      {label && <div style={{ fontSize:12,fontFamily:FONT_T,color:"#888",marginBottom:2 }}>{label}</div>}
+      {hint && <div style={{ fontSize:10,fontFamily:FONT_B,color:"#5f6c8f",marginBottom:6 }}>💡 Tỷ lệ khuyến nghị: {hint}</div>}
+      {cropSrc && <CropModal src={cropSrc} onCancel={()=>{ URL.revokeObjectURL(cropSrc); setCropSrc(null); }} onDone={(file)=>{ URL.revokeObjectURL(cropSrc); setCropSrc(null); upload(file); }} />}
+      <div
+        onDragOver={e=>{e.preventDefault();setDrag(true);}}
+        onDragLeave={()=>setDrag(false)}
+        onDrop={e=>{e.preventDefault();setDrag(false);pickFile(e.dataTransfer.files[0]);}}
+        onClick={()=>!loading&&inp.current.click()}
+        style={{ position:"relative",paddingTop:aspect,borderRadius:10,overflow:"hidden",cursor:loading?"wait":"pointer",border:`2px dashed ${drag?"#1b295b":"#e0c8a0"}`,background:drag?"#f2f5fb":"#fafafa" }}
+      >
+        {loading && (
+          <div style={{ position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,background:"rgba(255,245,232,0.9)",zIndex:2 }}>
+            <div style={{ fontSize:24 }}>⏳</div>
+            <div style={{ fontFamily:FONT_T,fontSize:11,color:"#1b295b" }}>Đang tải lên...</div>
           </div>
         )}
-        <div>
-          <span className="eyebrow rv d1">{S.heroEyebrow}</span>
-          <h1 className="rv d1">
-            <span>{S.heroTitle1}</span>
-            <span className="l2">{S.heroTitle2}</span>
-          </h1>
-          <div className="support rv d2">{S.heroSupport}</div>
-
-          <ul className="bens rv d3">
-            {(S.heroBenefits || []).map((b, i) => <li key={i}>{b}</li>)}
-          </ul>
-
-          <div className="cta-row rv d4">
-            <a className="btn btn-primary cta-buy" href={S.heroBtn1Link || '#sp'}>
-              {String(S.heroBtn1 || '').replace('{gia}', mfPrice ? vnd(mfPrice) : '')}
-            </a>
-          </div>
-          <p className="microcopy rv d5">{S.heroMicro}</p>
-        </div>
-
-        <div className="shot">
-          <div className="glow" />
-
-          {/* Anh hero RIENG, khong muon anh san pham nua. De trong thi hien
-              o net dut nhac upload trong admin. */}
-          {/* Bố cục kéo-thả từ admin (heroLayout) đè lên vị trí mặc định. */}
-          <div className="hero-main"
-               style={S.heroLayout?.main ? { left: S.heroLayout.main.l + '%', width: S.heroLayout.main.w + '%' } : undefined}>
-            <Img src={S.heroImage} alt={S.heroSkuName}
-                 text="ẢNH HERO|tải lên trong admin" dark />
-          </div>
-
-          <div className="hero-refill"
-               style={S.heroLayout?.refill ? { left: S.heroLayout.refill.l + '%', width: S.heroLayout.refill.w + '%' } : undefined}>
-            <Img src={S.heroRefillImage} text="ẢNH REFILL|tải lên trong admin" dark />
-          </div>
-
-          {S.heroShowVideo && (
-            <div className="tvc">
-              <VideoEmbed url={S.heroVideo} label="TVC 9:16" />
+        {current
+          ? <img src={current} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} />
+          : <div style={{ position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6 }}>
+              <div style={{ fontSize:28 }}>📸</div>
+              <div style={{ fontFamily:FONT_T,fontSize:11,color:"#aaa",textAlign:"center",padding:"0 8px" }}>Kéo thả hoặc bấm để tải ảnh lên</div>
+              <div style={{ fontFamily:FONT_B,fontSize:10,color:"#ccc" }}>JPG, PNG, WEBP — tối đa 4MB</div>
             </div>
-          )}
-        </div>
-
-        <div className="wave">
-          <svg viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
-            <path fill="#101c38" d="M0,64 C240,120 480,16 720,48 C960,80 1200,112 1440,56 L1440,120 L0,120 Z" />
-          </svg>
-        </div>
-      </header>
-
-      {(S.heroTrust || []).length > 0 && (
-        <div className="trustbar-w">
-          <div className="trustbar">
-          {S.heroTrust.map((x, i) => (
-            <span key={i}>
-              <i className={'tb-ic tb-' + (x.icon || 'check')} aria-hidden="true" />
-              {x.t}
-            </span>
-          ))}
-          </div>
-        </div>
+        }
+        <input ref={inp} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>pickFile(e.target.files[0])} />
+      </div>
+      {error && <div style={{ marginTop:4,fontFamily:FONT_B,fontSize:11,color:"#d64545",padding:"4px 8px",background:"#fdeeee",borderRadius:6 }}>❌ {error}</div>}
+      {current && !loading && (
+        <button onClick={e=>{e.stopPropagation();onUpload("");}} style={{ marginTop:5,background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:7,padding:"3px 10px",fontSize:11,fontFamily:FONT_T,cursor:"pointer",width:"100%" }}>✕ Xoá ảnh</button>
       )}
+    </div>
+  );
+}
 
-      {/* ---------------- SẢN PHẨM ---------------- */}
-      <section id="sp">
-        <div className="shead">
-          <div className="kicker">{S.spKicker}</div>
-          <h2>{S.spTitle}</h2>
-          <p>{S.spSub}</p>
+// ─── FIELD COMPONENTS ─────────────────────────────────────────────────────────
+function Field({ label, value, onChange, type="text", rows, span }) {
+  const style = { width:"100%",padding:"9px 12px",borderRadius:10,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13,boxSizing:"border-box",background:"#fff" };
+  return (
+    <div style={{ gridColumn:span==="full"?"1/-1":"auto" }}>
+      {label&&<div style={{ fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",marginBottom:5 }}>{label}</div>}
+      {rows
+        ? <textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows} style={{ ...style,resize:"vertical" }} />
+        : type==="color"
+          ? <div style={{ display:"flex",alignItems:"center",gap:8 }}><input type="color" value={value} onChange={e=>onChange(e.target.value)} style={{ width:44,height:38,border:"2px solid #dbe2f1",borderRadius:8,cursor:"pointer",padding:2 }} /><input type="text" value={value} onChange={e=>onChange(e.target.value)} style={{ ...style,flex:1 }} /></div>
+          : <input type={type} value={value} onChange={e=>onChange(type==="number"?Number(e.target.value):e.target.value)} style={style} />
+      }
+    </div>
+  );
+}
+
+/* v21.1: SectionHeader có thêm dòng chỉ dẫn ngắn (hint) — mỗi tab nói
+   rõ sửa ở đây thì ĐỔI CHỖ NÀO trên web, để không phải đoán. */
+function SectionHeader({ title, hint, children }) {
+  return (
+    <div style={{ marginBottom:18,paddingBottom:12,borderBottom:"2px solid #dbe2f1" }}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:12 }}>
+        <div style={{ fontFamily:FONT_T,fontSize:15,color:"#0d142e",fontWeight:700 }}>{title}</div>
+        {children}
+      </div>
+      {hint && <div style={{ fontFamily:FONT_B,fontSize:11.5,color:"#8a93a8",marginTop:5,lineHeight:1.6 }}>{hint}</div>}
+    </div>
+  );
+}
+
+function SaveBtn({ onSave, saved }) {
+  const [saving,setSaving] = useState(false);
+  const [err,   setErr]    = useState(null);
+  const click = async () => {
+    setSaving(true); setErr(null);
+    try { await onSave(); }
+    catch(e) { setErr(e?.message || "Lưu thất bại — vui lòng thử lại"); }
+    finally { setSaving(false); }
+  };
+  return (
+    <div>
+      <button disabled={saving} onClick={click} style={{ background:"#1b295b",color:"#fff",border:"none",borderRadius:10,padding:"10px 24px",fontFamily:FONT_T,fontSize:13,cursor:saving?"not-allowed":"pointer",marginTop:20,opacity:saving?0.7:1 }}>
+        {saving?"⏳ Đang lưu...":saved?"✅ Đã lưu!":"💾 Lưu"}
+      </button>
+      {err && <div style={{ marginTop:8,padding:"8px 12px",borderRadius:8,fontFamily:FONT_B,fontSize:12,background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",maxWidth:420 }}>❌ {err}</div>}
+    </div>
+  );
+}
+
+// ─── BANNER CAROUSEL ──────────────────────────────────────────────────────────
+function BannerCarousel({ banners, brand }) {
+  const [i,setI]=useState(0);
+  useEffect(()=>{ const t=setInterval(()=>setI(x=>(x+1)%banners.length),5000); return()=>clearInterval(t); },[banners.length]);
+  if(!banners.length) return null;
+  const b=banners[i];
+  return (
+    <div style={{ position:"relative",borderRadius:20,overflow:"hidden",marginBottom:28,boxShadow:`0 8px 40px rgba(27,41,91,0.25)`,minHeight:280,background:b.bg||brand.primary }}>
+      {b.img&&<img src={b.img} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }} />}
+      <div style={{ position:"absolute",inset:0,background:"linear-gradient(90deg,rgba(10,16,38,0.75) 0%,rgba(10,16,38,0.1) 65%,transparent 100%)" }} />
+      <div style={{ position:"absolute",bottom:0,left:0,padding:"32px 40px" }}>
+        <div style={{ fontFamily:FONT_T,fontSize:40,fontWeight:700,color:"#fff",lineHeight:1.1,textShadow:"0 2px 12px rgba(0,0,0,0.5)",marginBottom:6 }}>{b.title}</div>
+        <div style={{ fontFamily:FONT_B,fontSize:15,color:"rgba(255,255,255,0.85)",marginBottom:16 }}>{b.sub}</div>
+        <button style={{ background:brand.primary,color:"#fff",border:"none",borderRadius:12,padding:"11px 26px",fontFamily:FONT_T,fontSize:14,fontWeight:700,cursor:"pointer" }}>{b.cta} →</button>
+      </div>
+      <div style={{ position:"absolute",bottom:14,right:18,display:"flex",gap:6 }}>
+        {banners.map((_,x)=><button key={x} onClick={()=>setI(x)} style={{ width:x===i?22:8,height:8,borderRadius:4,background:x===i?"#fff":"rgba(255,255,255,0.4)",border:"none",cursor:"pointer",transition:"all 0.3s",padding:0 }} />)}
+      </div>
+    </div>
+  );
+}
+
+// ─── PRODUCT CARD ─────────────────────────────────────────────────────────────
+function ProductCard({ product:p, brand, onClick, onAdd }) {
+  const [hov,setHov]=useState(false);
+  const d=pct(p.price,p.original);
+  return (
+    <div onClick={()=>onClick(p)} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
+      style={{ background:"#fff",borderRadius:20,overflow:"hidden",cursor:"pointer",border:`2px solid ${hov?brand.primary:"#dbe2f1"}`,boxShadow:hov?`0 12px 32px rgba(27,41,91,0.25)`:`0 4px 16px rgba(27,41,91,0.1)`,transform:hov?"translateY(-6px)":"none",transition:"all 0.25s cubic-bezier(0.34,1.56,0.64,1)" }}>
+      <div style={{ position:"relative",paddingTop:"100%",background:"#f2f5fb",overflow:"hidden" }}>
+        {p.img
+          ? <img src={p.img} alt="" style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",transform:hov?"scale(1.07)":"scale(1)",transition:"transform 0.3s" }} />
+          : <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:52 }}>📦</div>
+        }
+        <div style={{ position:"absolute",inset:0,background:"linear-gradient(to top,rgba(27,41,91,0.12),transparent 50%)" }} />
+        <div style={{ position:"absolute",top:10,left:10,display:"flex",flexDirection:"column",gap:4 }}>
+          {p.flashSale&&<span style={{ background:"#0d142e",color:"#ffffff",fontSize:10,fontWeight:800,fontFamily:FONT_T,padding:"3px 10px",borderRadius:20 }}>⚡ FLASH</span>}
+          {d>0&&<span style={{ background:brand.primary,color:"#fff",fontSize:10,fontWeight:800,fontFamily:FONT_T,padding:"3px 10px",borderRadius:20 }}>-{d}%</span>}
         </div>
-
-        <div className="grid">
-          {/* v20.1: thẻ đầu nhóm TỰ SINH từ SP gốc/phân loại (tab Sản phẩm),
-              combo admin nhập nối sau — KHÔNG còn fallback thẻ cũ vì nhóm
-              không bao giờ trống. Banner SP (nếu có) hiện trên nhóm. */}
-          {mfProd && (
-            <>
-              <ProductBanner prod={mfProd} />
-              <ComboGroup heading={S.mfHeading} kicker={S.mfHeadKicker}
-                          mascot={S.mfHeadMascot} cards={cardsOf(mfProd, S)} rowRef={mfRowRef}>
-                {(c, i) => (
-                  <ComboCard key={c.id || i} card={c} prod={mfProd} S={S}
-                             scents={[]} scent={0} setScent={() => {}}
-                             vsel={mfSel} setVsel={setMfSel}
-                             onBuy={buyCombo(mfProd)}
-                             onDetail={() => setModalSlug(mfProd.slug)} />
-                )}
-              </ComboGroup>
-            </>
-          )}
-
-          {/* DÒNG MỜI GỌI */}
-          <div className="invite">
-            <div className="msc">
-              <Img src={S.inviteMascot} text="MASCOT|nhỏ" />
-            </div>
-            <p>{S.inviteText}</p>
-            <div className="arrow" />
+        {p.stock<=7&&<div style={{ position:"absolute",top:10,right:10 }}><span style={{ background:"rgba(255,255,255,0.9)",color:brand.primary,fontSize:10,fontWeight:800,fontFamily:FONT_T,padding:"3px 10px",borderRadius:20 }}>Only {p.stock}</span></div>}
+      </div>
+      <div style={{ padding:"14px 16px 16px" }}>
+        <Tag text={p.category} color={brand.primary} />
+        <h3 style={{ margin:"8px 0 4px",fontFamily:FONT_T,fontSize:15,color:"#0d142e",lineHeight:1.3 }}>{p.name}</h3>
+        <Stars rating={p.rating} />
+        {p.flashSale&&<div style={{ marginTop:5 }}><FlashTimer end={p.flashEnd} /></div>}
+        <div style={{ marginTop:10,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+          <div>
+            <span style={{ fontFamily:FONT_T,fontSize:19,fontWeight:700,color:brand.primary }}>{fmt(p.price)}</span>
+            {d>0&&<span style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",textDecoration:"line-through",marginLeft:6 }}>{fmt(p.original)}</span>}
           </div>
-
-          {wbsProd && (
-            <>
-              <ProductBanner prod={wbsProd} />
-              <ComboGroup heading={S.wbsHeading} kicker={S.wbsHeadKicker}
-                          mascot={S.wbsHeadMascot} cards={cardsOf(wbsProd, S)} rowRef={wbsRowRef}>
-                {(c, i) => (
-                  <ComboCard key={c.id || i} card={c} prod={wbsProd} S={S}
-                             scents={scents} scent={scent} setScent={setScent}
-                             vsel={0} setVsel={() => {}}
-                             onBuy={buyCombo(wbsProd)}
-                             onDetail={() => setModalSlug(wbsProd.slug)} />
-                )}
-              </ComboGroup>
-            </>
-          )}
+          <button onClick={e=>{e.stopPropagation();onAdd(p);}} style={{ background:brand.primary,color:"#fff",border:"none",borderRadius:10,padding:"8px 14px",fontFamily:FONT_T,fontSize:13,cursor:"pointer" }}>+ Cart</button>
         </div>
-      </section>
+      </div>
+    </div>
+  );
+}
 
-
-      {/* ---------------- ĐÁNH GIÁ ---------------- */}
-      {(S.testimonials || []).length > 0 && (
-        <section className="tmo">
-          <div className="tmo-head">
-            <div>
-              <div className="kicker">{S.tmKicker}</div>
-              <h2>{S.tmTitle}</h2>
-            </div>
-            <div className="tarrows">
-              <button onClick={() => railRef.current?.scrollBy({ left: -railStep() * 2, behavior: 'smooth' })} aria-label="Xem trước">←</button>
-              <button onClick={() => railRef.current?.scrollBy({ left:  railStep() * 2, behavior: 'smooth' })} aria-label="Xem tiếp">→</button>
-            </div>
+// ─── PRODUCT MODAL ────────────────────────────────────────────────────────────
+function ProductModal({ product:p, brand, onClose, onAdd }) {
+  const [qty,setQty]=useState(1); const [tab,setTab]=useState("story");
+  const d=pct(p.price,p.original);
+  return (
+    <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(10,16,38,0.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#fff",borderRadius:24,maxWidth:860,width:"100%",maxHeight:"92vh",overflow:"auto" }}>
+        <div className="hh-admin-grid2" style={{ display:"grid",gridTemplateColumns:"1fr 1fr" }}>
+          <div style={{ position:"relative",minHeight:400,background:"#f2f5fb",borderRadius:"24px 0 0 24px",overflow:"hidden" }}>
+            {p.img?<img src={p.img} alt="" style={{ width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0 }} />:<div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:80 }}>📦</div>}
+            {p.flashSale&&<div style={{ position:"absolute",top:16,left:16 }}><FlashTimer end={p.flashEnd} /></div>}
           </div>
-
-          <div className="trail" ref={railRef}>
-            {S.testimonials.map((t, i) => (
-              <div className={'tcard' + (t.embed ? '' : ' tquote')} key={i}>
-                {t.embed || t.thumb ? (
-                  <div className="tvid">
-                    <VideoEmbed url={t.embed} poster={t.thumb} label={`VIDEO|${t.who}`} />
-                  </div>
-                ) : (
-                  /* Chưa có video → hiện câu nói cho tử tế, không để ô trống */
-                  <div className="tsay"><p>{t.quote}</p></div>
-                )}
-                <div className="tmeta">
-                  <span className="who">{t.who}</span>
-                  <span className="pet">{t.pet}</span>
-                  {t.embed && t.quote && <span className="quote">{t.quote}</span>}
+          <div style={{ padding:32 }}>
+            <button onClick={onClose} style={{ float:"right",background:"#f2f5fb",border:"none",borderRadius:50,width:32,height:32,cursor:"pointer",color:"#5f6c8f",fontSize:16 }}>✕</button>
+            <Tag text={p.category} color={brand.primary} />
+            <h2 style={{ fontFamily:FONT_T,fontSize:26,color:"#0d142e",margin:"10px 0 4px" }}>{p.name}</h2>
+            <Stars rating={p.rating} size={15} />
+            <span style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginLeft:6 }}>· only {p.stock} items</span>
+            <div style={{ display:"flex",margin:"20px 0 16px",border:"2px solid #dbe2f1",borderRadius:12,overflow:"hidden" }}>
+              {[["story","📖 Story"],["specs","⚙️ Details"],["reviews","💬 Reviews"]].map(([k,l])=>(
+                <button key={k} onClick={()=>setTab(k)} style={{ flex:1,padding:"8px 4px",background:tab===k?brand.primary:"transparent",color:tab===k?"#fff":"#5f6c8f",border:"none",fontFamily:FONT_T,fontSize:12,cursor:"pointer",transition:"all 0.2s" }}>{l}</button>
+              ))}
+            </div>
+            {tab==="story"&&<p style={{ fontFamily:FONT_B,fontSize:14,color:"#131c3d",lineHeight:1.8,whiteSpace:"pre-line",background:"#f2f5fb",borderLeft:`4px solid ${brand.primary}`,padding:"12px 16px",borderRadius:"0 10px 10px 0",margin:0 }}>{p.story||"No story yet."}</p>}
+            {tab==="specs"&&<div>{[["Tags",(p.tags||"—").split(",")[0]],["Kho hàng",`${p.stock} items`],["Danh mục",p.category]].map(([k,v])=>(
+              <div key={k} style={{ display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #dbe2f1",fontFamily:FONT_B,fontSize:13 }}><span style={{ color:"#5f6c8f" }}>{k}</span><span style={{ color:brand.primary,fontWeight:700 }}>{v}</span></div>
+            ))}</div>}
+            {tab==="reviews"&&(p.reviews||[]).map((r,i)=>(
+              <div key={i} style={{ padding:"12px 0",borderBottom:"1px solid #dbe2f1" }}>
+                <div style={{ display:"flex",justifyContent:"space-between",marginBottom:4 }}><span style={{ fontFamily:FONT_T,fontSize:13,color:brand.primary }}>{r.user}</span><span style={{ fontSize:11,color:"#5f6c8f" }}>{r.date}</span></div>
+                <Stars rating={r.rating} size={12} />
+                <p style={{ fontFamily:FONT_B,fontSize:13,color:"#131c3d",margin:"6px 0 0" }}>{r.text}</p>
+              </div>
+            ))}
+            <div style={{ marginTop:24,padding:20,background:"#f2f5fb",borderRadius:16,border:"2px solid #dbe2f1" }}>
+              <div style={{ display:"flex",alignItems:"baseline",gap:12,marginBottom:16 }}>
+                <span style={{ fontFamily:FONT_T,fontSize:28,fontWeight:700,color:brand.primary }}>{fmt(p.price*qty)}</span>
+                {d>0&&<span style={{ fontFamily:FONT_B,fontSize:14,color:"#5f6c8f",textDecoration:"line-through" }}>{fmt(p.original*qty)}</span>}
+              </div>
+              <div style={{ display:"flex",gap:12 }}>
+                <div style={{ display:"flex",alignItems:"center",border:"2px solid #dbe2f1",borderRadius:12,overflow:"hidden",background:"#fff" }}>
+                  <button onClick={()=>setQty(q=>Math.max(1,q-1))} style={{ width:38,height:44,background:"none",border:"none",fontSize:20,cursor:"pointer",color:brand.primary,fontWeight:700 }}>−</button>
+                  <span style={{ width:36,textAlign:"center",fontFamily:FONT_T,fontSize:16,fontWeight:700 }}>{qty}</span>
+                  <button onClick={()=>setQty(q=>Math.min(p.stock,q+1))} style={{ width:38,height:44,background:"none",border:"none",fontSize:20,cursor:"pointer",color:brand.primary,fontWeight:700 }}>+</button>
                 </div>
+                <button onClick={()=>{onAdd(p,qty);onClose();}} style={{ flex:1,background:brand.primary,color:"#fff",border:"none",borderRadius:12,fontFamily:FONT_T,fontWeight:700,fontSize:15,cursor:"pointer" }}>🛒 Add to Cart</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── INVOICE MODAL ────────────────────────────────────────────────────────────
+function InvoiceModal({ order, brand, onClose }) {
+  const print = () => {
+    const w=window.open("","_blank","width=700,height=900");
+    w.document.write(`<html><head><title>Hoá Đơn ${order.code}</title><style>body{font-family:'Segoe UI',sans-serif;padding:40px;color:#0d142e}table{width:100%;border-collapse:collapse;margin-top:20px}th{background:#f2f5fb;color:#5f6c8f;padding:10px 14px;text-align:left;font-size:12px}td{padding:10px 14px;border-bottom:1px solid #dbe2f1;font-size:14px}.tot td{font-weight:700;font-size:16px;color:#1b295b;border-top:3px solid #1b295b;border-bottom:none}</style></head><body>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:3px solid #1b295b">
+      <div><h1 style="color:#1b295b;font-size:28px;margin:0">${brand.name}</h1><div style="color:#5f6c8f;font-size:13px">${brand.tagline}</div></div>
+      <div style="text-align:right"><div style="font-size:22px;font-weight:900;color:#1b295b">${order.code}</div><div style="color:#5f6c8f;font-size:12px">${order.date}</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:20px">
+      <div><b>CUSTOMER</b><br>${order.customer.name}<br>${order.customer.phone}<br>${order.customer.address}</div>
+      <div><b>SHIPPING</b><br>🚚 GHN / GHTK<br>Est. 1–3 days delivery${order.voucher?`<br>🎟 Code: ${order.voucher}`:""}</div>
+    </div>
+    <table><thead><tr><th>#</th><th>PRODUCT</th><th>SL</th><th>UNIT PRICE</th><th>AMOUNT</th></tr></thead><tbody>
+    ${order.items.map((it,i)=>`<tr><td>${i+1}</td><td>${it.product.name}</td><td>${it.qty}</td><td>${fmt(it.product.price)}</td><td>${fmt(it.product.price*it.qty)}</td></tr>`).join("")}
+    ${order.discount>0?`<tr><td colspan="4" style="text-align:right;color:#27ae60">Discount (${order.discPct}%)</td><td style="color:#27ae60">-${fmt(order.discount)}</td></tr>`:""}
+    <tr class="tot"><td colspan="4" style="text-align:right">GRAND TOTAL</td><td>${fmt(order.total)}</td></tr>
+    </tbody></table>
+    <div style="margin-top:32px;text-align:center;color:#5f6c8f;font-size:12px">Thank you for shopping at ${brand.name} 🐾 · ${brand.tagline}</div>
+    </body></html>`);
+    w.document.close(); w.print();
+  };
+  const sub=order.items.reduce((s,i)=>s+i.product.price*i.qty,0);
+  return (
+    <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(10,16,38,0.75)",zIndex:2500,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(8px)" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#fff",borderRadius:24,maxWidth:660,width:"100%",maxHeight:"90vh",overflow:"auto",boxShadow:"0 24px 80px rgba(27,41,91,0.3)" }}>
+        <div style={{ background:"linear-gradient(135deg,#1b295b,#2e4390)",padding:"28px 32px",borderRadius:"24px 24px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+          <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+            <HHLogo primary="#fff" size={44} />
+            <div>
+              <div style={{ fontFamily:FONT_T,fontSize:20,color:"#fff",fontWeight:700 }}>{brand.name}</div>
+              <div style={{ fontFamily:FONT_B,fontSize:12,color:"rgba(255,255,255,0.8)" }}>{brand.tagline}</div>
+            </div>
+          </div>
+          <div style={{ textAlign:"right" }}>
+            <div style={{ fontFamily:FONT_B,fontSize:11,color:"rgba(255,255,255,0.7)",letterSpacing:2 }}>INVOICE</div>
+            <div style={{ fontFamily:FONT_T,fontSize:24,color:"#fff",fontWeight:700 }}>{order.code}</div>
+            <div style={{ fontFamily:FONT_B,fontSize:12,color:"rgba(255,255,255,0.8)" }}>{order.date}</div>
+          </div>
+        </div>
+        <div style={{ padding:"28px 32px" }}>
+          <div className="hh-admin-grid2" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:24 }}>
+            {[["CUSTOMER",[order.customer.name,order.customer.phone,order.customer.address]],["SHIPPING",["🚚 GHN / GHTK","Est. 1–3 days delivery",order.voucher?`🎟 ${order.voucher}`:""].filter(Boolean)]].map(([title,lines])=>(
+              <div key={title} style={{ padding:16,background:"#f2f5fb",borderRadius:12,border:"2px solid #dbe2f1" }}>
+                <div style={{ fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",letterSpacing:2,marginBottom:10 }}>{title}</div>
+                {lines.map((l,i)=><div key={i} style={{ fontFamily:i===0?FONT_T:FONT_B,fontSize:i===0?15:13,color:i===0?"#0d142e":"#4a5573",marginBottom:i===0?4:2 }}>{l}</div>)}
               </div>
             ))}
           </div>
+          <div style={{ border:"2px solid #dbe2f1",borderRadius:14,overflow:"hidden",marginBottom:20 }}>
+            <div style={{ display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",background:"#f2f5fb",padding:"10px 16px" }}>
+              {["PRODUCT","SL","UNIT PRICE","AMOUNT"].map(h=><div key={h} style={{ fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",letterSpacing:1 }}>{h}</div>)}
+            </div>
+            {order.items.map((it,i)=>(
+              <div key={i} style={{ display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",padding:"12px 16px",borderTop:"1px solid #dbe2f1",alignItems:"center" }}>
+                <div><div style={{ fontFamily:FONT_T,fontSize:14,color:"#0d142e" }}>{it.product.name}</div><div style={{ fontFamily:FONT_B,fontSize:11,color:"#5f6c8f" }}>{it.product.category}</div></div>
+                <div style={{ fontFamily:FONT_T,fontSize:14 }}>{it.qty}</div>
+                <div style={{ fontFamily:FONT_B,fontSize:13,color:"#4a5573" }}>{fmt(it.product.price)}</div>
+                <div style={{ fontFamily:FONT_T,fontSize:14,color:"#1b295b",fontWeight:700 }}>{fmt(it.product.price*it.qty)}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end" }}>
+            <div style={{ display:"flex",gap:32,fontFamily:FONT_B,fontSize:14,color:"#5f6c8f" }}><span>Subtotal:</span><span>{fmt(sub)}</span></div>
+            {order.discount>0&&<div style={{ display:"flex",gap:32,fontFamily:FONT_B,fontSize:14,color:"#27ae60" }}><span>Discount ({order.discPct}%):</span><span>-{fmt(order.discount)}</span></div>}
+            <div style={{ display:"flex",gap:32,fontFamily:FONT_T,fontSize:22,color:"#1b295b",fontWeight:700,borderTop:"2px solid #dbe2f1",paddingTop:10,marginTop:4 }}><span>GRAND TOTAL:</span><span>{fmt(order.total)}</span></div>
+          </div>
+          <div style={{ marginTop:20,padding:16,background:"#f2f5fb",borderRadius:12,border:"2px solid #dbe2f1",textAlign:"center" }}>
+            <div style={{ fontFamily:FONT_B,fontSize:13,color:"#4a5573" }}>Thank you for shopping at <strong>{brand.name}</strong> 🐾</div>
+            <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginTop:4 }}>7-day returns · {brand.tagline}</div>
+          </div>
+          <div style={{ display:"flex",gap:12,marginTop:20 }}>
+            <button onClick={print} style={{ flex:1,background:"#0d142e",color:"#ffffff",border:"none",borderRadius:12,padding:"13px 0",fontFamily:FONT_T,fontSize:14,cursor:"pointer",fontWeight:700 }}>🖨 Print / Save PDF</button>
+            <button onClick={onClose} style={{ flex:1,background:"#f2f5fb",color:"#5f6c8f",border:"2px solid #dbe2f1",borderRadius:12,padding:"13px 0",fontFamily:FONT_T,fontSize:14,cursor:"pointer",fontWeight:700 }}>Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-          {(S.tmStats || []).length > 0 && (
-            <div className="tstats">
-              {S.tmStats.map((s, i) => (
-                <div className="tstat" key={i}><b>{s.n}</b><span>{s.l}</span></div>
+
+// ─── CART DRAWER ──────────────────────────────────────────────────────────────
+
+function CartDrawer({ cart, brand, vouchers, onClose, onRemove, onQty, onOrderComplete }) {
+  const fmt = n => n?.toLocaleString('vi-VN') + 'đ';
+
+  const [vc, setVc]       = useState('');
+  const [dp, setDp]       = useState(0);
+  const [vm, setVm]       = useState('');
+  const [vu, setVu]       = useState('');
+  const [step, setStep]   = useState('cart');
+  const [inv, setInv]     = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  // Address state — stores both display name and GHN IDs
+  const [form, setForm] = useState({
+    name: '', phone: '', email: '', address: '', note: '',
+    provinceId: null, provinceName: '',
+    districtId: null, districtName: '',
+    wardCode: '',     wardName: '',
+  });
+
+  // GHN master data
+  const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards,     setWards]     = useState([]);
+  const [geoLoading, setGeoLoading] = useState('');
+
+  // Shipping fee
+  const [shippingFee,  setShippingFee]  = useState(null);
+  const [feeLoading,   setFeeLoading]   = useState(false);
+  const [feeNote,      setFeeNote]      = useState('');
+
+  const sub      = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
+  const da       = Math.round(sub * dp / 100);
+  const shipCost = shippingFee || 0;
+  const total    = sub - da + shipCost;
+
+  const vMap = Object.fromEntries((vouchers || []).map(v => [v.code.toUpperCase(), v.pct]));
+
+  // ── Load provinces on checkout step ────────────────────────────────────────
+  useEffect(() => {
+    if (step === 'checkout' && provinces.length === 0) {
+      setGeoLoading('provinces');
+      fetch('/api/shipping/provinces')
+        .then(r => r.json())
+        .then(data => { setProvinces(Array.isArray(data) ? data : []); })
+        .catch(() => {})
+        .finally(() => setGeoLoading(''));
+    }
+  }, [step]);
+
+  // ── Load districts when province changes ────────────────────────────────────
+  const handleProvinceChange = async (e) => {
+    const idx = e.target.selectedIndex;
+    const opt = e.target.options[idx];
+    const id  = Number(opt.value);
+    const name = opt.text;
+    setForm(f => ({ ...f, provinceId: id, provinceName: name, districtId: null, districtName: '', wardCode: '', wardName: '' }));
+    setDistricts([]); setWards([]); setShippingFee(null); setFeeNote('');
+    if (!id) return;
+    setGeoLoading('districts');
+    try {
+      const data = await fetch(`/api/shipping/districts?province_id=${id}`).then(r => r.json());
+      setDistricts(Array.isArray(data) ? data : []);
+    } catch (_) {}
+    finally { setGeoLoading(''); }
+  };
+
+  // ── Load wards when district changes ────────────────────────────────────────
+  const handleDistrictChange = async (e) => {
+    const idx  = e.target.selectedIndex;
+    const opt  = e.target.options[idx];
+    const id   = Number(opt.value);
+    const name = opt.text;
+    setForm(f => ({ ...f, districtId: id, districtName: name, wardCode: '', wardName: '' }));
+    setWards([]); setShippingFee(null); setFeeNote('');
+    if (!id) return;
+    setGeoLoading('wards');
+    try {
+      const data = await fetch(`/api/shipping/wards?district_id=${id}`).then(r => r.json());
+      setWards(Array.isArray(data) ? data : []);
+    } catch (_) {}
+    finally { setGeoLoading(''); }
+  };
+
+  // ── Calculate fee when ward is selected ─────────────────────────────────────
+  const handleWardChange = async (e) => {
+    const idx  = e.target.selectedIndex;
+    const opt  = e.target.options[idx];
+    const code = opt.value;
+    const name = opt.text;
+    setForm(f => ({ ...f, wardCode: code, wardName: name }));
+    if (!code || !form.districtId) return;
+    setFeeLoading(true); setFeeNote('');
+    try {
+      const res  = await fetch('/api/shipping/fee', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toDistrictId:   form.districtId,
+          toWardCode:     code,
+          weight:         cart.reduce((s, i) => s + i.qty * 150, 0),
+          insuranceValue: sub,
+        }),
+      });
+      const data = await res.json();
+      setShippingFee(data.fee || 30000);
+      setFeeNote(data.estimatedDays ? `Est. ${data.estimatedDays} days — ${data.provider || 'GHN'}` : data.note || '');
+    } catch (_) {
+      setShippingFee(30000);
+      setFeeNote('Estimated fee');
+    } finally {
+      setFeeLoading(false);
+    }
+  };
+
+  // ── Place order (server-side) ────────────────────────────────────────────────
+  const place = async () => {
+    if (!form.name || !form.phone || !form.address || !form.provinceId || !form.districtId || !form.wardCode) {
+      alert('Please fill in all address fields including ward.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/orders/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: cart.map(i => ({ productId: i.product.id, qty: i.qty })),
+          customer: {
+            name:         form.name,
+            phone:        form.phone,
+            email:        form.email,
+            address:      form.address,
+            provinceId:   form.provinceId,
+            provinceName: form.provinceName,
+            districtId:   form.districtId,
+            districtName: form.districtName,
+            wardCode:     form.wardCode,
+            wardName:     form.wardName,
+          },
+          voucherCode: vu || null,
+          note:        form.note,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Order failed');
+
+      // Build a local order object for the invoice modal
+      const order = {
+        id:       data.orderId,
+        code:     data.orderCode,
+        date:     new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        customer: form,
+        items:    cart,
+        voucher:  vu, discPct: dp, discount: data.discountAmount,
+        total:    data.total,
+        shipping: 'GHN',
+        shippingFee: data.shippingFee,
+      };
+      setInv(order);
+      onOrderComplete(order);
+    } catch (e) {
+      alert('Order error: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selectStyle = {
+    width: '100%', padding: '10px 12px', borderRadius: 12,
+    border: '2px solid #dbe2f1', fontFamily: FONT_B, fontSize: 13,
+    boxSizing: 'border-box', background: '#fff', cursor: 'pointer',
+  };
+  const inputStyle = {
+    width: '100%', padding: '11px 14px', borderRadius: 12,
+    border: '2px solid #dbe2f1', fontFamily: FONT_B, fontSize: 14,
+    boxSizing: 'border-box',
+  };
+  const labelStyle = { fontFamily: FONT_T, fontSize: 13, color: '#5f6c8f', marginBottom: 6, display: 'block' };
+
+  if (inv) return <InvoiceModal order={inv} brand={brand} onClose={onClose} />;
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1500, display: 'flex' }}>
+      <div style={{ flex: 1 }} />
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', width: 420, height: '100%',
+        borderLeft: '3px solid #dbe2f1', display: 'flex', flexDirection: 'column',
+        boxShadow: '-8px 0 40px rgba(27,41,91,0.2)', overflowY: 'auto',
+      }}>
+        {/* Header */}
+        <div style={{ padding: '18px 24px', borderBottom: '2px solid #f2f5fb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f2f5fb', position: 'sticky', top: 0, zIndex: 10 }}>
+          <span style={{ fontFamily: FONT_T, fontWeight: 700, color: brand.primary, fontSize: 18 }}>
+            🛒 Cart ({cart.reduce((s, i) => s + i.qty, 0)})
+          </span>
+          <button onClick={onClose} style={{ background: brand.primary + '22', border: 'none', borderRadius: 8, padding: '6px 12px', color: brand.primary, cursor: 'pointer', fontFamily: FONT_T, fontWeight: 700, fontSize: 13 }}>✕</button>
+        </div>
+
+        <div style={{ flex: 1, padding: 20 }}>
+          {step === 'cart' ? (
+            cart.length === 0
+              ? <div style={{ textAlign: 'center', paddingTop: 80 }}>
+                  <div style={{ fontSize: 56 }}>🛒</div>
+                  <div style={{ fontFamily: FONT_T, fontSize: 18, color: '#5f6c8f', marginTop: 12 }}>Your cart is empty!</div>
+                </div>
+              : <>
+                  {cart.map(it => (
+                    <div key={it.product.id} style={{ display: 'flex', gap: 12, marginBottom: 14, padding: 14, background: '#f8fafd', borderRadius: 14, border: '1px solid #dbe2f1' }}>
+                      <div style={{ width: 68, height: 68, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: '#f2f5fb' }}>
+                        {it.product.img
+                          ? <img src={it.product.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>📦</div>}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontFamily: FONT_T, fontSize: 13, color: '#0d142e', marginBottom: 4 }}>{it.product.name}</div>
+                        <div style={{ fontFamily: FONT_T, fontSize: 14, color: brand.primary, fontWeight: 700 }}>{fmt(it.product.price)}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                          <button onClick={() => onQty(it.product.id, it.qty - 1)} style={{ width: 26, height: 26, borderRadius: 8, background: '#f2f5fb', border: '1px solid #dbe2f1', color: brand.primary, cursor: 'pointer', fontWeight: 700 }}>−</button>
+                          <span style={{ fontFamily: FONT_T, fontWeight: 700, fontSize: 14, minWidth: 20, textAlign: 'center' }}>{it.qty}</span>
+                          <button onClick={() => onQty(it.product.id, it.qty + 1)} style={{ width: 26, height: 26, borderRadius: 8, background: '#f2f5fb', border: '1px solid #dbe2f1', color: brand.primary, cursor: 'pointer', fontWeight: 700 }}>+</button>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                        <div style={{ fontFamily: FONT_T, fontWeight: 700, color: brand.primary }}>{fmt(it.product.price * it.qty)}</div>
+                        <button onClick={() => onRemove(it.product.id)} style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 18 }}>🗑</button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Voucher */}
+                  <div style={{ padding: 16, background: '#f2f5fb', borderRadius: 14, border: '2px dashed #dbe2f1', marginBottom: 16 }}>
+                    <div style={{ fontFamily: FONT_T, fontSize: 13, color: brand.primary, marginBottom: 8 }}>🎟 Discount Code</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input value={vc} onChange={e => setVc(e.target.value)} placeholder="Enter code..." style={{ flex: 1, padding: '8px 12px', borderRadius: 10, border: '2px solid #dbe2f1', fontFamily: FONT_B, fontSize: 13 }} />
+                      <button onClick={() => {
+                        const p = vMap[vc.toUpperCase()];
+                        if (p) { setDp(p); setVu(vc.toUpperCase()); setVm(`✅ Discount ${p}%!`); }
+                        else { setVm('❌ Invalid code'); setDp(0); setVu(''); }
+                      }} style={{ background: brand.primary, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontFamily: FONT_T, fontSize: 13, cursor: 'pointer' }}>Apply</button>
+                    </div>
+                    {vm && <div style={{ fontFamily: FONT_B, fontSize: 12, color: dp ? '#27ae60' : '#e74c3c', marginTop: 6 }}>{vm}</div>}
+                  </div>
+
+                  {/* Totals preview */}
+                  {dp > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #dbe2f1' }}>
+                    <span style={{ fontFamily: FONT_B, color: '#5f6c8f' }}>Discount ({dp}%)</span>
+                    <span style={{ fontFamily: FONT_T, color: '#27ae60', fontWeight: 600 }}>-{fmt(da)}</span>
+                  </div>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontFamily: FONT_T, fontSize: 18 }}>
+                    <span style={{ color: '#0d142e' }}>Subtotal</span>
+                    <span style={{ color: brand.primary, fontWeight: 700 }}>{fmt(sub - da)}</span>
+                  </div>
+                </>
+          ) : (
+            /* ── CHECKOUT STEP ─────────────────────────────────────────── */
+            <div>
+              <div style={{ fontFamily: FONT_T, fontSize: 18, color: '#0d142e', marginBottom: 20 }}>Delivery Information</div>
+
+              {/* Name + Phone */}
+              {[['Full Name', 'name', 'text'], ['Phone Number', 'phone', 'tel'], ['Email (for receipt)', 'email', 'email']].map(([label, key, type]) => (
+                <div key={key} style={{ marginBottom: 14 }}>
+                  <label style={labelStyle}>{label}</label>
+                  <input type={type} value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} style={inputStyle} />
+                </div>
               ))}
+
+              {/* Street address */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Street Address</label>
+                <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="House number, street name..." style={inputStyle} />
+              </div>
+
+              {/* Province */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Province / City {geoLoading === 'provinces' && '⏳'}</label>
+                <select onChange={handleProvinceChange} value={form.provinceId || ''} style={selectStyle}>
+                  <option value="">— Select province —</option>
+                  {provinces.map(p => (
+                    <option key={p.ProvinceID} value={p.ProvinceID}>{p.ProvinceName}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* District */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>District {geoLoading === 'districts' && '⏳'}</label>
+                <select onChange={handleDistrictChange} value={form.districtId || ''} disabled={!form.provinceId} style={{ ...selectStyle, opacity: form.provinceId ? 1 : 0.5 }}>
+                  <option value="">— Select district —</option>
+                  {districts.map(d => (
+                    <option key={d.DistrictID} value={d.DistrictID}>{d.DistrictName}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Ward */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={labelStyle}>Ward {geoLoading === 'wards' && '⏳'}</label>
+                <select onChange={handleWardChange} value={form.wardCode || ''} disabled={!form.districtId} style={{ ...selectStyle, opacity: form.districtId ? 1 : 0.5 }}>
+                  <option value="">— Select ward —</option>
+                  {wards.map(w => (
+                    <option key={w.WardCode} value={w.WardCode}>{w.WardName}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Note */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={labelStyle}>Order Note (optional)</label>
+                <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="e.g. Leave at door" style={inputStyle} />
+              </div>
+
+              {/* Shipping fee + total summary */}
+              <div style={{ background: '#f2f5fb', borderRadius: 14, padding: 16, border: '2px solid #dbe2f1' }}>
+                <div style={{ fontFamily: FONT_T, fontSize: 13, color: brand.primary, marginBottom: 10, fontWeight: 700 }}>🚚 Shipping Fee</div>
+                {feeLoading
+                  ? <div style={{ fontFamily: FONT_B, fontSize: 13, color: '#5f6c8f' }}>⏳ Calculating...</div>
+                  : shippingFee !== null
+                    ? <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: FONT_T, marginBottom: 4 }}>
+                          <span style={{ color: '#5f6c8f' }}>Shipping:</span>
+                          <span style={{ color: brand.primary, fontWeight: 700 }}>{fmt(shippingFee)}</span>
+                        </div>
+                        {feeNote && <div style={{ fontFamily: FONT_B, fontSize: 11, color: '#5f6c8f' }}>{feeNote}</div>}
+                      </div>
+                    : <div style={{ fontFamily: FONT_B, fontSize: 12, color: '#5f6c8f' }}>↑ Select ward to calculate shipping</div>
+                }
+                {dp > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontFamily: FONT_B, fontSize: 13 }}>
+                  <span style={{ color: '#5f6c8f' }}>Discount ({dp}%):</span>
+                  <span style={{ color: '#27ae60' }}>-{fmt(da)}</span>
+                </div>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, paddingTop: 10, borderTop: '1px solid #dbe2f1', fontFamily: FONT_T }}>
+                  <span style={{ color: '#0d142e', fontSize: 15 }}>Total:</span>
+                  <span style={{ color: brand.primary, fontSize: 22, fontWeight: 700 }}>{fmt(total)}</span>
+                </div>
+              </div>
             </div>
           )}
-        </section>
-      )}
+        </div>
 
-      {/* ---------------- GIỚI THIỆU ---------------- */}
-      <section className="about" id="about">
-        <div className="about-in">
-          <div>
-            <div className="kicker">{S.abKicker}</div>
-            <h2>{S.abTitle}</h2>
-            <div className="about-img">
-              <Img src={S.abImage} text="ẢNH THẬT|pet AI-gen được ôm / vuốt ve|tông ấm" dark />
-            </div>
-            <p>{S.abBody1}</p>
-            <p>{S.abBody2}</p>
-            <a className="btn btn-ghost" href="#sp">{S.abBtn}</a>
+        {/* Footer buttons */}
+        <div style={{ padding: 20, borderTop: '2px solid #f2f5fb', background: '#fff', position: 'sticky', bottom: 0 }}>
+          {step === 'cart'
+            ? <button
+                onClick={() => cart.length > 0 && setStep('checkout')}
+                style={{ width: '100%', background: cart.length > 0 ? brand.primary : '#dbe2f1', color: '#fff', border: 'none', borderRadius: 14, padding: '14px 0', fontFamily: FONT_T, fontSize: 16, fontWeight: 700, cursor: cart.length > 0 ? 'pointer' : 'not-allowed' }}
+              >Proceed to Checkout →</button>
+            : <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setStep('cart')} style={{ flex: 1, background: '#f2f5fb', color: brand.primary, border: '2px solid #dbe2f1', borderRadius: 12, padding: '12px 0', fontFamily: FONT_T, fontWeight: 700, cursor: 'pointer' }}>← Back</button>
+                <button
+                  onClick={place}
+                  disabled={saving || !form.wardCode}
+                  style={{ flex: 2, background: brand.primary, color: '#fff', border: 'none', borderRadius: 12, padding: '12px 0', fontFamily: FONT_T, fontWeight: 700, fontSize: 15, cursor: (saving || !form.wardCode) ? 'not-allowed' : 'pointer', opacity: (saving || !form.wardCode) ? 0.7 : 1 }}
+                >
+                  {saving ? '⏳ Placing order...' : '🧾 Place Order'}
+                </button>
+              </div>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── POPUP ────────────────────────────────────────────────────────────────────
+function PopupModal({ cfg, brand, onClose, onSub }) {
+  const [email,setEmail]=useState(""); const [name,setName]=useState(""); const [done,setDone]=useState(false);
+  return (
+    <div style={{ position:"fixed",inset:0,background:"rgba(10,16,38,0.65)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}>
+      <div style={{ background:"#fff",borderRadius:28,maxWidth:400,width:"100%",overflow:"hidden" }}>
+        <div style={{ background:brand.primary,padding:"36px 32px 28px",textAlign:"center",position:"relative" }}>
+          <button onClick={onClose} style={{ position:"absolute",top:14,right:16,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:50,width:30,height:30,color:"#fff",cursor:"pointer",fontSize:16 }}>✕</button>
+          <HHLogo primary="#fff" size={52} />
+          <div style={{ fontFamily:FONT_T,fontSize:26,color:"#fff",fontWeight:700,marginTop:10 }}>{cfg.title}</div>
+          <div style={{ fontFamily:FONT_B,fontSize:14,color:"rgba(255,255,255,0.88)",marginTop:4 }}>{cfg.body}</div>
+        </div>
+        <div style={{ padding:28 }}>
+          {done
+            ? <div style={{ textAlign:"center",padding:"10px 0" }}><div style={{ fontSize:48 }}>🎉</div><div style={{ fontFamily:FONT_T,fontSize:20,color:brand.primary,margin:"10px 0 6px" }}>{cfg.successTitle}</div><div style={{ fontFamily:FONT_B,fontSize:14,color:"#4a5573" }}>{cfg.successBody}</div></div>
+            : <>
+                <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{ width:"100%",padding:"12px 16px",borderRadius:12,border:"2px solid #dbe2f1",fontSize:14,fontFamily:FONT_B,marginBottom:12,boxSizing:"border-box" }} />
+                <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" style={{ width:"100%",padding:"12px 16px",borderRadius:12,border:"2px solid #dbe2f1",fontSize:14,fontFamily:FONT_B,marginBottom:16,boxSizing:"border-box" }} />
+                <button onClick={async ()=>{if(email&&name){try{await addSubscriber(name,email);}catch(_){} onSub({name,email});setDone(true);setTimeout(onClose,2200);}}} style={{ width:"100%",background:brand.primary,color:"#fff",border:"none",borderRadius:14,padding:"14px 0",fontFamily:FONT_T,fontSize:16,fontWeight:700,cursor:"pointer" }}>{cfg.btnLabel}</button>
+              </>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ADMIN LOGIN — Supabase Auth ──────────────────────────────────────────────
+function AdminLogin({ onSuccess, onClose }) {
+  const [email, setEmail] = useState("");
+  const [pw, setPw]       = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+  const [shake, setShake]     = useState(false);
+
+  const go = async () => {
+    if (!email || !pw) return;
+    setLoading(true); setError("");
+    try {
+      const user = await adminSignIn(email, pw);
+      onSuccess(user.email);
+    } catch(e) {
+      setError("Incorrect email or password");
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ position:"fixed",inset:0,background:"rgba(10,16,38,0.85)",zIndex:5000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(10px)" }}>
+      <style>{`@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}`}</style>
+      <div style={{ background:"#fff",borderRadius:24,maxWidth:400,width:"100%",overflow:"hidden",animation:shake?"shake 0.4s ease":undefined }}>
+        <div style={{ background:"#0d142e",padding:"32px 32px 28px",textAlign:"center" }}>
+          <div style={{ fontSize:40,marginBottom:8 }}>🔐</div>
+          <div style={{ fontFamily:FONT_T,fontSize:22,color:"#1b295b",fontWeight:700 }}>Admin — Hanapet</div>
+          <div style={{ fontFamily:FONT_B,fontSize:13,color:"rgba(255,255,255,0.55)",marginTop:6 }}>Sign in with your Supabase account</div>
+        </div>
+        <div style={{ padding:28 }}>
+          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",marginBottom:6 }}>Email</div>
+          <input
+            type="email" value={email}
+            onChange={e=>{setEmail(e.target.value);setError("");}}
+            onKeyDown={e=>e.key==="Enter"&&go()}
+            placeholder="admin@gmail.com"
+            style={{ width:"100%",padding:"12px 16px",borderRadius:12,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:14,boxSizing:"border-box",marginBottom:12 }}
+          />
+          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",marginBottom:6 }}>Password</div>
+          <input
+            type="password" value={pw}
+            onChange={e=>{setPw(e.target.value);setError("");}}
+            onKeyDown={e=>e.key==="Enter"&&go()}
+            placeholder="••••••••"
+            style={{ width:"100%",padding:"13px 16px",borderRadius:12,border:`2px solid ${error?"#d64545":"#dbe2f1"}`,fontFamily:FONT_B,fontSize:16,letterSpacing:4,boxSizing:"border-box",marginBottom:8 }}
+          />
+          {error && <div style={{ fontFamily:FONT_B,fontSize:12,color:"#d64545",marginBottom:8 }}>❌ {error}</div>}
+          <div style={{ display:"flex",gap:10,marginTop:8 }}>
+            <button onClick={go} disabled={loading} style={{ flex:2,background:"#1b295b",color:"#fff",border:"none",borderRadius:12,padding:"13px 0",fontFamily:FONT_T,fontSize:15,fontWeight:700,cursor:"pointer",opacity:loading?0.7:1 }}>
+              {loading ? "⏳ Signing in..." : "Sign In →"}
+            </button>
+            <button onClick={onClose} style={{ flex:1,background:"#f2f5fb",color:"#5f6c8f",border:"2px solid #dbe2f1",borderRadius:12,padding:"13px 0",fontFamily:FONT_T,fontSize:14,cursor:"pointer" }}>Cancel</button>
           </div>
-          <div className="facts">
-            {(S.facts || []).map((f, i) => (
-              <div className="fact" key={i}><b>{f.t}</b><span>{f.s}</span></div>
+          <div style={{ marginTop:14,fontFamily:FONT_B,fontSize:11,color:"#5f6c8f",textAlign:"center" }}>
+            🔒 Auth via Supabase — password never stored in code
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── ADMIN PANEL — FULL CONTENT CONTROL ──────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── TAB ORDERS (injected for Supabase) ──────────────────────────────────────
+
+
+function TabOrders({ S }) {
+  const [orders, setOrders] = S.orders;
+  const brand = S.brand[0];
+  const [sel, setSel] = useState(null);
+  const [filter, setFilter] = useState("all");
+  const STEPS = ["Pending","Confirmed","Packing","Handed to GHN","In Transit","Delivered","Cancelled"];
+  const STATUS_LABELS = {"Pending":"Chờ xử lý","Confirmed":"Đã xác nhận","Packing":"Đang đóng gói","Handed to GHN":"Đã giao cho GHN","In Transit":"Đang vận chuyển","Delivered":"Đã giao","Cancelled":"Đã huỷ"};
+  const SC = {"Pending":"#F59E0B","Confirmed":"#3B82F6","Packing":"#8B5CF6","Handed to GHN":"#06B6D4","In Transit":"#1b295b","Delivered":"#22C55E","Cancelled":"#EF4444"};
+  const filtered = filter==="all" ? orders : orders.filter(o=>o.status===filter);
+
+  const updateOrder = async (id, patch) => {
+    try {
+      await updateOrderDB(id, patch);
+      setOrders(prev=>prev.map(x=>x.id===id?{...x,...patch}:x));
+    } catch(e) { alert("Lỗi cập nhật: "+e.message); }
+  };
+
+  const advance = async (o) => {
+    const idx = STEPS.indexOf(o.status);
+    if (idx < STEPS.length-2) await updateOrder(o.id, {status: STEPS[idx+1]});
+  };
+
+  const createShipmentForOrder = async (o) => {
+    try {
+      const {data:{session}} = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) { alert("Vui lòng đăng nhập lại"); return; }
+      const res = await fetch("/api/shipping/create", {
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
+        body: JSON.stringify({orderId: o.id}),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await updateOrder(o.id, {trackingCode: data.shipment.trackingCode, status:"Handed to GHN"});
+        alert("✅ Đã tạo vận đơn!\nMã: "+data.shipment.trackingCode+"\nPhí: "+(data.shipment.fee||0).toLocaleString("en-GB")+"đ");
+      } else {
+        alert("❌ Lỗi: "+data.error+"\n\n💡 Kiểm tra GHN_TOKEN trong .env.local");
+      }
+    } catch(e) { alert("❌ "+e.message); }
+  };
+
+  if (sel) {
+    const o = orders.find(x=>x.id===sel);
+    if (!o) return <div><button onClick={()=>setSel(null)}>← Quay lại</button></div>;
+    const stepIdx = STEPS.indexOf(o.status);
+    return (
+      <div style={{maxWidth:700}}>
+        <button onClick={()=>setSel(null)} style={{background:"#f2f5fb",border:"2px solid #dbe2f1",borderRadius:9,padding:"6px 14px",fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",cursor:"pointer",marginBottom:20}}>← Tất cả đơn</button>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+          <div style={{fontFamily:FONT_T,fontSize:16,color:"#0d142e"}}>Đơn: <span style={{color:brand.primary}}>{o.code}</span></div>
+          <span style={{display:"inline-block",background:(SC[o.status]||"#888")+"18",color:SC[o.status]||"#888",border:"1px solid "+(SC[o.status]||"#888")+"44",borderRadius:20,padding:"3px 12px",fontSize:12,fontFamily:FONT_T,fontWeight:700}}>{STATUS_LABELS[o.status]||o.status}</span>
+        </div>
+        {/* Pipeline */}
+        <div style={{background:"#f2f5fb",borderRadius:16,padding:20,border:"2px solid #dbe2f1",marginBottom:20}}>
+          <div style={{fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",marginBottom:14,letterSpacing:1}}>TRẠNG THÁI ĐƠN HÀNG</div>
+          <div style={{display:"flex",alignItems:"center",overflowX:"auto",gap:0,marginBottom:16}}>
+            {STEPS.filter(s=>s!=="Cancelled").map((s,i,arr)=>{
+              const done=STEPS.indexOf(o.status)>=i&&o.status!=="Cancelled";
+              const active=o.status===s;
+              return <div key={s} style={{display:"flex",alignItems:"center",flexShrink:0}}>
+                <div style={{textAlign:"center"}}>
+                  <div style={{width:32,height:32,borderRadius:16,background:active?brand.primary:done?"#22C55E":"#e0e0e0",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 4px",fontSize:13,color:"#fff",fontWeight:700}}>{done?(active?"●":"✓"):"○"}</div>
+                  <div style={{fontFamily:FONT_T,fontSize:10,color:active?brand.primary:done?"#22C55E":"#5f6c8f",maxWidth:64,textAlign:"center",lineHeight:1.2}}>{STATUS_LABELS[s]||s}</div>
+                </div>
+                {i<arr.length-1&&<div style={{width:28,height:2,background:STEPS.indexOf(o.status)>i?"#22C55E":"#e0e0e0",flexShrink:0,margin:"0 0 16px"}}/>}
+              </div>;
+            })}
+          </div>
+          {/* Create Shipment Button */}
+          {!o.trackingCode&&o.status!=="Cancelled"&&o.status!=="Delivered"&&(
+            <button onClick={()=>createShipmentForOrder(o)} style={{background:"#14B8A6",color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontFamily:FONT_T,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:10}}>
+              🚚 Tự động tạo vận đơn GHN/GHTK
+            </button>
+          )}
+          {o.trackingCode&&<div style={{padding:"8px 14px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:10,fontFamily:FONT_T,fontSize:13,color:"#166534",marginBottom:10}}>✅ Mã vận đơn: <strong>{o.trackingCode}</strong></div>}
+          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            {o.status!=="Delivered"&&o.status!=="Cancelled"&&<button onClick={()=>advance(o)} style={{background:brand.primary,color:"#fff",border:"none",borderRadius:10,padding:"8px 18px",fontFamily:FONT_T,fontSize:13,cursor:"pointer"}}>→ {STATUS_LABELS[STEPS[stepIdx+1]]||STEPS[stepIdx+1]}</button>}
+            {o.status!=="Cancelled"&&o.status!=="Delivered"&&<button onClick={async()=>{
+              /* v20.1: HOÀN KHO khi huỷ — trước đây chỉ đổi chữ trạng thái,
+                 kho mất luôn số hàng của đơn huỷ. Guard o.status!==Cancelled
+                 ở điều kiện hiện nút → không cộng đôi. */
+              if(!confirm("Huỷ đơn này? Kho sẽ được cộng trả lại từng món.")) return;
+              try{ await restockOrder(o); }catch(e){ console.error("restock:",e); alert("⚠️ Hoàn kho lỗi: "+(e?.message||e)+" — đơn VẪN SẼ bị huỷ, kiểm kho tay giúp."); }
+              updateOrder(o.id,{status:"Cancelled"});
+            }} style={{background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:10,padding:"8px 18px",fontFamily:FONT_T,fontSize:13,cursor:"pointer"}}>Huỷ đơn</button>}
+          </div>
+        </div>
+        {/* Customer + Shipping */}
+        <div className="hh-admin-grid2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+          <div style={{padding:16,background:"#fff",borderRadius:12,border:"2px solid #dbe2f1"}}>
+            <div style={{fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",letterSpacing:2,marginBottom:8}}>KHÁCH HÀNG</div>
+            <div style={{fontFamily:FONT_T,fontSize:15,color:"#0d142e"}}>{o.customer?.name}</div>
+            <div style={{fontFamily:FONT_B,fontSize:13,color:"#5f6c8f",marginTop:2}}>{o.customer?.phone}</div>
+            <div style={{fontFamily:FONT_B,fontSize:13,color:"#5f6c8f"}}>{o.customer?.address}{o.customer?.district?", "+o.customer.district:""}{o.customer?.province?", "+o.customer.province:""}</div>
+          </div>
+          <div style={{padding:16,background:"#fff",borderRadius:12,border:"2px solid #dbe2f1"}}>
+            <div style={{fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",letterSpacing:2,marginBottom:8}}>VẬN CHUYỂN</div>
+            <select value={o.shipping||"GHN"} onChange={e=>updateOrder(o.id,{shipping:e.target.value})} style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13,marginBottom:8}}>
+              {["GHN","GHTK","Viettel Post","J&T","Tự giao"].map(x=><option key={x}>{x}</option>)}
+            </select>
+            <input value={o.trackingCode||""} onChange={e=>updateOrder(o.id,{trackingCode:e.target.value})} placeholder="Nhập mã vận đơn thủ công..." style={{width:"100%",padding:"8px 10px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:"monospace",fontSize:13,boxSizing:"border-box"}}/>
+          </div>
+        </div>
+        <div className="hh-admin-grid2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          <div><div style={{fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",marginBottom:5}}>📅 Ngày giao dự kiến</div><input type="date" value={o.estDelivery||""} onChange={e=>updateOrder(o.id,{estDelivery:e.target.value})} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13,boxSizing:"border-box"}}/></div>
+          <div><div style={{fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",marginBottom:5}}>📦 Nguồn đơn</div><input value={o.source||"website"} onChange={e=>updateOrder(o.id,{source:e.target.value})} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13,boxSizing:"border-box"}}/></div>
+        </div>
+        <div><div style={{fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",marginBottom:5}}>📝 Ghi chú</div><textarea value={o.note||""} onChange={e=>updateOrder(o.id,{note:e.target.value})} rows={2} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13,boxSizing:"border-box",resize:"vertical"}}/></div>
+        {/* Items */}
+        <div style={{marginTop:16,border:"2px solid #dbe2f1",borderRadius:12,overflow:"hidden"}}>
+          <div style={{padding:"10px 16px",background:"#f2f5fb",fontFamily:FONT_T,fontSize:13,color:"#0d142e",fontWeight:700}}>Sản phẩm ({(o.items||[]).length})</div>
+          {(o.items||[]).map((it,i)=><div key={i} style={{display:"flex",gap:12,padding:"12px 16px",borderTop:"1px solid #dbe2f1",alignItems:"center"}}>
+            <div style={{width:48,height:48,borderRadius:8,overflow:"hidden",background:"#f2f5fb",flexShrink:0}}>{it.product?.img?<img src={it.product.img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center"}}>📦</div>}</div>
+            <div style={{flex:1}}><div style={{fontFamily:FONT_T,fontSize:14,color:"#0d142e"}}>{it.product?.name}</div><div style={{fontFamily:FONT_B,fontSize:12,color:"#5f6c8f"}}>×{it.qty}</div></div>
+            <div style={{fontFamily:FONT_T,fontSize:14,color:brand.primary,fontWeight:700}}>{((it.product?.price||0)*it.qty).toLocaleString("en-GB")}đ</div>
+          </div>)}
+          <div style={{display:"flex",justifyContent:"space-between",padding:"12px 16px",borderTop:"2px solid #dbe2f1",fontFamily:FONT_T,fontSize:16}}><span style={{color:"#5f6c8f"}}>Tổng</span><span style={{color:brand.primary,fontWeight:700}}>{(o.total||0).toLocaleString("en-GB")}đ</span></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}}>
+        <div style={{fontFamily:FONT_T,fontSize:16,color:"#0d142e"}}>Quản Lý Đơn Hàng ({orders.length})</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {["all",...STEPS].map(s=>{const on=filter===s;return <button key={s} onClick={()=>setFilter(s)} style={{padding:"6px 13px",borderRadius:20,border:"1.5px solid "+(on?brand.primary:"#dbe2f1"),background:on?brand.primary:"#fff",color:on?"#fff":"#5f6c8f",fontFamily:FONT_T,fontWeight:700,fontSize:11,cursor:"pointer",whiteSpace:"nowrap",transition:"none"}}>{s==="all"?"Tất cả":(STATUS_LABELS[s]||s)}</button>})}
+        </div>
+      </div>
+      {filtered.length===0
+        ? <div style={{textAlign:"center",padding:"60px 0",color:"#5f6c8f",fontFamily:FONT_T,fontSize:16}}>Chưa có đơn hàng nào 📭</div>
+        : filtered.map(o=>(
+          <div key={o.id} style={{padding:16,background:"#fff",borderRadius:14,border:"2px solid #dbe2f1",marginBottom:12,cursor:"pointer"}} onClick={()=>setSel(o.id)}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <span style={{fontFamily:"monospace",fontSize:13,color:brand.primary,fontWeight:700}}>{o.code}</span>
+                  <span style={{background:(SC[o.status]||"#888")+"18",color:SC[o.status]||"#888",border:"1px solid "+(SC[o.status]||"#888")+"44",borderRadius:20,padding:"2px 10px",fontSize:11,fontFamily:FONT_T,fontWeight:700}}>{STATUS_LABELS[o.status]||o.status}</span>
+                </div>
+                <div style={{fontFamily:FONT_B,fontSize:13,color:"#5f6c8f"}}>{o.customer?.name} · {o.customer?.phone}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontFamily:FONT_T,fontSize:16,color:brand.primary,fontWeight:700}}>{(o.total||0).toLocaleString("en-GB")}đ</div>
+                <div style={{fontFamily:FONT_B,fontSize:11,color:"#5f6c8f"}}>{o.date}</div>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {(o.items||[]).slice(0,3).map((it,i)=><span key={i} style={{fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",background:"#f2f5fb",border:"1px solid #dbe2f1",borderRadius:8,padding:"2px 8px"}}>{it.product?.name} ×{it.qty}</span>)}
+              {(o.items||[]).length>3&&<span style={{fontFamily:FONT_B,fontSize:12,color:"#5f6c8f"}}>+{(o.items||[]).length-3} nữa</span>}
+              {o.trackingCode&&<span style={{fontFamily:"monospace",fontSize:11,color:"#14B8A6",marginLeft:"auto"}}>📦 {o.trackingCode}</span>}
+              {o.estDelivery&&<span style={{fontFamily:FONT_B,fontSize:11,color:"#22C55E"}}>📅 {o.estDelivery}</span>}
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  );
+}
+
+// ─── TAB INVENTORY (injected) ────────────────────────────────────────────────
+function TabInventory({ S }) {
+  const [products, setProducts] = S.products;
+  const brand = S.brand[0];
+  const [adj, setAdj] = useState(null);
+  const [adjAmt, setAdjAmt] = useState(0);
+  const [selected, setSelected] = useState([]);
+  const [bulk, setBulk] = useState(null); // {mode:'set'|'add', amount:number}
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkErr, setBulkErr] = useState(null);
+  /* v21.5: LIỆT KÊ THEO SKU THẬT. Trước đây tab này chỉ đọc/ghi
+     products.stock, trong khi kho thật của SP có phân loại nằm ở
+     variants[].stock → hiện sai số và sửa vào chỗ storefront không đọc.
+     Nay mỗi phân loại là 1 dòng riêng; SP không phân loại thì 1 dòng. */
+  const rows = products.flatMap(p =>
+    (p.variants||[]).length
+      ? p.variants.map(v => ({ key:p.id+'::'+v.id, prod:p, vid:v.id,
+          name:p.name+' — '+(v.name||'(chưa tên)'), stock:Number(v.stock)||0,
+          img:v.img||p.img, cat:p.category, sku:v.id }))
+      : [{ key:p.id, prod:p, vid:null, name:p.name, stock:Number(p.stock)||0,
+          img:p.img, cat:p.category, sku:p.sku }]
+  );
+  const minOf = (r) => Number(r.prod.minStock)||5;
+  const low = rows.filter(r => r.stock <= minOf(r));
+  const toggleSel = (id) => setSelected(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
+  const applyBulk = async () => {
+    if (!bulk || selected.length===0) return;
+    setBulkSaving(true); setBulkErr(null);
+    try {
+      for (const r of rows.filter(r=>selected.includes(r.key))) {
+        const newStock = bulk.mode==='set' ? Math.max(0,bulk.amount) : Math.max(0, r.stock + bulk.amount);
+        await saveStock(r, newStock);
+      }
+      setSelected([]); setBulk(null);
+    } catch(e) {
+      setBulkErr(e?.message || "Cập nhật hàng loạt thất bại — vui lòng thử lại");
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  /* Ghi đúng nơi: có phân loại thì cập nhật variants[], không thì stock gốc */
+  const saveStock = async (row, newStock) => {
+    try {
+      if (row.vid) {
+        const np = { ...row.prod, variants:(row.prod.variants||[]).map(v =>
+          v.id===row.vid ? { ...v, stock:newStock } : v) };
+        await upsertProduct(np);
+        setProducts(prev => prev.map(x => x.id===np.id ? np : x));
+      } else {
+        await updateProductStock(row.prod.id, newStock);
+        setProducts(prev => prev.map(x => x.id===row.prod.id ? {...x, stock:newStock} : x));
+      }
+    } catch(e) { alert("Lỗi cập nhật tồn kho: "+e.message); }
+  };
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div style={{fontFamily:FONT_T,fontSize:16,color:"#0d142e"}}>Quản Lý Tồn Kho</div>
+        {low.length>0&&<div style={{background:"#FEF3C7",border:"2px solid #F59E0B",borderRadius:10,padding:"6px 14px",fontFamily:FONT_T,fontSize:12,color:"#92400E"}}>⚠️ {low.length} mặt hàng sắp hết</div>}
+      </div>
+      {low.length>0&&<div style={{background:"#FEF3C7",border:"2px solid #F59E0B",borderRadius:14,padding:16,marginBottom:20}}>
+        <div style={{fontFamily:FONT_T,fontSize:13,color:"#92400E",marginBottom:8}}>⚠️ Cảnh báo sắp hết hàng</div>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>{low.map(r=><div key={r.key} style={{background:"#fff",borderRadius:10,padding:"8px 14px",border:"1px solid #F59E0B"}}><div style={{fontFamily:FONT_T,fontSize:13,color:"#0d142e"}}>{r.name}</div><div style={{fontFamily:"monospace",fontSize:12,color:"#EF4444",fontWeight:700}}>Còn {r.stock} / tối thiểu {minOf(r)}</div></div>)}</div>
+      </div>}
+      {/* API Platform connections */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
+        {[["Shopee","#ee4d2d"],["TikTok Shop","#010101"],["Lazada","#0f146d"]].map(([name,color])=>(
+          <div key={name} style={{padding:14,background:"#fff",borderRadius:12,border:"2px solid #dbe2f1"}}>
+            <div style={{fontFamily:FONT_T,fontSize:13,color:"#0d142e",marginBottom:4}}>{name}</div>
+            <div style={{fontFamily:FONT_B,fontSize:11,color:"#5f6c8f",marginBottom:8}}>Chưa kết nối</div>
+            <button style={{width:"100%",background:color+"18",color,border:"1px solid "+color+"44",borderRadius:8,padding:"5px 0",fontFamily:FONT_T,fontSize:11,cursor:"pointer"}}>Kết nối API</button>
+          </div>
+        ))}
+      </div>
+      {selected.length>0 && (
+        <div style={{background:"#fff",border:`2px solid ${brand.primary}`,borderRadius:14,padding:14,marginBottom:16,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <div style={{fontFamily:FONT_T,fontSize:13,color:"#0d142e"}}>✅ {selected.length} sản phẩm đã chọn</div>
+          <select value={bulk?.mode||""} onChange={e=>setBulk(b=>({mode:e.target.value,amount:b?.amount||0}))} style={{padding:"7px 10px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:12}}>
+            <option value="" disabled>Chọn hành động...</option>
+            <option value="set">Đặt tồn kho = </option>
+            <option value="add">Cộng/Trừ tồn kho (+/-)</option>
+          </select>
+          {bulk?.mode && <input type="number" value={bulk.amount} onChange={e=>setBulk(b=>({...b,amount:Number(e.target.value)}))} placeholder={bulk.mode==='set'?'VD: 50':'VD: 20 hoặc -5'} style={{width:110,padding:"7px 10px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:"monospace",fontSize:13}} />}
+          <button disabled={!bulk?.mode||bulkSaving} onClick={applyBulk} style={{background:brand.primary,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontFamily:FONT_T,fontSize:12,cursor:bulkSaving?"not-allowed":"pointer",opacity:bulkSaving?0.7:1}}>{bulkSaving?"⏳ Đang lưu...":"Áp dụng"}</button>
+          <button onClick={()=>{setSelected([]);setBulk(null);setBulkErr(null);}} style={{background:"#f2f5fb",color:"#5f6c8f",border:"1px solid #dbe2f1",borderRadius:8,padding:"8px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer"}}>Bỏ chọn</button>
+          {bulkErr && <div style={{width:"100%",marginTop:4,padding:"8px 12px",borderRadius:8,fontFamily:FONT_B,fontSize:12,background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4"}}>❌ {bulkErr}</div>}
+        </div>
+      )}
+      <div style={{border:"2px solid #dbe2f1",borderRadius:16,overflow:"hidden"}}>
+        <div style={{display:"grid",gridTemplateColumns:"32px 2fr 1fr 1fr 1fr 80px",background:"#f2f5fb",padding:"10px 16px",gap:8,alignItems:"center"}}>
+          <input type="checkbox" checked={selected.length>0 && selected.length===products.length} onChange={e=>setSelected(e.target.checked?products.map(p=>p.id):[])} />
+          {["Sản Phẩm","SKU","Tồn Kho","Tồn tối thiểu",""].map(h=><div key={h} style={{fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",letterSpacing:1}}>{h}</div>)}
+        </div>
+        {rows.map(r=>{
+          const isLow=r.stock<=minOf(r);
+          const p=r.prod;
+          return <div key={r.key} style={{display:"grid",gridTemplateColumns:"32px 2fr 1fr 1fr 1fr 80px",padding:"12px 16px",borderTop:"1px solid #dbe2f1",alignItems:"center",gap:8,background:selected.includes(r.key)?"#FFF5E8":isLow?"#FFFBEB":"#fff"}}>
+            <input type="checkbox" checked={selected.includes(r.key)} onChange={()=>toggleSel(r.key)} />
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{width:40,height:40,borderRadius:8,overflow:"hidden",background:"#f2f5fb",flexShrink:0}}>{r.img?<img src={r.img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",fontSize:18}}>📦</div>}</div>
+              <div><div style={{fontFamily:FONT_T,fontSize:13,color:"#0d142e"}}>{r.name}</div><div style={{fontFamily:FONT_B,fontSize:11,color:"#5f6c8f"}}>{r.cat}</div></div>
+            </div>
+            <div style={{fontFamily:"monospace",fontSize:12,color:"#4a5573"}}>{r.sku||"—"}</div>
+            <div style={{fontFamily:"monospace",fontSize:15,fontWeight:700,color:isLow?"#EF4444":"#22C55E"}}>{r.stock}</div>
+            <div><input type="number" value={p.minStock||5} onChange={e=>{const v=Number(e.target.value);setProducts(prev=>prev.map(x=>x.id===p.id?{...x,minStock:v}:x));}} onBlur={async()=>{try{await upsertProduct(products.find(x=>x.id===p.id));}catch(e){alert("Lỗi cập nhật tồn tối thiểu: "+e.message);}}} style={{width:55,padding:"4px 8px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:"monospace",fontSize:13,textAlign:"center"}}/></div>
+            <button onClick={()=>{setAdj(r);setAdjAmt(0);}} style={{background:"#f2f5fb",color:brand.primary,border:"1px solid #dbe2f1",borderRadius:8,padding:"5px 10px",fontFamily:FONT_T,fontSize:11,cursor:"pointer"}}>+/−</button>
+          </div>;
+        })}
+      </div>
+      {adj&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:4000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{background:"#fff",borderRadius:20,padding:28,maxWidth:340,width:"100%",margin:16}}>
+          <div style={{fontFamily:FONT_T,fontSize:16,color:"#0d142e",marginBottom:12}}>Điều chỉnh: {adj.name}</div>
+          <div style={{fontFamily:FONT_B,fontSize:13,color:"#5f6c8f",marginBottom:12}}>Hiện tại: <strong style={{color:brand.primary}}>{adj.stock}</strong></div>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+            <button onClick={()=>setAdjAmt(a=>a-1)} style={{width:36,height:36,borderRadius:8,background:"#f2f5fb",border:"2px solid #dbe2f1",fontSize:18,cursor:"pointer",color:brand.primary}}>−</button>
+            <input type="number" value={adjAmt} onChange={e=>setAdjAmt(Number(e.target.value))} style={{flex:1,padding:"8px 12px",borderRadius:10,border:"2px solid #dbe2f1",fontFamily:"monospace",fontSize:18,textAlign:"center",fontWeight:700}}/>
+            <button onClick={()=>setAdjAmt(a=>a+1)} style={{width:36,height:36,borderRadius:8,background:"#f2f5fb",border:"2px solid #dbe2f1",fontSize:18,cursor:"pointer",color:brand.primary}}>+</button>
+          </div>
+          <div style={{fontFamily:FONT_B,fontSize:13,color:"#4a5573",marginBottom:16}}>Sau điều chỉnh: <strong style={{color:adjAmt>=0?"#22C55E":"#EF4444"}}>{Math.max(0,adj.stock+adjAmt)}</strong></div>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={async()=>{await saveStock(adj,Math.max(0,adj.stock+adjAmt));setAdj(null);}} style={{flex:1,background:brand.primary,color:"#fff",border:"none",borderRadius:12,padding:"12px 0",fontFamily:FONT_T,fontSize:14,cursor:"pointer"}}>Xác nhận</button>
+            <button onClick={()=>setAdj(null)} style={{flex:1,background:"#f2f5fb",color:"#5f6c8f",border:"2px solid #dbe2f1",borderRadius:12,padding:"12px 0",fontFamily:FONT_T,fontSize:14,cursor:"pointer"}}>Huỷ</button>
+          </div>
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+
+
+
+// ─── MAIN ADMIN PAGE ─────────────────────────────────────────────────────────
+export default function AdminPage() {
+  const router = useRouter()
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState('orders')
+  const [sub,setSub] = useState({ home:'hero', brand:'brandmain', promo:'vouchers' })
+  const [saved, setSaved] = useState(false)
+  const flash = () => { setSaved(true); setTimeout(() => setSaved(false), 1800) }
+
+  // ── Load all state (mirrors page.js S object) ──────────────────────────────
+  const [home,     setHome]     = useState({})
+  const [brand,    setBrand]    = useState([{ primary:'#1b295b', secondary:'#ffffff', name:'Hanapet', tagline:'Làm bằng cả tấm lòng 🐾' }])
+  const [banners,  setBanners]  = useState([])
+  const [products, setProducts] = useState([])
+  const [socials,  setSocials]  = useState([])
+  const [trustBar, setTrustBar] = useState([])
+  const [popup,    setPopup]    = useState({ enabled:false, title:'', body:'', delayMs:3500 })
+  const [about,    setAbout]    = useState({ title:'', body:'' })
+  const [footer,   setFooter]   = useState({ city:'', tagline2:'', bg:'#0d142e', brandColor:'#1b295b', subtitleColor:'rgba(255,255,255,0.5)' })
+  const [flashBar, setFlashBar] = useState({ enabled:false, text:'' })
+  const [vouchers, setVouchers] = useState([])
+  const [cats,     setCats]     = useState(['Đồ ăn','Phụ kiện'])
+  const [orders,   setOrders]   = useState([])
+
+  const S = {
+    home:[home,setHome],
+    brand:[brand,setBrand], banners:[banners,setBanners], products:[products,setProducts],
+    socials:[socials,setSocials], trustBar:[trustBar,setTrustBar], popup:[popup,setPopup],
+    about:[about,setAbout], footer:[footer,setFooter], flashBar:[flashBar,setFlashBar],
+    vouchers:[vouchers,setVouchers], categories:[cats,setCats], orders:[orders,setOrders],
+  }
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.replace('/admin/login'); return }
+      setUser(session.user)
+      try {
+        const [cfg, prods, ords, categories] = await Promise.all([
+          getAllConfigs(), getProducts(), getOrders(), getCategories()
+        ])
+        if (cfg.home     !== undefined) setHome(cfg.home)
+        if (cfg.brand    !== undefined) setBrand(cfg.brand)
+        if (cfg.banners  !== undefined) setBanners(cfg.banners)
+        if (cfg.socials  !== undefined) setSocials(cfg.socials)
+        if ((cfg.trustBar ?? cfg.trustbar) !== undefined) setTrustBar(cfg.trustBar ?? cfg.trustbar)
+        if (cfg.popup    !== undefined) setPopup(cfg.popup)
+        if (cfg.about    !== undefined) setAbout(cfg.about)
+        if (cfg.footer   !== undefined) setFooter(cfg.footer)
+        if ((cfg.flashBar ?? cfg.flashbar) !== undefined) setFlashBar(cfg.flashBar ?? cfg.flashbar)
+        if (cfg.vouchers !== undefined) setVouchers(cfg.vouchers)
+        setProducts(prods)
+        setOrders(ords)
+        setCats(categories)
+      } catch(e) { console.error('Load error:', e) }
+      setLoading(false)
+    })()
+  }, [])
+
+  const signOut = async () => {
+    await adminSignOut()
+    document.cookie = 'sb-access-token=; max-age=0; path=/'
+    document.cookie = 'sb-refresh-token=; max-age=0; path=/'
+    router.replace('/admin/login')
+  }
+
+  if (loading) return (
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#f2f5fb', fontFamily:"'Baloo 2',sans-serif", fontSize:18, color:'#1b295b' }}>
+      ⏳ Đang tải trang quản trị...
+    </div>
+  )
+
+  const PRIMARY = brand[0]?.primary || '#1b295b'
+
+  const pendingCount = orders.filter(o => o.status === 'Pending').length
+
+  const TABS = [
+    ['orders','📋 Đơn hàng', pendingCount],
+    ['inventory','📊 Tồn kho', null],
+    ['products','📦 Sản phẩm', null],
+    ['combos','🧩 Combo', null],
+    ['home','🏠 Trang chủ', null],
+    ['brand','🎨 Thương hiệu', null],
+    ['promo','🎟 Khuyến mãi', null],
+  ]
+  // Sub-tabs inside grouped tabs
+  const SUBTABS = {
+    /* v20 dọn dẹp: bỏ Bố cục/Banner/Trust Bar/Flash Bar/Popup (trang chủ
+       KHÔNG đọc các key này — function chết) và Giới thiệu/Footer/Mạng xã
+       hội/Favicon (bị key 'home' đè hoặc không được render). Nội dung
+       trang chủ giờ sửa TẤT CẢ trong 1 tab Trang chủ. */
+    promo: [['vouchers','Mã giảm giá'],['categories','Danh mục']],
+  }
+  // (sub-tab state declared at top with other hooks)
+
+
+
+
+  const PrimaryBtn = ({ onClick, label }) => (
+    <button onClick={onClick} style={{ background:S.brand[0].primary,color:"#fff",border:"none",borderRadius:10,padding:"9px 20px",fontFamily:FONT_T,fontSize:13,cursor:"pointer" }}>{label}</button>
+  )
+  const AddBtn = ({ onClick, label }) => (
+    <button onClick={onClick} style={{ background:S.brand[0].primary,color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer",flexShrink:0 }}>+ {label}</button>
+  )
+  const DelBtn = ({ onClick }) => (
+    <button onClick={onClick} style={{ background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"5px 12px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>🗑</button>
+  )
+
+  /* ── Tab: TRANG CHU (moi) ─────────────────────────────────────────────
+     Sua TOAN BO noi dung trang chu. Ghi thang vao site_config key='home'
+     — dung key ma app/page.js doc. Cac tab cu van giu nguyen, khong dung. */
+/* 3 ô nhập dùng chung của tab Trang chủ.
+   PHẢI đặt ở đây, NGOÀI TabHome. Nếu định nghĩa bên trong, mỗi lần gõ 1 chữ
+   React coi là component MỚI -> input mất con trỏ, gõ được 1 ký tự rồi dừng. */
+function HLines({ value, onChange, label, hint }) {
+  const arr = Array.isArray(value) ? value : [];
+  return (
+    <div style={{ marginBottom:14 }}>
+      <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:6 }}>{label}</div>
+      {arr.map((v,i)=>(
+        <div key={i} style={{ display:"flex",gap:7,marginBottom:6 }}>
+          <input value={v} onChange={e=>{const n=[...arr];n[i]=e.target.value;onChange(n);}}
+                 style={{ flex:1,fontFamily:FONT_B,fontSize:13,padding:"8px 10px",border:"2px solid #dbe2f1",borderRadius:9 }} />
+          <button onClick={()=>onChange(arr.filter((_,j)=>j!==i))}
+                  style={{ background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"5px 12px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>🗑</button>
+        </div>
+      ))}
+      <button onClick={()=>onChange([...arr,''])}
+              style={{ background:"#18284e",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ dòng</button>
+      {hint && <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:6 }}>{hint}</div>}
+    </div>
+  );
+}
+
+function HRows({ value, onChange, label, cols, blank, hint, folder='home', idKey='r' }) {
+  const arr = Array.isArray(value) ? value : [];
+  const upd = (i,f,v)=>onChange(arr.map((r,j)=>j===i?{...r,[f]:v}:r));
+  return (
+    <div style={{ marginBottom:16,padding:14,background:"#f7f8fc",borderRadius:12,border:"2px solid #dbe2f1" }}>
+      <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:10 }}>{label}</div>
+      {arr.map((r,i)=>(
+        <div key={i} style={{ background:"#fff",borderRadius:10,padding:11,marginBottom:9,border:"1px solid #e6ebf5" }}>
+          <div style={{ display:"flex",justifyContent:"flex-end",marginBottom:6 }}>
+            <button onClick={()=>onChange(arr.filter((_,j)=>j!==i))}
+                    style={{ background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"5px 12px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>🗑</button>
+          </div>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:9 }}>
+            {cols.map(([f,lbl,kind])=>(
+              kind==='img'
+                ? <div key={f} style={{ gridColumn:"1 / -1" }}>
+                    <ImgUp current={r[f]||''} onUpload={v=>upd(i,f,v)} label={lbl}
+                           aspect="100%" folder={folder} entityId={idKey+'-'+i+'-'+f} />
+                  </div>
+                : <Field key={f} label={lbl} value={r[f]||''} onChange={v=>upd(i,f,v)}
+                         span={kind==='full'?'full':undefined} />
             ))}
           </div>
         </div>
-      </section>
+      ))}
+      <button onClick={()=>onChange([...arr,{...blank}])}
+              style={{ background:"#18284e",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ mục</button>
+      {hint && <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:8,lineHeight:1.6 }}>{hint}</div>}
+    </div>
+  );
+}
 
-      <ProductModal slug={modalSlug} S={S}
-                    onClose={fromPop => {
-                      setModalSlug(null);
-                      if (!fromPop && typeof window !== 'undefined'
-                          && window.history.state?.hpModal) window.history.back();
-                    }} />
+/* Kéo-thả bố cục hero. Đơn giản: kéo để đổi chỗ, kéo mép phải để đổi
+   độ rộng. Số đo lưu theo % nên co giãn đúng trên mọi màn hình.
+   Thả ra gần mốc thì TỰ HÍT vào (căn giữa / chạm đáy / bằng chai kia). */
+const HERO_DEFAULT = { main: { l: -4, w: 58 }, refill: { l: 46, w: 58 } };
+const SNAP = 1.6; /* % — trong khoảng này thì hít vào mốc */
 
-      <footer ref={footRef}>
-        <div className="foot-in">
-          <div>
-            <div className="f-brand">
-              {(S.logoWhite || S.logo) && <img src={S.logoWhite || S.logo} alt={S.brandName} />}
-              <b>{S.brandName}</b>
-            </div>
-            <p className="f-desc">{S.footerDesc}</p>
-            <div className="f-lines">
-              {(S.footerLines || []).map((l, i) => <span key={i}>{l}</span>)}
-            </div>
+function HeroLayout({ value, onChange, imgMain, imgRefill }) {
+  const box = useRef(null);
+  const [drag, setDrag] = useState(null);
+  const L = { main: { ...HERO_DEFAULT.main, ...(value?.main || {}) },
+              refill: { ...HERO_DEFAULT.refill, ...(value?.refill || {}) } };
+
+  const pct = (px) => (px / (box.current?.offsetWidth || 1)) * 100;
+
+  /* các mốc để hít vào */
+  const snapTo = (v, marks) => {
+    for (const m of marks) if (Math.abs(v - m) < SNAP) return m;
+    return Math.round(v * 10) / 10;
+  };
+
+  const start = (which, mode) => (e) => {
+    e.preventDefault();
+    const p = e.touches ? e.touches[0] : e;
+    setDrag({ which, mode, x: p.clientX, l: L[which].l, w: L[which].w });
+  };
+
+  useEffect(() => {
+    if (!drag) return;
+    const move = (e) => {
+      const p = e.touches ? e.touches[0] : e;
+      const d = pct(p.clientX - drag.x);
+      const other = drag.which === 'main' ? L.refill : L.main;
+      const next = { ...L };
+      if (drag.mode === 'move') {
+        const raw = drag.l + d;
+        next[drag.which] = { ...L[drag.which],
+          l: snapTo(raw, [0, other.l, 50 - L[drag.which].w / 2, 100 - L[drag.which].w]) };
+      } else {
+        const raw = Math.max(15, Math.min(100, drag.w + d));
+        next[drag.which] = { ...L[drag.which], l: L[drag.which].l, w: snapTo(raw, [other.w, 50, 58]) };
+      }
+      onChange(next);
+    };
+    const up = () => setDrag(null);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('touchmove', move, { passive: false });
+    window.addEventListener('mouseup', up);
+    window.addEventListener('touchend', up);
+    return () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('mouseup', up);
+      window.removeEventListener('touchend', up);
+    };
+  }, [drag, L.main.l, L.main.w, L.refill.l, L.refill.w]);
+
+  const Piece = ({ k, img, label, z }) => (
+    <div onMouseDown={start(k, 'move')} onTouchStart={start(k, 'move')}
+         style={{ position:'absolute', bottom:0, left:L[k].l+'%', width:L[k].w+'%', height:'100%',
+                  zIndex:z, cursor:'grab', display:'grid', placeItems:'end center',
+                  alignContent:'end', touchAction:'none',
+                  outline: drag?.which===k ? '2px solid #fff' : '2px dashed rgba(255,255,255,.35)',
+                  outlineOffset:-2, borderRadius:10 }}>
+      {img
+        ? <img src={img} alt="" draggable={false}
+               style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', pointerEvents:'none' }} />
+        : <div style={{ width:'70%', height:'78%', background:'rgba(255,255,255,.12)', borderRadius:8,
+                        display:'grid', placeItems:'center', fontFamily:FONT_T, fontSize:11,
+                        color:'rgba(255,255,255,.6)', textAlign:'center', padding:6 }}>{label}</div>}
+      <span style={{ position:'absolute', top:6, left:6, background:'rgba(0,0,0,.55)', color:'#fff',
+                     fontFamily:FONT_T, fontSize:10, fontWeight:700, padding:'3px 7px', borderRadius:5,
+                     pointerEvents:'none' }}>{label}</span>
+      <span onMouseDown={start(k, 'size')} onTouchStart={start(k, 'size')}
+            title="Kéo để đổi độ rộng"
+            style={{ position:'absolute', right:-7, top:'50%', marginTop:-16, width:14, height:32,
+                     borderRadius:7, background:'#fff', border:'2px solid #18284e',
+                     cursor:'ew-resize', touchAction:'none' }} />
+    </div>
+  );
+
+  return (
+    <div>
+      <div ref={box} style={{ position:'relative', width:'100%', aspectRatio:'16/9', background:'#18284e',
+                              borderRadius:12, overflow:'hidden', userSelect:'none', marginBottom:10 }}>
+        {/* vạch giữa để căn */}
+        <div style={{ position:'absolute', left:'50%', top:0, bottom:0, width:1,
+                      background:'rgba(255,255,255,.18)', pointerEvents:'none' }} />
+        <Piece k="main"   img={imgMain}   label="Chai chính" z={3} />
+        <Piece k="refill" img={imgRefill} label="Lõi refill" z={2} />
+      </div>
+      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+        <button onClick={()=>onChange(null)}
+                style={{ fontFamily:FONT_T, fontSize:12, padding:'7px 14px', borderRadius:8,
+                         border:'2px solid #dbe2f1', background:'#fff', color:'#5f6c8f', cursor:'pointer' }}>
+          Về mặc định
+        </button>
+        <span style={{ fontFamily:FONT_B, fontSize:11, color:'#8a93ad' }}>
+          Kéo ảnh để đổi chỗ · kéo nút trắng bên phải để đổi độ rộng · thả gần mốc sẽ tự hít vào
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function HBox({ title, children }) {
+  return (
+    <div style={{ marginTop:16,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
+      <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:10 }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+  const TabHome = () => {
+    const [h, setH] = useState({ ...(S.home[0] || {}) });
+    const [grp, setGrp] = useState('hero');
+    const set  = (k, v) => setH(x => ({ ...x, [k]: v }));
+
+
+
+
+    const GROUPS = [
+      ['hero','Đầu trang'], ['sp','Khu sản phẩm'], ['tm','Đánh giá'],
+      ['ab','Giới thiệu'], ['txt','Chữ & nút'], ['pet','Mascot'],
+    ];
+
+    return (
+      <div style={{ maxWidth:640 }}>
+        <SectionHeader title="🏠 Trang chủ" hint="Chữ, ảnh và nút hiển thị trên trang chủ. Chọn nhóm bên dưới để tới đúng phần cần sửa." />
+        <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:16 }}>
+          {GROUPS.map(([k,l])=>(
+            <button key={k} onClick={()=>setGrp(k)} style={{ padding:"7px 15px",borderRadius:999,
+              background:grp===k?"#18284e":"#fff",color:grp===k?"#fff":"#5f6c8f",
+              border:"2px solid "+(grp===k?"#18284e":"#dbe2f1"),fontFamily:FONT_T,fontWeight:700,
+              fontSize:12,cursor:"pointer" }}>{l}</button>
+          ))}
+        </div>
+
+        {grp==='hero' && (<>
+          <Field label="Dòng nhỏ trên cùng" value={h.heroEyebrow||''} onChange={v=>set('heroEyebrow',v)} span="full" />
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+            <Field label="Tiêu đề dòng 1" value={h.heroTitle1||''} onChange={v=>set('heroTitle1',v)} />
+            <Field label="Tiêu đề dòng 2" value={h.heroTitle2||''} onChange={v=>set('heroTitle2',v)} />
           </div>
-          <div>
-            <h4>{S.footerCol2Title}</h4>
-            <ul className="f-links">
-              {(S.footerLinks || []).map((l, i) => (
-                <li key={i}><a href={l.href || '#'}>{l.t}</a></li>
+          <Field label="Câu đỡ dưới tiêu đề" value={h.heroSupport||''} onChange={v=>set('heroSupport',v)} span="full" />
+          <HLines value={h.heroBenefits} onChange={v=>set('heroBenefits',v)} label="Các gạch đầu dòng" />
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+            <Field label="Chữ nút mua" value={h.heroBtn1||''} onChange={v=>set('heroBtn1',v)} />
+            <Field label="Nút mua trỏ tới" value={h.heroBtn1Link||''} onChange={v=>set('heroBtn1Link',v)} />
+          </div>
+          <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginBottom:10 }}>
+            Viết <code>{'{gia}'}</code> trong chữ nút sẽ tự thay bằng giá thật của sản phẩm.
+          </div>
+          <Field label="Dòng chữ nhỏ dưới nút" value={h.heroMicro||''} onChange={v=>set('heroMicro',v)} span="full" />
+          <Field label="Tên sản phẩm trong hero (mô tả ảnh)" value={h.heroSkuName||''} onChange={v=>set('heroSkuName',v)} span="full" />
+
+          <HBox title="🧴 Ảnh hero (ảnh RIÊNG, không dùng ảnh sản phẩm)">
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
+              <ImgUp current={h.heroImage||''} onUpload={v=>set('heroImage',v)} label="Chai chính (trái)"
+                     aspect="130%" folder="home" entityId="hero-main" hint="PNG nền trong suốt" />
+              <ImgUp current={h.heroRefillImage||''} onUpload={v=>set('heroRefillImage',v)} label="Lõi refill (phải)"
+                     aspect="130%" folder="home" entityId="hero-refill" hint="PNG nền trong suốt" />
+            </div>          </HBox>
+
+          <HBox title="✋ Bố cục hero — kéo thả">
+            <HeroLayout value={h.heroLayout} onChange={v=>set('heroLayout',v)}
+                        imgMain={h.heroImage||''} imgRefill={h.heroRefillImage||''} />
+          </HBox>
+
+          <HBox title="🖼 Ảnh nền hero">
+            <ImgUp current={h.heroBg||''} onUpload={v=>set('heroBg',v)} label="Ảnh nền"
+                   aspect="56%" folder="home" entityId="hero-bg" hint="Để trống = nền navy trơn" />
+            <div style={{ marginTop:10 }}>
+              <Field label="Độ đậm lớp phủ navy (0 → 1)" value={h.heroBgDim ?? ''} onChange={v=>set('heroBgDim', v===''?undefined:Number(v))} />
+            </div>
+            <div style={{ fontFamily:FONT_B,fontSize:11,color:"#8a93ad",marginTop:6 }}>
+              Ảnh càng sáng thì để số càng cao (0.72 là vừa) cho chữ trắng đọc được.
+            </div>
+          </HBox>
+
+          <HRows idKey="heroTrust" value={h.heroTrust} onChange={v=>set('heroTrust',v)} label="✅ Thanh tin cậy dưới hero (4 ô)"
+                cols={[['icon','Icon'],['t','Chữ']]} blank={{icon:'check',t:''}}
+                hint="Icon chọn: truck · shield-check · refresh · star · check" />
+
+          <HBox title="🎬 Video TVC">
+            <Field label="Link video" value={h.heroVideo||''} onChange={v=>set('heroVideo',v)} span="full" />
+            <label style={{ display:"flex",gap:8,alignItems:"center",marginTop:10,fontFamily:FONT_B,fontSize:13,color:"#5f6c8f",cursor:"pointer" }}>
+              <input type="checkbox" checked={!!h.heroShowVideo} onChange={e=>set('heroShowVideo',e.target.checked)} />
+              Hiện TVC trong hero
+            </label>
+          </HBox>
+        </>)}
+
+        {grp==='sp' && (<>
+          <Field label="Dòng nhỏ phía trên tiêu đề" value={h.spKicker||''} onChange={v=>set('spKicker',v)} span="full" />
+          <Field label="Tiêu đề mục" value={h.spTitle||''} onChange={v=>set('spTitle',v)} span="full" />
+          <Field label="Mô tả mục" value={h.spSub||''} onChange={v=>set('spSub',v)} span="full" />
+
+          {/* v20: tiêu đề nhóm combo A/B/C + nhãn Best choice.
+              Combo NHẬP trong tab Sản phẩm (ô Combo A/B/C của từng SP);
+              ở đây chỉ sửa thanh tiêu đề nhóm + mascot + chữ nhãn. */}
+          <HBox title="🧩 Nhóm combo A/B/C (thanh tiêu đề + nhãn)">
+            <Field label='Chữ nhãn thẻ nổi bật (mặc định "Best choice" — đổi được, VD "Đáng mua nhất")' value={h.bestChoiceLabel||''} onChange={v=>set('bestChoiceLabel',v)} span="full" />
+            <Field label='Tên thẻ tự sinh khi SP có phân loại mùi/màu (mặc định "Chai lẻ")' value={h.autoCardName||''} onChange={v=>set('autoCardName',v)} span="full" />
+
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
+              <Field label="Tiêu đề nhóm Misty" value={h.mfHeading||''} onChange={v=>set('mfHeading',v)} />
+              <Field label="Dòng nhỏ nhóm Misty (trống = ẩn)" value={h.mfHeadKicker||''} onChange={v=>set('mfHeadKicker',v)} />
+              <Field label="Tiêu đề nhóm Waterless" value={h.wbsHeading||''} onChange={v=>set('wbsHeading',v)} />
+              <Field label="Dòng nhỏ nhóm Waterless (trống = ẩn)" value={h.wbsHeadKicker||''} onChange={v=>set('wbsHeadKicker',v)} />
+            </div>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:10 }}>
+              <ImgUp current={h.mfHeadMascot||''} onUpload={v=>set('mfHeadMascot',v)} label="Mascot nhóm Misty"
+                     aspect="100%" folder="home" entityId="mf-head-mascot" hint="Nằm ổ tròn trắng — mascot nâu tối OK" />
+              <ImgUp current={h.wbsHeadMascot||''} onUpload={v=>set('wbsHeadMascot',v)} label="Mascot nhóm Waterless"
+                     aspect="100%" folder="home" entityId="wbs-head-mascot" hint="Nằm ổ tròn trắng — mascot nâu tối OK" />
+            </div>
+          </HBox>
+
+          <HBox title="🧴 Misty Fresh">
+            <Field label="Từ khoá khớp sản phẩm trong tab Sản phẩm" value={h.mfKey||''} onChange={v=>set('mfKey',v)} span="full" />
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
+              <Field label="Nhãn góc" value={h.mfBadge||''} onChange={v=>set('mfBadge',v)} />
+              <Field label="Nhãn ô chọn loại" value={h.mfOptLabel||''} onChange={v=>set('mfOptLabel',v)} />
+            </div>
+            <div style={{ marginTop:10 }}>
+              <Field label="Tên hiện trên thẻ" value={h.mfName||''} onChange={v=>set('mfName',v)} span="full" />
+              <Field label="Mô tả" value={h.mfDesc||''} onChange={v=>set('mfDesc',v)} rows={3} span="full" />
+            </div>
+            <div style={{ marginTop:10 }}>
+              <ImgUp current={h.mfImage||''} onUpload={v=>set('mfImage',v)} label="Ảnh dự phòng"
+                     aspect="130%" folder="home" entityId="mf-img" hint="Trống = dùng ảnh trong tab Sản phẩm" />
+            </div>
+          </HBox>
+
+          <HBox title="💬 Dòng mời gọi giữa 2 thẻ">
+            <Field label="Câu chữ" value={h.inviteText||''} onChange={v=>set('inviteText',v)} span="full" />
+            <div style={{ marginTop:10 }}>
+              <ImgUp current={h.inviteMascot||''} onUpload={v=>set('inviteMascot',v)} label="Mascot nhỏ"
+                     aspect="100%" folder="home" entityId="invite-mascot" />
+            </div>
+          </HBox>
+
+          <HBox title="🫧 Waterless Bubble Shampoo">
+            <Field label="Từ khoá khớp sản phẩm" value={h.wbsKey||''} onChange={v=>set('wbsKey',v)} span="full" />
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10 }}>
+              <Field label="Nhãn góc" value={h.wbsBadge||''} onChange={v=>set('wbsBadge',v)} />
+              <Field label="Nhãn ô chọn mùi" value={h.wbsOptLabel||''} onChange={v=>set('wbsOptLabel',v)} />
+            </div>
+            <div style={{ marginTop:10 }}>
+              <Field label="Tên hiện trên thẻ" value={h.wbsName||''} onChange={v=>set('wbsName',v)} span="full" />
+              <Field label="Mô tả" value={h.wbsDesc||''} onChange={v=>set('wbsDesc',v)} rows={3} span="full" />
+            </div>
+          </HBox>
+
+          <HRows idKey="wbsScents" value={h.wbsScents} onChange={v=>set('wbsScents',v)} label="🎨 Các mùi (tên phải TRÙNG phân loại trong tab Sản phẩm)"
+                cols={[['name','Tên mùi'],['dot','Màu chấm (#hex)'],['c1','Màu nền 1 (#hex)'],['c2','Màu nền 2 (#hex)'],['image','Ảnh chai theo mùi','img']]}
+                blank={{name:'',dot:'#cccccc',c1:'#eeeeee',c2:'#dddddd',image:'',icon:''}}
+                hint="Màu nền là mảng màu sau chai, tự đổi khi khách bấm chọn mùi." />
+        </>)}
+
+        {grp==='tm' && (<>
+          <Field label="Dòng nhỏ phía trên tiêu đề" value={h.tmKicker||''} onChange={v=>set('tmKicker',v)} span="full" />
+          <Field label="Tiêu đề" value={h.tmTitle||''} onChange={v=>set('tmTitle',v)} span="full" />
+          <HRows idKey="testimonials" value={h.testimonials} onChange={v=>set('testimonials',v)} label="💬 Đánh giá khách"
+                cols={[['who','Tên tài khoản'],['pet','Bé nhà ai'],['quote','Câu nói','full'],['embed','Link TikTok / video','full'],['thumb','Ảnh bìa','img']]}
+                blank={{who:'',pet:'',quote:'',embed:'',thumb:''}}
+                hint="Chưa gắn link video thì thẻ hiện câu nói trên nền navy." />
+          <HRows idKey="tmStats" value={h.tmStats} onChange={v=>set('tmStats',v)} label="📊 Các con số"
+                cols={[['n','Con số'],['l','Chú thích']]} blank={{n:'',l:''}} />
+        </>)}
+
+        {/* v21.5: ĐÃ XOÁ nhóm "Khối gói riêng" (comboTiers) — trang chủ
+            không còn render khối này. Nó là hệ combo THỨ HAI: mỗi gói là 1
+            sản phẩm riêng, bán ra trừ products.stock mà KHÔNG biết BOM →
+            hai nguồn kho. Combo giờ chỉ có 1 nơi: tab 🧩 Combo. */}
+        {grp==='ab' && (<>
+          <Field label="Dòng nhỏ phía trên tiêu đề" value={h.abKicker||''} onChange={v=>set('abKicker',v)} span="full" />
+          <Field label="Tiêu đề" value={h.abTitle||''} onChange={v=>set('abTitle',v)} span="full" />
+          <Field label="Đoạn 1" value={h.abBody1||''} onChange={v=>set('abBody1',v)} rows={3} span="full" />
+          <Field label="Đoạn 2" value={h.abBody2||''} onChange={v=>set('abBody2',v)} rows={3} span="full" />
+          <Field label="Chữ nút" value={h.abBtn||''} onChange={v=>set('abBtn',v)} span="full" />
+          <div style={{ marginTop:12 }}>
+            <ImgUp current={h.abImage||''} onUpload={v=>set('abImage',v)} label="Ảnh phần giới thiệu"
+                   aspect="62%" folder="home" entityId="about-img" />
+          </div>
+          <HRows idKey="facts" value={h.facts} onChange={v=>set('facts',v)} label="🔢 Các con số"
+                cols={[['t','Con số'],['s','Chú thích','full']]} blank={{t:'',s:''}} />
+        </>)}
+
+        {grp==='txt' && (<>
+          <HBox title="🏷 Thương hiệu & menu">
+            <Field label="Tên thương hiệu" value={h.brandName||''} onChange={v=>set('brandName',v)} span="full" />
+            <div style={{ marginTop:10 }}>
+              <ImgUp current={h.logo||''} onUpload={v=>set('logo',v)} label="Logo"
+                     aspect="100%" folder="home" entityId="logo" />
+            </div>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginTop:10 }}>
+              <Field label="Menu 1" value={h.navShop||''} onChange={v=>set('navShop',v)} />
+              <Field label="Menu 2" value={h.navAbout||''} onChange={v=>set('navAbout',v)} />
+              <Field label="Menu giỏ" value={h.navCart||''} onChange={v=>set('navCart',v)} />
+            </div>
+          </HBox>
+
+          <HBox title="🔘 Chữ trên nút">
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:9 }}>
+              {[['labelCart','Nút thêm giỏ'],['labelDetail','Nút chi tiết'],
+                ['buybarBtn','Nút thanh mua dưới'],['pmFullPage','Nút trong popup'],
+                ['txtCheckout','Thanh toán'],['txtViewCart','Xem giỏ hàng'],
+                ['txtPlaceOrder','Đặt hàng'],['txtInStock','Còn hàng'],
+                ['txtOutOfStock','Hết hàng'],['txtAddedToCart','Đã thêm vào giỏ'],
+                ['txtCartEmpty','Giỏ trống'],['txtSubtotal','Tạm tính'],
+                ['txtShipFee','Phí ship'],['txtTotal','Tổng cộng'],
+                ['txtCOD','Trả khi nhận'],['txtOrderOk','Đặt hàng xong']].map(([k,l])=>(
+                <Field key={k} label={l} value={h[k]||''} onChange={v=>set(k,v)} />
               ))}
-            </ul>
-          </div>
-          <div>
-            <h4>{S.footerCol3Title}</h4>
-            <a className="f-bct" href={S.footerBctHref || '#'} target="_blank" rel="noreferrer">
-              {S.footerBctImg
-                ? <img src={S.footerBctImg} alt="Đã thông báo Bộ Công Thương" />
-                : <span className="f-bct-ph">DẤU BỘ CÔNG THƯƠNG<br/>tải lên trong admin</span>}
-            </a>
-          </div>
-        </div>
-        <div className="f-bottom">{S.footerText}</div>
-      </footer>
+            </div>
+            <div style={{ marginTop:10 }}>
+              <Field label="Ghi chú trả khi nhận" value={h.txtCODNote||''} onChange={v=>set('txtCODNote',v)} rows={2} span="full" />
+              <Field label="Lời cảm ơn sau khi đặt" value={h.txtOrderOkBody||''} onChange={v=>set('txtOrderOkBody',v)} rows={2} span="full" />
+            </div>
+          </HBox>
 
-      {/* ---------------- THANH MUA ---------------- */}
-      {mfProd && (
-      <div className={'buybar' + (barOn ? ' show' : '')}>
-        <div className="bb-img">
-          <Img src={S.buybarImage || (mfV && mfV.img) || mfProd.img} text="ẢNH|chai" dark />
+          <HBox title="🖼 Ảnh thanh mua dưới cùng">
+            <ImgUp current={h.buybarImage||''} onUpload={v=>set('buybarImage',v)} label="Ảnh nhỏ"
+                   aspect="130%" folder="home" entityId="buybar-img" />
+          </HBox>
+
+          <HLines value={h.trustPoints} onChange={v=>set('trustPoints',v)} label="✅ Điểm tin cậy (hiện trong popup sản phẩm)" />
+
+          <HBox title="📄 Chân trang — cột 1: thương hiệu">
+            <ImgUp current={h.logoWhite||''} onUpload={v=>set('logoWhite',v)} label="Logo bản trắng"
+                   aspect="100%" folder="home" entityId="logo-white" hint="Nền chân trang là navy đậm" />
+            <div style={{ marginTop:10 }}>
+              <Field label="Câu giới thiệu ngắn" value={h.footerDesc||''} onChange={v=>set('footerDesc',v)} rows={2} span="full" />
+            </div>
+            <HLines value={h.footerLines} onChange={v=>set('footerLines',v)}
+                    label="Các dòng thông tin (địa chỉ, website…)" />
+          </HBox>
+
+          <HBox title="📄 Chân trang — cột 2: điều khoản">
+            <Field label="Tiêu đề cột" value={h.footerCol2Title||''} onChange={v=>set('footerCol2Title',v)} span="full" />
+            <HRows idKey="footerLinks" value={h.footerLinks} onChange={v=>set('footerLinks',v)}
+                   label="Các đường dẫn"
+                   cols={[['t','Chữ hiện ra'],['href','Đường dẫn']]} blank={{t:'',href:'#'}} />
+          </HBox>
+
+          <HBox title="📄 Chân trang — cột 3: Bộ Công Thương">
+            <Field label="Tiêu đề cột" value={h.footerCol3Title||''} onChange={v=>set('footerCol3Title',v)} span="full" />
+            <div style={{ marginTop:10 }}>
+              <ImgUp current={h.footerBctImg||''} onUpload={v=>set('footerBctImg',v)} label="Ảnh dấu đỏ"
+                     aspect="38%" folder="home" entityId="bct" hint="Tải từ trang online.gov.vn sau khi đăng ký" />
+            </div>
+            <div style={{ marginTop:10 }}>
+              <Field label="Bấm vào dấu thì mở trang nào" value={h.footerBctHref||''} onChange={v=>set('footerBctHref',v)} span="full" />
+            </div>
+          </HBox>
+
+          <Field label="Dòng bản quyền dưới cùng" value={h.footerText||''} onChange={v=>set('footerText',v)} span="full" />
+        </>)}
+
+        {grp==='pet' && (<>
+          {/* cartPets luu trong DB dang MANG CHUOI, nhung HRows can MANG OBJECT.
+              Doi o day luc nap. Luc luu thi doan trong SaveBtn boc nguoc lai. */}
+          <HRows idKey="cartPets"
+                value={(Array.isArray(h.cartPets) ? h.cartPets : [])
+                        .map(x => (typeof x === 'string' ? { src: x } : x))}
+                onChange={v=>set('cartPets',v)} label="🐶 Mascot thò đầu khi bấm mua"
+                cols={[['src','Ảnh mascot','img']]} blank={{src:''}} folder="mascots"
+                hint="Bấm mua sẽ chọn ngẫu nhiên 1 con. CHỈ DÙNG MASCOT MÀU TỐI — mascot nằm trong ổ tròn trắng nên con màu sáng sẽ chìm, không nhìn thấy gì." />
+          <HLines value={h.cartCheers} onChange={v=>set('cartCheers',v)} label="🎉 Câu cổ vũ hiện cùng mascot" />
+        </>)}
+
+        <SaveBtn saved={saved} onSave={async ()=>{
+          /* cartPets luu dang mang chuoi cho khop app/page.js */
+          const clean = { ...h };
+          if (Array.isArray(clean.cartPets)) {
+            clean.cartPets = clean.cartPets
+              .map(x => (typeof x === 'string' ? x : x?.src))
+              .filter(Boolean);
+          }
+          /* v22: merge thay vì đè — giữ nguyên fontDisplay/fontBody mà
+             tab Thương hiệu đã ghi, và mọi field không thuộc tab này. */
+          const merged = await mergeConfig('home', clean);
+          S.home[1](merged);
+          flash();
+        }} />
+      </div>
+    );
+  };
+
+  // ── Tab: Brand ──
+  const TabBrand = () => {
+    const [b,setB] = useState({...S.brand[0]});
+    /* v21.1: font lưu vào key 'home' (nơi trang chủ đọc), KHÔNG lưu
+       vào 'brand' — trang chủ không đọc key brand cho font. */
+    const [hb,setHbState] = useState({...(S.home[0]||{})});
+    const setHb = (k,v) => setHbState(x=>({...x,[k]:v}));
+    return (
+      <div style={{ maxWidth:520 }}>
+        <SectionHeader title="🎨 Thương hiệu" hint="Tên cửa hàng, logo và phông chữ dùng cho toàn website." />
+        <div className="hh-admin-grid2" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:14 }}>
+          <Field label="Tên thương hiệu" value={b.name}    onChange={v=>setB(x=>({...x,name:v}))} span="full" />
+          <Field label="Khẩu hiệu"         value={b.tagline} onChange={v=>setB(x=>({...x,tagline:v}))} span="full" />
+          <Field label="Màu nút trong trang quản trị" value={b.primary}   onChange={v=>setB(x=>({...x,primary:v}))}   type="color" />
+          <Field label="Màu phụ trong trang quản trị" value={b.secondary} onChange={v=>setB(x=>({...x,secondary:v}))} type="color" />
         </div>
-        <div className="bb-txt">
-          <span className="bb-name">
-            {mfProd.name}{mfV ? ` — ${mfV.name}` : ''}
-          </span>
-          <span className="bb-price">
-            <b>{vnd(mfPrice)}</b>{mfWas > mfPrice && <s>{vnd(mfWas)}</s>}
-          </span>
+        <div style={{ fontFamily:FONT_B,fontSize:11.5,color:"#8a93a8",marginTop:6,lineHeight:1.6 }}>
+          Hai màu này chỉ đổi màu nút trong trang quản trị. Màu của website là navy cố định theo bộ nhận diện.
         </div>
-        <button type="button" className="btn b-buy cta-buy" disabled={mfStockN <= 0}
-                onClick={() => addToCart(mfProd, mfV, (mfV && mfV.img) || mfProd.img || S.mfImage)}>
-          {mfStockN <= 0 ? S.txtOutOfStock : S.buybarBtn}
+
+        {/* v21.1: FONT TOÀN TRANG */}
+        <div style={{ marginTop:18,padding:16,background:"#f2f5fb",borderRadius:14,border:"2px solid #dbe2f1" }}>
+          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#18284e",marginBottom:4 }}>🔠 Phông chữ website</div>
+          <div style={{ fontFamily:FONT_B,fontSize:11.5,color:"#5f6c8f",marginBottom:12,lineHeight:1.65 }}>
+            Áp cho toàn bộ website (trang chủ, chi tiết sản phẩm, giỏ hàng, thanh toán).
+            Bấm chọn bên dưới, hoặc gõ tên bất kỳ phông nào có trên Google Fonts — gõ đúng tên, phân biệt hoa thường.
+          </div>
+          {[['fontDisplay','Phông tiêu đề — tên sản phẩm, giá, nút'],
+            ['fontBody','Phông chữ chạy — mô tả, đoạn văn']].map(([key,lbl])=>(
+            <div key={key} style={{ marginBottom:14 }}>
+              <div style={{ fontFamily:FONT_T,fontSize:12,color:"#5f6c8f",marginBottom:6 }}>{lbl}</div>
+              <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:8 }}>
+                {['Nunito','Nunito Sans','Be Vietnam Pro','Quicksand','Baloo 2','Montserrat','Lexend','Poppins'].map(f=>{
+                  const on=(hb[key]||(key==='fontDisplay'?'Nunito':'Nunito Sans'))===f;
+                  return <button key={f} onClick={()=>setHb(key,f)} style={{ padding:"7px 14px",borderRadius:999,
+                    background:on?"#18284e":"#fff",color:on?"#fff":"#5f6c8f",
+                    border:"2px solid "+(on?"#18284e":"#dbe2f1"),fontFamily:FONT_T,fontWeight:700,fontSize:12,cursor:"pointer" }}>{f}</button>
+                })}
+              </div>
+              <Field label="hoặc gõ tên phông khác từ Google Fonts" value={hb[key]||''} onChange={v=>setHb(key,v)} span="full" placeholder={key==='fontDisplay'?'Nunito':'Nunito Sans'} />
+            </div>
+          ))}
+          <div style={{ background:"#fff",borderRadius:10,padding:14,border:"1px solid #dbe2f1" }}>
+            <div style={{ fontFamily:FONT_B,fontSize:10.5,color:"#8a93a8",marginBottom:6,letterSpacing:".06em" }}>XEM TRƯỚC</div>
+            <div style={{ fontFamily:`'${hb.fontDisplay||'Nunito'}',sans-serif`,fontWeight:900,fontSize:22,color:"#18284e",letterSpacing:"-.02em" }}>Chai xịt 250ml · 245.000đ</div>
+            <div style={{ fontFamily:`'${hb.fontBody||'Nunito Sans'}',sans-serif`,fontSize:13,color:"#5f6c8f",marginTop:5,lineHeight:1.6 }}>Xịt lên lông, 30 giây sau hết mùi, bé liếm phải vẫn an toàn.</div>
+            <div style={{ fontFamily:FONT_B,fontSize:10.5,color:"#8a93a8",marginTop:8 }}>Xem trước cần phông đã tải xong — mở website để thấy kết quả thật.</div>
+          </div>
+        </div>
+        <div style={{ marginTop:18 }}>
+          <div style={{ fontFamily:FONT_T,fontSize:12,color:"#5f6c8f",marginBottom:8 }}>🖼 Logo cửa hàng (hiện ở đầu trang — để trống sẽ dùng icon HH mặc định)</div>
+          <ImgUp current={b.logoImg} onUpload={v=>setB(x=>({...x,logoImg:v}))} label="Tải logo lên" aspect="60%" folder="brand" entityId="site-logo" hint="Vuông ~1:1 (logo)" />
+          {b.logoImg && (
+            <button onClick={()=>setB(x=>({...x,logoImg:""}))} style={{ marginTop:8,background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"6px 14px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>✕ Xoá logo, dùng icon mặc định</button>
+          )}
+        </div>
+        <div style={{ marginTop:16,padding:16,background:"#f9f9f9",borderRadius:14,border:"2px solid #dbe2f1" }}>
+          <div style={{ fontFamily:FONT_T,fontSize:12,color:"#5f6c8f",marginBottom:10 }}>XEM TRƯỚC</div>
+          <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10 }}>
+            {b.logoImg ? <img src={b.logoImg} alt="" style={{ height:44,width:44,objectFit:"contain",borderRadius:8 }} /> : <HHLogo primary={b.primary} size={44} />}
+            <div><div style={{ fontFamily:FONT_T,fontSize:20,color:b.primary }}>{b.name}</div><div style={{ fontFamily:FONT_B,fontSize:11,color:"#5f6c8f" }}>{b.tagline}</div></div>
+          </div>
+          <div style={{ display:"flex",gap:8 }}>
+            <div style={{ background:b.primary,color:"#fff",borderRadius:8,padding:"8px 16px",fontFamily:FONT_T,fontSize:13 }}>Nút chính</div>
+          </div>
+        </div>
+        <SaveBtn onSave={async ()=>{
+          await setSupabaseConfig("brand", b); S.brand[1](b);
+          /* v22: chỉ ghi ĐÚNG 2 field font, merge vào bản home mới nhất
+             trong DB — không đè cả cục 'home' bằng snapshot cũ (trước đây
+             chính đây làm font lưu xong lại mất khi tab Trang chủ ghi sau). */
+          const merged = await mergeConfig("home", {
+            fontDisplay: hb.fontDisplay || '',
+            fontBody:    hb.fontBody    || '',
+          });
+          S.home[1](merged);
+          flash();
+        }} saved={saved} />
+      </div>
+    );
+  };
+
+  // ── Tab: Products ──
+  /* ── v21.5: TAB COMBO RIÊNG ───────────────────────────────────────
+     Tách khỏi tab Sản phẩm: tab kia quản SKU đơn lẻ (thông tin, ảnh,
+     phân loại, kho), tab này CHỈ quản gói bán.
+     Kho combo KHÔNG nhập tay — khai BOM, trừ thẳng kho SKU (1 nguồn). */
+  const TabCombos = () => {
+    const [list,setList] = useState(S.products[0].map(x=>({...x})));
+    const [sel,setSel] = useState(list[0]?.id || null);
+    const [saving,setSaving] = useState(false);
+    const p = list.find(x=>x.id===sel);
+    const upd = (id,k,v) => setList(l=>l.map(x=>x.id===id?{...x,[k]:v}:x));
+    const stockOf = (c) => {
+      const bom = c.bom||[];
+      if(!bom.length) return null;
+      let m = Infinity;
+      for(const r of bom){
+        let st;
+        if(r.variantId==='*scent*') st = Math.min(...((p.variants||[]).map(v=>Number(v.stock)||0)), Infinity);
+        else if(r.variantId){ const v=(p.variants||[]).find(x=>x.id===r.variantId); st=v?Number(v.stock)||0:0; }
+        else st = Number(p.stock)||0;
+        m = Math.min(m, Math.floor(st/(Number(r.qty)||1)));
+      }
+      return m===Infinity?0:m;
+    };
+    return (
+      <div style={{ maxWidth:760 }}>
+        <SectionHeader title="🧩 Combo" hint="Gói bán hiện thành thẻ trong khu sản phẩm trang chủ. Thẻ đầu nhóm đã tự tạo từ tab Sản phẩm — ở đây chỉ thêm gói." />
+        <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:16 }}>
+          {list.map(x=>(
+            <button key={x.id} onClick={()=>setSel(x.id)} style={{ padding:"8px 16px",borderRadius:999,
+              background:sel===x.id?"#18284e":"#fff",color:sel===x.id?"#fff":"#5f6c8f",
+              border:"2px solid "+(sel===x.id?"#18284e":"#dbe2f1"),fontFamily:FONT_T,fontWeight:700,fontSize:12.5,cursor:"pointer" }}>
+              {x.name} {(x.combos||[]).length>0 && <span style={{ opacity:.7 }}>· {(x.combos||[]).length}</span>}
+            </button>
+          ))}
+        </div>
+        {!p ? <div style={{ fontFamily:FONT_B,fontSize:13,color:"#5f6c8f" }}>Chưa có sản phẩm nào. Thêm sản phẩm ở tab Sản phẩm trước.</div> : (
+        <>
+          <div style={{ background:"#f2f5fb",border:"1px solid #dbe2f1",borderRadius:12,padding:12,marginBottom:14 }}>
+            <div style={{ fontFamily:FONT_T,fontSize:12,color:"#18284e",marginBottom:6 }}>Kho hiện có của {p.name}</div>
+            <div style={{ display:"flex",gap:14,flexWrap:"wrap",fontFamily:FONT_B,fontSize:12,color:"#5f6c8f" }}>
+              {(p.variants||[]).length>0
+                ? (p.variants||[]).map(v=><span key={v.id}>{v.name||"(chưa tên)"}: <b style={{ color:"#18284e" }}>{v.stock||0}</b></span>)
+                : <span>Sản phẩm gốc: <b style={{ color:"#18284e" }}>{p.stock||0}</b></span>}
+            </div>
+          </div>
+          {/* ── v20: Combo A/B/C (CHIỀU DỮ LIỆU MỚI, tách khỏi Phân loại) ──
+              Phân loại của WBS vẫn là 5 MÙI — không đụng. Combo là gói bán
+              (chai lẻ / combo vừa / combo lớn) hiện thành 3 thẻ ở trang chủ. */}
+          <div style={{ marginTop:18,padding:16,background:"#fdf9ec",border:"2px dashed #e3ca22",borderRadius:14 }}>
+            <div style={{ fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",marginBottom:4 }}>🧩 Combo (khu sản phẩm trang chủ)</div>
+            <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12 }}>
+              Thẻ đầu nhóm ở trang chủ TỰ SINH từ sản phẩm gốc/phân loại — KHÔNG cần nhập lại chai lẻ ở đây.
+              Chỉ thêm các GÓI (combo đôi, set...). KHO KHÔNG NHẬP TAY: khai &quot;Gồm những món nào trong kho&quot; —
+              số còn bán được tự tính từ kho phân loại/SP gốc, bán combo trừ thẳng kho món con (1 nguồn duy nhất).
+              Combo tick 🎨 &quot;Cho khách chọn mùi&quot; thì thêm được dòng kho &quot;Mùi khách chọn&quot;.
+              Thẻ combo luôn nền navy và dùng đúng ảnh bạn up — không đổi màu theo mùi.
+            </div>
+            {(p.combos||[]).map((c,ci)=>(
+              <div key={c.id||ci} style={{ background:"#fff",border:"1px solid #dbe2f1",borderRadius:12,padding:12,marginBottom:10 }}>
+                <div style={{ display:"grid",gridTemplateColumns:"90px 1fr",gap:12 }}>
+                  <ImgUp current={c.img} onUpload={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],img:val};upd(p.id,"combos",nc);}} label="Ảnh" aspect="100%" folder="products" entityId={p.id+"_c"+ci} hint="VUÔNG 1:1 (VD 1100×1100). Nền thẻ combo là navy trơn — ảnh nên có nền sẵn hoặc PNG nền trong suốt." />
+                  <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
+                    <Field label='Tên combo (VD: "Combo Tiết Kiệm")' value={c.name||""} onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],name:val};upd(p.id,"combos",nc);}} span="full" />
+                    <Field label='Dòng nhỏ trên tên (VD: "Misty Fresh")' value={c.kicker||""} onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],kicker:val};upd(p.id,"combos",nc);}} span="full" />
+                    <Field label="Giá bán (₫)" value={c.price||0} type="number" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],price:Number(val)};upd(p.id,"combos",nc);}} />
+                    <Field label="Giá gốc (₫)" value={c.original||0} type="number" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],original:Number(val)};upd(p.id,"combos",nc);}} />
+                    <Field label="Trong combo có gì — CHỮ HIỂN THỊ trên thẻ (MỖI DÒNG 1 MÓN)" value={(c.items||[]).join("\n")} rows={3} span="full" onChange={val=>{const nc=[...p.combos];nc[ci]={...nc[ci],items:val.split("\n")};upd(p.id,"combos",nc);}} placeholder={"1 Chai xịt 250ml\n1 Lõi refill 250ml"} />
+
+                    {/* ── BOM: kho 1 nguồn ── */}
+                    <div style={{ gridColumn:"1 / -1",background:"#f2f5fb",border:"1px solid #dbe2f1",borderRadius:10,padding:10 }}>
+                      <div style={{ fontFamily:FONT_T,fontSize:12,color:"#18284e",marginBottom:6 }}>📦 Gồm những món nào trong kho (bán 1 combo trừ đúng từng món)</div>
+                      {(c.bom||[]).map((b,bi)=>(
+                        <div key={bi} style={{ display:"flex",gap:8,alignItems:"center",marginBottom:6 }}>
+                          <select value={b.variantId||""} onChange={e=>{const nc=[...p.combos];const nb=[...(nc[ci].bom||[])];nb[bi]={...nb[bi],variantId:e.target.value};nc[ci]={...nc[ci],bom:nb};upd(p.id,"combos",nc);}} style={{ flex:1,padding:"7px 10px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13 }}>
+                            <option value="">— Sản phẩm gốc —</option>
+                            {(p.variants||[]).map(v=><option key={v.id} value={v.id}>{v.name||"(chưa tên)"} (kho {v.stock||0})</option>)}
+                            {c.scentPick && <option value="*scent*">🎨 Mùi khách chọn</option>}
+                          </select>
+                          <span style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f" }}>×</span>
+                          <input type="number" min={1} value={b.qty||1} onChange={e=>{const nc=[...p.combos];const nb=[...(nc[ci].bom||[])];nb[bi]={...nb[bi],qty:Number(e.target.value)||1};nc[ci]={...nc[ci],bom:nb};upd(p.id,"combos",nc);}} style={{ width:60,padding:"7px 8px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13,textAlign:"center" }} />
+                          <button onClick={()=>{const nc=[...p.combos];const nb=(nc[ci].bom||[]).filter((_,x)=>x!==bi);nc[ci]={...nc[ci],bom:nb};upd(p.id,"combos",nc);}} style={{ background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"6px 10px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>✕</button>
+                        </div>
+                      ))}
+                      <button onClick={()=>{const nc=[...p.combos];nc[ci]={...nc[ci],bom:[...(nc[ci].bom||[]),{variantId:(p.variants||[])[0]?.id||"",qty:1}]};upd(p.id,"combos",nc);}} style={{ background:"#fff",color:S.brand[0].primary,border:`2px solid ${S.brand[0].primary}`,borderRadius:8,padding:"6px 12px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ Thêm món</button>
+                      {(c.bom||[]).length===0 && <div style={{ fontFamily:FONT_B,fontSize:11,color:"#d64545",marginTop:6 }}>⚠️ Chưa khai món nào — combo sẽ hiện HẾT HÀNG cho tới khi thêm món.</div>}
+                    </div>
+
+                    <label style={{ display:"flex",alignItems:"center",gap:7,fontFamily:FONT_T,fontSize:12.5,cursor:"pointer" }}>
+                      <input type="checkbox" checked={!!c.best} onChange={e=>{const nc=[...p.combos];nc[ci]={...nc[ci],best:e.target.checked};upd(p.id,"combos",nc);}} />
+                      ⭐ Best choice (viên vàng góc ảnh)
+                    </label>
+                    <label style={{ display:"flex",alignItems:"center",gap:7,fontFamily:FONT_T,fontSize:12.5,cursor:"pointer" }}>
+                      <input type="checkbox" checked={!!c.scentPick} onChange={e=>{const nc=[...p.combos];nc[ci]={...nc[ci],scentPick:e.target.checked};upd(p.id,"combos",nc);}} />
+                      🎨 Cho khách chọn mùi (chỉ để trừ đúng kho mùi — nền thẻ vẫn navy, ảnh dùng ảnh bạn up)
+                    </label>
+                    <button onClick={()=>{const nc=p.combos.filter((_,x)=>x!==ci);upd(p.id,"combos",nc);}} style={{ gridColumn:"1 / -1",background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"8px 0",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>✕ Xóa combo</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button onClick={()=>{const nc=[...(p.combos||[]),{id:"c_"+uid(),name:"",kicker:"",items:[],price:p.price||0,original:p.original||0,stock:0,best:false,scentPick:false,img:"",bom:[]}];upd(p.id,"combos",nc);}} style={{ background:"#fff",color:S.brand[0].primary,border:`2px solid ${S.brand[0].primary}`,borderRadius:10,padding:"9px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ Thêm combo</button>
+          </div>
+          <div style={{ display:"flex",gap:10,marginTop:16 }}>
+            <button disabled={saving} onClick={async()=>{
+              setSaving(true);
+              try{ await upsertProduct(p); S.products[1](list); }
+              catch(e){ alert("Lỗi khi lưu: "+e.message); }
+              finally{ setSaving(false); }
+            }} style={{ background:S.brand[0].primary,color:"#fff",border:"none",borderRadius:10,padding:"11px 26px",fontFamily:FONT_T,fontSize:13,cursor:"pointer",opacity:saving?.6:1 }}>{saving?"Đang lưu...":"Lưu combo"}</button>
+          </div>
+        </>)}
+      </div>
+    );
+  }
+
+  const TabProducts = () => {
+    const cats = S.categories[0];
+    const [list,setList] = useState([...S.products[0]]);
+    const [editing,setEditing] = useState(null);
+    const [importing,setImporting] = useState(false);
+    const [importMsg,setImportMsg] = useState(null);
+    const [saving,setSaving] = useState(false);
+    const [saveErr,setSaveErr] = useState(null);
+    const fileRef = useRef(null);
+    const upd = (id,k,v) => setList(l=>l.map(x=>x.id===id?{...x,[k]:v}:x));
+
+    // ── CSV parsing (handles quoted fields with commas) ──
+    const parseCSV = (text) => {
+      const rows = [];
+      let row = [], field = '', inQuotes = false;
+      for (let i=0; i<text.length; i++) {
+        const c = text[i], next = text[i+1];
+        if (inQuotes) {
+          if (c === '"' && next === '"') { field += '"'; i++; }
+          else if (c === '"') { inQuotes = false; }
+          else { field += c; }
+        } else {
+          if (c === '"') inQuotes = true;
+          else if (c === ',') { row.push(field); field = ''; }
+          else if (c === '\n' || c === '\r') {
+            if (c === '\r' && next === '\n') i++;
+            row.push(field); field = '';
+            if (row.some(v=>v.trim()!=='')) rows.push(row);
+            row = [];
+          } else field += c;
+        }
+      }
+      if (field !== '' || row.length) { row.push(field); rows.push(row); }
+      return rows;
+    };
+
+    const CSV_HEADERS = ['id','name','price','original','category','stock','minStock','sku','rating','tags','story','img','image2','image3','image4','flashSale','flashEndHours'];
+    const csvCell = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+    const downloadCSVFile = (rows, filename) => {
+      const csv = rows.map(r=>r.map(csvCell).join(',')).join('\n');
+      const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    };
+    const downloadTemplate = () => {
+      const sample = ['','Pate cho mèo','35000','45000','Đồ ăn','25','5','PATE-001','4.8','Mèo,Ăn dặm','Pate thơm ngon cho mèo','https://example.com/img1.jpg','','','','FALSE',''];
+      downloadCSVFile([CSV_HEADERS, sample], 'hanapet_products_template.csv');
+    };
+    // Export the CURRENT catalog exactly as it is (stock, prices, everything) —
+    // edit the file and re-upload: rows keep their id, so re-import UPDATES
+    // instead of duplicating.
+    const exportProducts = () => {
+      const rows = [CSV_HEADERS, ...list.map(p => [
+        p.id, p.name, p.price, p.original, p.category, p.stock, p.minStock||5,
+        p.sku||'', p.rating||4.5, p.tags||'', p.story||'', p.img||'',
+        (p.images||[])[0]||'', (p.images||[])[1]||'', (p.images||[])[2]||'',
+        p.flashSale?'TRUE':'FALSE',
+        p.flashSale&&p.flashEnd>Date.now() ? Math.round((p.flashEnd-Date.now())/3600000) : '',
+      ])];
+      downloadCSVFile(rows, `hanapet_products_${new Date().toISOString().slice(0,10)}.csv`);
+    };
+
+    const handleImport = async (file) => {
+      if (!file) return;
+      setImporting(true); setImportMsg(null);
+      try {
+        const text = await file.text();
+        const rows = parseCSV(text);
+        if (rows.length < 2) throw new Error('File is empty or has no data rows');
+        const headers = rows[0].map(h=>h.trim().toLowerCase());
+        const idx = (name) => headers.indexOf(name);
+        const dataRows = rows.slice(1);
+
+        const newRows = dataRows.map(r => {
+          const get = (col) => idx(col)>=0 ? (r[idx(col)]||'').trim() : '';
+          const images = [get('image2'), get('image3'), get('image4')].filter(Boolean);
+          return {
+            _csvId: get('id'),   // id from an exported file — strongest match key
+            name: get('name') || 'Untitled Product',
+            price: Number(get('price'))||0,
+            original: Number(get('original'))||Number(get('price'))||0,
+            category: get('category') || cats[0] || 'Đồ ăn',
+            stock: Number(get('stock'))||0,
+            minStock: Number(get('minstock'))||5,
+            sku: get('sku'),
+            rating: Number(get('rating'))||4.5,
+            tags: get('tags'),
+            story: get('story'),
+            img: get('img'),
+            images,
+            flashSale: ['true','1','yes'].includes(get('flashsale').toLowerCase()),
+            flashEnd: get('flashendhours') ? Date.now()+Number(get('flashendhours'))*3600000 : 0,
+          };
+        });
+
+        // Match each CSV row against existing products: by id first (from an
+        // exported file — exact), then by SKU, then by exact name. Matches get
+        // UPDATED; only truly new rows are created. Re-uploading the same file
+        // never duplicates.
+        let working = [...list];
+        const findMatch = (row) => {
+          if (row._csvId) { const m = working.find(x=>x.id===row._csvId); if (m) return m; }
+          if (row.sku) { const m = working.find(x=>x.sku && x.sku.toLowerCase()===row.sku.toLowerCase()); if (m) return m; }
+          return working.find(x=>x.name.trim().toLowerCase()===row.name.trim().toLowerCase());
+        };
+        const toSave = [];
+        let updatedCount = 0, createdCount = 0;
+        for (const rowRaw of newRows) {
+          const { _csvId, ...row } = rowRaw;   // don't persist the helper field
+          const match = findMatch(rowRaw);
+          if (match) {
+            const merged = { ...match, ...row, id: match.id, reviews: match.reviews||[] };
+            working = working.map(x=>x.id===match.id?merged:x);
+            toSave.push(merged);
+            updatedCount++;
+          } else {
+            const created = { ...row, id: uid(), reviews: [] };
+            working = [...working, created];
+            toSave.push(created);
+            createdCount++;
+          }
+        }
+
+        setList(working);
+        S.products[1](working);
+        // Save each to Supabase
+        let saved = 0, failed = 0;
+        for (const p of toSave) {
+          try { await upsertProduct(p); saved++; } catch(e) { failed++; console.error('Import row failed:', p.name, e); }
+        }
+        setImportMsg({ type: failed===0?'success':'warning', text: `${createdCount} sản phẩm mới, ${updatedCount} đã cập nhật (khớp theo SKU/tên)${failed>0?`, ${failed} lỗi (xem console)`:''}.` });
+      } catch(e) {
+        setImportMsg({ type:'error', text: 'Nhập file thất bại: ' + e.message });
+      } finally {
+        setImporting(false);
+        if (fileRef.current) fileRef.current.value = '';
+      }
+    };
+    if (editing) {
+      const p = list.find(x=>x.id===editing);
+      return (
+        <div style={{ maxWidth:560 }}>
+          <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:18 }}>
+            <button onClick={()=>setEditing(null)} style={{ background:"#f2f5fb",border:"2px solid #dbe2f1",borderRadius:9,padding:"6px 14px",fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",cursor:"pointer" }}>← Quay lại</button>
+            <div style={{ fontFamily:FONT_T,fontSize:15,color:"#0d142e" }}>{p.id.startsWith("new")?"Thêm Sản Phẩm Mới":"Sửa Sản Phẩm"}</div>
+          </div>
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontFamily:FONT_T,fontSize:12,color:"#5f6c8f",marginBottom:10 }}>🖼 Ảnh Sản Phẩm (ảnh đầu = ảnh chính, các ảnh sau hiện trong slideshow)</div>
+            <div className="hh-admin-grid2" style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
+              <ImgUp current={p.img} onUpload={v=>upd(p.id,"img",v)} label="Ảnh 1 (chính)" aspect="100%" folder="products" entityId={p.id+"_0"} hint="VUÔNG 1:1 (VD 1100×1100), chủ thể ở giữa — phủ kín khung thẻ trang chủ, mọi nơi hiển thị đều khung vuông" />
+              {(p.images||[]).map((img,idx)=>(
+                <div key={idx}>
+                  <ImgUp current={img} onUpload={v=>{const arr=[...(p.images||[])];arr[idx]=v;upd(p.id,"images",arr);}} label={`Ảnh ${idx+2}`} aspect="100%" folder="products" entityId={p.id+"_"+(idx+1)} hint="VUÔNG 1:1 — slideshow trang chi tiết (khung vuông)" />
+                  <button onClick={()=>{const arr=(p.images||[]).filter((_,i)=>i!==idx);upd(p.id,"images",arr);}} style={{ marginTop:5,background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:7,padding:"3px 10px",fontSize:11,fontFamily:FONT_T,cursor:"pointer",width:"100%" }}>✕ Xóa ảnh này</button>
+                </div>
+              ))}
+            </div>
+            <button onClick={()=>upd(p.id,"images",[...(p.images||[]),""])} style={{ marginTop:10,background:"#fff",color:S.brand[0].primary,border:`2px dashed ${S.brand[0].primary}`,borderRadius:10,padding:"9px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer",width:"100%" }}>+ Thêm ảnh khác</button>
+          </div>
+          <div className="hh-admin-grid2" style={{ marginTop:14,display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
+            <Field label="Tên sản phẩm" value={p.name} onChange={v=>upd(p.id,"name",v)} span="full" />
+            <div>
+              <div style={{ fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",marginBottom:5 }}>Danh mục</div>
+              <select value={p.category} onChange={e=>upd(p.id,"category",e.target.value)} style={{ width:"100%",padding:"9px 12px",borderRadius:10,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13 }}>
+                {cats.map(c=><option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <Field label="Giá bán (₫)"  value={p.price}    onChange={v=>upd(p.id,"price",v)}    type="number" />
+            <Field label="Giá gốc (₫)"  value={p.original} onChange={v=>upd(p.id,"original",v)} type="number" />
+            <Field label="Kho hàng"     value={p.stock}    onChange={v=>upd(p.id,"stock",v)}    type="number" />
+            <Field label="Đánh giá (0-5)" value={p.rating}   onChange={v=>upd(p.id,"rating",v)}   type="number" />
+            <Field label="Tags (cách nhau bằng dấu phẩy)" value={p.tags||""} onChange={v=>upd(p.id,"tags",v)} span="full" />
+            <Field label="Mô tả ngắn (hiện ở trang chủ — 1-2 câu)" value={p.subtitle||""} onChange={v=>upd(p.id,"subtitle",v)} rows={2} span="full" placeholder="VD: Xịt khử mùi khử khuẩn, an toàn khi liếm" />
+            <Field label="Câu chuyện sản phẩm (mô tả dài — chỉ hiện trong popup chi tiết)" value={p.story||""} onChange={v=>upd(p.id,"story",v)} rows={4} span="full" />
+            {/* v20 dọn: BỎ ô "Phông chữ riêng cho SP" — storefront không đọc
+                productFont ở đâu cả (trang chủ/chi tiết/popup đều không), bấm
+                chọn chỉ lưu DB rồi nằm im. Muốn dùng lại thì phải nối
+                normalize() + render trước, đừng chỉ thêm ô. */}
+            {/* v20 dọn: BỎ ô "Phông chữ riêng cho SP" — storefront không đọc
+                productFont ở đâu cả (trang chủ/chi tiết/popup đều không), bấm
+                chọn chỉ lưu DB rồi nằm im. Muốn dùng lại thì phải nối
+                normalize() + render trước, đừng chỉ thêm ô. */}
+            {/* v20.1: banner SP — KHÔI PHỤC vì trang chủ GIỜ RENDER THẬT
+                (khối .pbanner phía trên nhóm thẻ). Trước đây là ô hứa suông. */}
+            <div style={{ gridColumn:"1 / -1",marginTop:4,padding:14,background:"#eef1fa",borderRadius:12,border:"2px solid #dbe2f1" }}>
+              <div style={{ fontFamily:FONT_T,fontSize:12,color:"#18284e",marginBottom:8 }}>🖼 Banner riêng của sản phẩm — hiện phía TRÊN nhóm thẻ ở trang chủ (không bắt buộc)</div>
+              <div style={{ display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap" }}>
+                <ImgUp current={p.banner} onUpload={v=>upd(p.id,"banner",v)} label="Ảnh banner (ngang ~3:1)" aspect="33%" folder="products" entityId={p.id+"_banner"} hint="Ngang rộng — cao tối đa 340px khi hiện" />
+                <div style={{ flex:1,minWidth:180 }}>
+                  <Field label="Link video banner (.mp4 — ưu tiên hơn ảnh)" value={p.bannerVideo||""} onChange={v=>upd(p.id,"bannerVideo",v)} span="full" placeholder="https://.../banner.mp4" />
+                  <Field label="Chữ trên banner (không bắt buộc)" value={p.bannerText||""} onChange={v=>upd(p.id,"bannerText",v)} span="full" placeholder="VD: Ưu đãi đặc biệt tháng này" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Variants (Phân loại) ── */}
+          <div style={{ marginTop:18,padding:16,background:"#f2f5fb",border:"2px dashed #dbe2f1",borderRadius:14 }}>
+            <div style={{ fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",marginBottom:4 }}>🏷 Phân loại (Variants)</div>
+            <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12 }}>
+              Nếu có phân loại, giá và kho ở trên bị bỏ qua — mỗi loại có giá + kho riêng. Để trống nếu sản phẩm không phân loại.
+              Trang chủ TỰ SINH 1 thẻ "sản phẩm lẻ" có bộ chọn từ đây (chip tên phân loại; SP có bảng mùi thì thành chấm màu) — KHÔNG cần nhập lại vào combo.
+            </div>
+            <div style={{ marginBottom:12,maxWidth:260 }}>
+              <Field label='Tên nhóm phân loại (VD: "Kích cỡ", "Màu")' value={p.variantLabel||""} onChange={v=>upd(p.id,"variantLabel",v)} />
+            </div>
+            {(p.variants||[]).map((v,vi)=>(
+              <div key={v.id} style={{ background:"#fff",border:"1px solid #dbe2f1",borderRadius:12,padding:12,marginBottom:10 }}>
+                <div style={{ display:"grid",gridTemplateColumns:"90px 1fr",gap:12 }}>
+                  <ImgUp current={v.img} onUpload={val=>{const nv=[...p.variants];nv[vi]={...nv[vi],img:val};upd(p.id,"variants",nv);}} label="Ảnh" aspect="100%" folder="products" entityId={p.id+"_v"+vi} hint="VUÔNG 1:1, chủ thể giữa — phủ kín khung thẻ trang chủ khi chọn loại này" />
+                  <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
+                    <Field label="Tên loại" value={v.name||""} onChange={val=>{const nv=[...p.variants];nv[vi]={...nv[vi],name:val};upd(p.id,"variants",nv);}} span="full" />
+                    <Field label="Giá bán (₫)" value={v.price||0} type="number" onChange={val=>{const nv=[...p.variants];nv[vi]={...nv[vi],price:Number(val)};upd(p.id,"variants",nv);}} />
+                    <Field label="Giá gốc (₫)" value={v.original||0} type="number" onChange={val=>{const nv=[...p.variants];nv[vi]={...nv[vi],original:Number(val)};upd(p.id,"variants",nv);}} />
+                    <Field label="Kho" value={v.stock||0} type="number" onChange={val=>{const nv=[...p.variants];nv[vi]={...nv[vi],stock:Number(val)};upd(p.id,"variants",nv);}} />
+                    <button onClick={()=>{const nv=p.variants.filter((_,x)=>x!==vi);upd(p.id,"variants",nv);}} style={{ alignSelf:"end",background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"8px 0",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>✕ Xóa loại</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button onClick={()=>{const nv=[...(p.variants||[]),{id:"v_"+uid(),name:"",price:p.price||0,original:p.original||0,stock:0,img:""}];upd(p.id,"variants",nv);}} style={{ background:"#fff",color:S.brand[0].primary,border:`2px solid ${S.brand[0].primary}`,borderRadius:10,padding:"9px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>+ Thêm phân loại</button>
+          </div>
+
+          {/* v21.5: Ô combo ĐÃ CHUYỂN sang tab riêng "🧩 Combo" —
+              tab này giờ chỉ quản SKU đơn lẻ (thông tin + phân loại + kho).
+              Tách để không lẫn 2 việc khác nhau trong 1 màn hình dài. */}
+
+          <div style={{ marginTop:12,display:"flex",alignItems:"center",gap:12 }}>
+            <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer" }}>
+              <input type="checkbox" checked={p.flashSale||false} onChange={e=>upd(p.id,"flashSale",e.target.checked)} />
+              <span style={{ fontFamily:FONT_T,fontSize:13 }}>⚡ Flash Sale</span>
+            </label>
+            {p.flashSale&&(
+              <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                <span style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f" }}>Kết thúc sau (giờ):</span>
+                <input type="number" min={1} max={72} value={Math.max(1,Math.round((p.flashEnd-Date.now())/3600000))||4} onChange={e=>upd(p.id,"flashEnd",Date.now()+Number(e.target.value)*3600000)} style={{ width:60,padding:"6px 10px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13 }} />
+              </div>
+            )}
+          </div>
+          <div style={{ display:"flex",gap:10,marginTop:16 }}>
+            <button disabled={saving} onClick={async()=>{
+              // Assign a real id ONCE and use it consistently for both the DB
+              // row and the local list. (The old logic borrowed the FIRST
+              // product's id, silently overwriting it in the database.)
+              const realId = p.id.startsWith("new") ? uid() : p.id;
+              const toSave = { ...p, id: realId };
+              const final  = list.map(x => x.id === p.id ? { ...x, id: realId } : x);
+              setSaving(true); setSaveErr(null);
+              try {
+                await upsertProduct(toSave);
+                setList(final); S.products[1](final);
+                flash(); setEditing(null);
+              } catch(e) {
+                setSaveErr(e?.message || "Lưu thất bại — vui lòng thử lại");
+              } finally {
+                setSaving(false);
+              }
+            }} style={{ flex:1,background:S.brand[0].primary,color:"#fff",border:"none",borderRadius:12,padding:"12px 0",fontFamily:FONT_T,fontSize:14,cursor:saving?"not-allowed":"pointer",opacity:saving?0.7:1 }}>{saving?"⏳ Đang lưu...":"💾 Lưu"}</button>
+            <DelBtn onClick={async()=>{
+              setSaving(true); setSaveErr(null);
+              try {
+                try{ await deleteProduct(p.id); }catch(_){ /* junk id not on DB — still remove locally */ }
+                const nl=list.filter(x=>x.id!==p.id);
+                setList(nl); S.products[1](nl); setEditing(null);
+              } catch(e) {
+                setSaveErr(e?.message || "Xoá thất bại — vui lòng thử lại");
+              } finally {
+                setSaving(false);
+              }
+            }} />
+          </div>
+          {saveErr && <div style={{ marginTop:8,padding:"8px 12px",borderRadius:8,fontFamily:FONT_B,fontSize:12,background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4" }}>❌ {saveErr}</div>}
+        </div>
+      );
+    }
+    return (
+      <div>
+        <SectionHeader title="📦 Sản phẩm" hint="Ảnh, giá, kho và combo. Trang chủ tự tạo thẻ từ đây — không cần nhập lại."><AddBtn onClick={()=>{const np={id:"new_"+uid(),name:"Sản Phẩm Mới",price:100000,original:130000,category:cats[0]||"Đồ ăn",rating:4.5,stock:10,flashSale:false,flashEnd:0,tags:"",story:"",img:"",reviews:[]};setList(l=>[...l,np]);setEditing(np.id);}} label="Thêm Sản Phẩm" /></SectionHeader>
+
+        <div style={{ background:"#f2f5fb",border:"2px dashed #dbe2f1",borderRadius:14,padding:16,marginBottom:18 }}>
+          <div style={{ fontFamily:FONT_T,fontSize:13,color:"#5f6c8f",marginBottom:10 }}>📊 Nhập hàng loạt qua CSV / Excel</div>
+          <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f",marginBottom:12 }}>
+            Bấm "Xuất CSV" để tải danh sách sản phẩm ĐÚNG THỰC TẾ hiện tại (tồn kho, giá, flash sale...). Sửa file đó rồi tải lên lại — các dòng giữ nguyên cột id nên sẽ được CẬP NHẬT đè lên đúng sản phẩm cũ (khớp theo id → SKU → tên), dòng mới thì được thêm vào. Upload lại cùng file bao nhiêu lần cũng không bị trùng. Cột ảnh dùng link trực tiếp.
+          </div>
+          <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+            <button onClick={exportProducts} style={{ background:"#22C55E",color:"#fff",border:"none",borderRadius:10,padding:"9px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>📥 Xuất CSV (thực tế hiện tại)</button>
+            <button onClick={downloadTemplate} style={{ background:"#fff",color:"#5f6c8f",border:"2px solid #dbe2f1",borderRadius:10,padding:"9px 16px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>⬇️ Tải file mẫu CSV</button>
+            <button onClick={()=>fileRef.current?.click()} disabled={importing} style={{ background:S.brand[0].primary,color:"#fff",border:"none",borderRadius:10,padding:"9px 16px",fontFamily:FONT_T,fontSize:12,cursor:importing?"not-allowed":"pointer",opacity:importing?0.7:1 }}>
+              {importing ? "⏳ Đang nhập..." : "📤 Tải file CSV lên"}
+            </button>
+            <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display:"none" }} onChange={e=>handleImport(e.target.files[0])} />
+          </div>
+          {importMsg && (
+            <div style={{ marginTop:10,padding:"8px 12px",borderRadius:8,fontFamily:FONT_B,fontSize:12,
+              background: importMsg.type==='success'?'#f0fdf4':importMsg.type==='warning'?'#fffbeb':'#fdeeee',
+              color: importMsg.type==='success'?'#166534':importMsg.type==='warning'?'#92400e':'#d64545',
+              border: `1px solid ${importMsg.type==='success'?'#86efac':importMsg.type==='warning'?'#fcd34d':'#f0c4c4'}` }}>
+              {importMsg.type==='success'?'✅':importMsg.type==='warning'?'⚠️':'❌'} {importMsg.text}
+            </div>
+          )}
+        </div>
+
+        {list.map((p,i)=>(
+          <div key={p.id} style={{ display:"flex",alignItems:"center",gap:14,padding:14,background:"#f8fafd",borderRadius:14,border:"2px solid #dbe2f1",marginBottom:10 }}>
+            <div onClick={()=>setEditing(p.id)} style={{ width:56,height:56,borderRadius:10,overflow:"hidden",background:"#f2f5fb",flexShrink:0,cursor:"pointer" }}>
+              {p.img?<img src={p.img} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }} />:<div style={{ width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24 }}>📦</div>}
+            </div>
+            <div onClick={()=>setEditing(p.id)} style={{ flex:1,cursor:"pointer" }}>
+              <div style={{ fontFamily:FONT_T,fontSize:14,color:"#0d142e" }}>{p.name||"(chưa có tên)"}</div>
+              <div style={{ fontFamily:FONT_B,fontSize:12,color:"#5f6c8f" }}>{fmt(p.price)} · {p.category} · tồn:{p.stock} {p.flashSale?"· ⚡":""}</div>
+            </div>
+            <Stars rating={p.rating} size={12} />
+            <div style={{ display:"flex",flexDirection:"column",gap:3 }}>
+              <button disabled={i===0} onClick={async()=>{
+                const nl=[...list]; [nl[i-1],nl[i]]=[nl[i],nl[i-1]];
+                setList(nl); S.products[1](nl);
+                try{ await saveProductOrder(nl.map(x=>x.id)); }catch(e){ alert("Lỗi lưu thứ tự: "+e.message); }
+              }} title="Đưa lên" style={{ background:"#f2f5fb",border:"1px solid #dbe2f1",borderRadius:6,padding:"2px 8px",fontSize:11,cursor:i===0?"not-allowed":"pointer",opacity:i===0?0.3:1,color:S.brand[0].primary }}>▲</button>
+              <button disabled={i===list.length-1} onClick={async()=>{
+                const nl=[...list]; [nl[i],nl[i+1]]=[nl[i+1],nl[i]];
+                setList(nl); S.products[1](nl);
+                try{ await saveProductOrder(nl.map(x=>x.id)); }catch(e){ alert("Lỗi lưu thứ tự: "+e.message); }
+              }} title="Đưa xuống" style={{ background:"#f2f5fb",border:"1px solid #dbe2f1",borderRadius:6,padding:"2px 8px",fontSize:11,cursor:i===list.length-1?"not-allowed":"pointer",opacity:i===list.length-1?0.3:1,color:S.brand[0].primary }}>▼</button>
+            </div>
+            <div onClick={()=>setEditing(p.id)} style={{ background:"#f2f5fb",border:"2px solid #dbe2f1",color:S.brand[0].primary,borderRadius:8,padding:"6px 12px",fontFamily:FONT_T,fontSize:12,cursor:"pointer" }}>✏️</div>
+            <button onClick={async()=>{
+              if(!confirm(`Xoá sản phẩm "${p.name||'(chưa có tên)'}"?`)) return;
+              try{ await deleteProduct(p.id); }catch(e){ /* ID rác không có trên DB — bỏ qua, vẫn xoá khỏi danh sách */ }
+              const nl=list.filter(x=>x.id!==p.id);
+              setList(nl); S.products[1](nl);
+            }} title="Xoá sản phẩm" style={{ background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4",borderRadius:8,padding:"6px 11px",fontFamily:FONT_T,fontSize:14,cursor:"pointer",flexShrink:0 }}>🗑</button>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // ── Tab: Categories ──
+  const TabCats = () => {
+    const [list,setList]=useState([...S.categories[0]]);
+    const [newCat,setNewCat]=useState("");
+    const [saving,setSaving]=useState(false);
+    const [err,setErr]=useState(null);
+    return (
+      <div style={{ maxWidth:400 }}>
+        <SectionHeader title="🏷 Danh mục" hint="Danh sách nhóm hàng để gán cho sản phẩm khi thêm mới." />
+        <div style={{ display:"flex",gap:8,marginBottom:16 }}>
+          <input value={newCat} onChange={e=>setNewCat(e.target.value)} placeholder="Tên danh mục mới..." style={{ flex:1,padding:"9px 12px",borderRadius:10,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:13 }} />
+          <PrimaryBtn onClick={()=>{if(newCat.trim()&&!list.includes(newCat.trim())){setList(l=>[...l,newCat.trim()]);setNewCat("");}}} label="+ Thêm" />
+        </div>
+        {list.map(c=>(
+          <div key={c} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"#f8fafd",borderRadius:10,border:"2px solid #dbe2f1",marginBottom:8 }}>
+            <span style={{ fontFamily:FONT_T,fontSize:14,color:"#0d142e" }}>{c}</span>
+            <DelBtn onClick={()=>setList(l=>l.filter(x=>x!==c))} />
+          </div>
+        ))}
+        {err&&<div style={{ marginBottom:10,padding:"8px 12px",borderRadius:8,fontFamily:FONT_B,fontSize:12,background:"#fdeeee",color:"#d64545",border:"1px solid #f0c4c4" }}>❌ {err}</div>}
+        <button disabled={saving} onClick={async()=>{
+          setSaving(true); setErr(null);
+          try {
+            await saveCategories(list);
+            S.categories[1](list);
+            flash();
+          } catch(e) {
+            setErr('Lưu thất bại: ' + e.message);
+          } finally {
+            setSaving(false);
+          }
+        }} style={{ background:S.brand[0].primary,color:"#fff",border:"none",borderRadius:12,padding:"12px 0",fontFamily:FONT_T,fontSize:14,cursor:saving?"not-allowed":"pointer",width:"100%",opacity:saving?0.7:1 }}>
+          {saving?"⏳ Đang lưu...":saved?"✅ Đã lưu!":"💾 Lưu"}
         </button>
       </div>
-      )}
-    </>
-  );
-}
+    );
+  };
 
-/* ============================================================
-   STYLES
-   ============================================================ */
-function Styles({ fd, fb }) {
+  // ── Tab: Vouchers ──
+  const TabVouchers = () => {
+    const [list,setList]=useState([]);
+    const [loading,setLoading]=useState(true);
+    const [loadErr,setLoadErr]=useState(null);
+    const upd=(id,k,v)=>setList(l=>l.map(x=>x.id===id?{...x,[k]:v}:x));
+    useEffect(()=>{
+      getVouchers().then(vs=>{ setList(vs); setLoading(false); })
+        .catch(e=>{ setLoadErr('Không tải được mã: '+e.message+' (đã chạy VOUCHERS_PRIVATE_SQL.sql chưa?)'); setLoading(false); });
+    },[]);
+    if (loading) return <div style={{ fontFamily:FONT_B,fontSize:13,color:'#5f6c8f',padding:'20px 0' }}>⏳ Đang tải mã giảm giá...</div>;
+    return (
+      <div style={{ maxWidth:480 }}>
+        <SectionHeader title="🎟 Mã giảm giá" hint="Khách nhập mã ở bước thanh toán để được trừ theo phần trăm."><AddBtn onClick={()=>setList(l=>[...l,{id:'new_'+uid(),code:"CODE"+Math.floor(Math.random()*100),pct:10}])} label="Thêm mã" /></SectionHeader>
+        <div style={{ fontFamily:FONT_B,fontSize:11,color:'#5f6c8f',marginBottom:12,background:'#f0fdf4',border:'1px solid #86efac',borderRadius:8,padding:'8px 12px' }}>🔒 Mã giảm giá giờ được lưu riêng tư — khách không đọc trộm được qua API nữa.</div>
+        {loadErr&&<div style={{ marginBottom:12,padding:'8px 12px',borderRadius:8,fontFamily:FONT_B,fontSize:12,background:'#fdeeee',color:'#d64545',border:'1px solid #f0c4c4' }}>❌ {loadErr}</div>}
+        {list.map(v=>(
+          <div key={v.id} style={{ display:"grid",gridTemplateColumns:"2fr 1fr auto",gap:10,alignItems:"end",padding:"12px 14px",background:"#f8fafd",borderRadius:12,border:"2px solid #dbe2f1",marginBottom:10 }}>
+            <Field label="Mã"       value={v.code} onChange={val=>upd(v.id,"code",val.toUpperCase())} />
+            <Field label="Giảm giá (%)"      value={v.pct}  onChange={val=>upd(v.id,"pct",Number(val))} type="number" />
+            <div style={{ paddingBottom:2 }}><DelBtn onClick={()=>setList(l=>l.filter(x=>x.id!==v.id))} /></div>
+          </div>
+        ))}
+        <SaveBtn onSave={async ()=>{await saveVouchers(list); const fresh=await getVouchers(); setList(fresh); flash();}} saved={saved} />
+      </div>
+    );
+  };
+
+
   return (
-    <style jsx global>{`
-      :root{--f-display:'${fd || 'Nunito'}',system-ui,sans-serif;
-            --f-body:'${fb || 'Nunito Sans'}',system-ui,sans-serif}
-/* v21.1: FONT ĐỔI ĐƯỢC TỪ ADMIN. Mọi chỗ dùng var(--f-display)/
-   var(--f-body) — KHÔNG hardcode tên font nữa (trước có 28 chỗ). */
-:root{--navy:#18284e;--navy-deep:#101c38;--cream:#f6f4ef;--ink:#1b2440;--nav-h:78px;
-  --f-display:'Nunito',system-ui,sans-serif;--f-body:'Nunito Sans',system-ui,sans-serif}
-*{box-sizing:border-box;margin:0;padding:0}
-/* Nền mép: navy ở trên (dưới hero), kem ở dưới — không để lộ dải trắng
-   khi màn hình rất rộng hoặc khi cuộn quá đà (overscroll). */
-html{scroll-behavior:smooth;scroll-padding-top:var(--nav-h);background:var(--navy);overscroll-behavior-y:none}
-body{font-family:var(--f-body);color:var(--ink);background:var(--cream);-webkit-font-smoothing:antialiased;overflow-x:hidden}
-h1,h2,h3{font-family:var(--f-display);font-weight:900;letter-spacing:-.02em}
-img{display:block;max-width:100%}
-button{font:inherit}
+    <div style={{ minHeight:'100vh', background:'#f2f5fb', fontFamily:FONT_B }}>
+      <style>{`
+        .hh-admin-content :is([style*="gridTemplateColumns"]) {}
+        @media (max-width:640px){
+          .hh-admin-grid2{ grid-template-columns:1fr !important }
+          .hh-admin-grid3{ grid-template-columns:1fr !important }
+          .hh-admin-grid4{ grid-template-columns:1fr 1fr !important }
+          .hh-admin-content{ padding:18px 14px !important }
+          .hh-admin-top{ padding:0 12px !important; gap:8px !important }
+          .hh-admin-top span{ font-size:14px !important }
+          .hh-admin-top a, .hh-admin-top button{ padding:6px 10px !important; font-size:11px !important }
+        }
+      `}</style>
+      {/* Top bar */}
+      <div className="hh-admin-top" style={{ background:'#0d142e', padding:'0 24px', display:'flex', alignItems:'center', gap:14, height:56, position:'sticky', top:0, zIndex:100, overflowX:'auto' }}>
+        <HHLogo primary={PRIMARY} size={32} />
+        <span style={{ fontFamily:FONT_T, fontSize:18, color:'#fff', whiteSpace:'nowrap' }}>Hanapet Admin</span>
+        <div style={{ flex:1 }} />
+        {saved && <span style={{ fontFamily:FONT_T, fontSize:12, color:'#ffffff', whiteSpace:'nowrap' }}>✅ Đã lưu!</span>}
+        <a href="/" target="_blank" style={{ background:'transparent', border:'1px solid rgba(255,255,255,0.2)', borderRadius:8, padding:'5px 12px', color:'rgba(255,255,255,0.7)', cursor:'pointer', fontFamily:FONT_T, fontSize:12, textDecoration:'none', whiteSpace:'nowrap' }}>🏠 Cửa hàng</a>
+        <button onClick={signOut} style={{ background:'#1b295b', border:'none', borderRadius:8, padding:'6px 16px', color:'#fff', cursor:'pointer', fontFamily:FONT_T, fontSize:13, fontWeight:700, whiteSpace:'nowrap' }}>🚪 Đăng xuất</button>
+      </div>
 
-.ph{width:100%;height:100%;display:grid;place-content:center;align-content:center;text-align:center;
-  font-size:10.5px;font-weight:800;letter-spacing:.1em;line-height:1.6;padding:10px;color:rgba(24,40,78,.45)}
-.ph-dark{color:rgba(255,255,255,.52)}
-.ph span{display:block}
+      {/* Tab bar */}
+      <div style={{ display:'flex', overflowX:'auto', borderBottom:'3px solid #dbe2f1', background:'#f8fafd', position:'sticky', top:56, zIndex:99, WebkitOverflowScrolling:'touch' }}>
+        {TABS.map(([key, label, badge]) => (
+          <button key={key} onClick={() => setTab(key)} style={{ padding:'11px 16px', background: tab===key ? PRIMARY : 'transparent', color: tab===key ? '#fff' : '#5f6c8f', border:'none', fontFamily:FONT_T, fontSize:12, cursor:'pointer', whiteSpace:'nowrap', borderBottom: tab===key ? `3px solid ${PRIMARY}` : '3px solid transparent', transition:'all 0.15s', flexShrink:0, position:'relative' }}>
+            {label}
+            {badge > 0 && <span style={{ marginLeft:5, background:'#EF4444', color:'#fff', borderRadius:10, padding:'1px 6px', fontSize:10 }}>{badge}</span>}
+          </button>
+        ))}
+      </div>
 
-/* Nav DONG CUNG mau navy, KHONG doi mau khi cuon nua (Tung yeu cau).
-   Cao them cho logo + nut gio khong cham vien. */
-nav{position:fixed;top:0;left:0;right:0;z-index:50;padding:0 5vw;height:var(--nav-h);
-  background:var(--navy);border-bottom:1px solid rgba(255,255,255,.09)}
-.nav-in{max-width:1180px;height:100%;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
-.brand{display:flex;align-items:center;gap:10px;color:#fff;font-family:var(--f-display);font-weight:900;font-size:20px;
-  text-decoration:none;transition:.2s}
-.brand:hover{opacity:.85}
-.brand .mark{width:34px;height:34px;border-radius:10px;background:#fff;overflow:hidden}
-.brand .mark-img{width:34px;height:34px;object-fit:contain;background:#fff;border-radius:10px;padding:5px}
-.navlinks{display:flex;gap:24px;font-size:14px;font-weight:700;align-items:center}
-.navlinks a{color:rgba(255,255,255,.82);text-decoration:none;position:relative;transition:.2s}
-.navlinks a:hover{color:#fff}
-.navlinks a:not(.navcart)::after{content:"";position:absolute;left:0;right:0;bottom:-5px;height:2px;
-  background:#fff;border-radius:2px;transform:scaleX(0);transition:transform .22s cubic-bezier(.2,.7,.3,1)}
-.navlinks a:not(.navcart):hover::after{transform:scaleX(1)}
-.navcart{background:#fff;color:var(--navy)!important;padding:8px 19px;border-radius:999px;font-weight:800;
-  border:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-size:14px;transition:.2s}
-.navcart:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.28)}
-.navcart em{font-style:normal;background:var(--navy);color:#fff;border-radius:999px;min-width:20px;height:20px;
-  display:grid;place-items:center;font-size:11.5px;font-weight:800;padding:0 5px}
-@media(max-width:760px){.navlinks a:not(.navcart){display:none}}
+      {/* Sub-tab bar (for grouped tabs) */}
+      {SUBTABS[tab] && (
+        <div style={{ display:'flex', gap:6, overflowX:'auto', padding:'10px 20px', background:'#eef1fa', borderBottom:'1px solid #dbe2f1', position:'sticky', top:101, zIndex:98 }}>
+          {SUBTABS[tab].map(([key,label])=>{
+            const on = (sub[tab]||SUBTABS[tab][0][0])===key;
+            return <button key={key} onClick={()=>setSub(s=>({...s,[tab]:key}))} style={{ padding:'7px 16px', borderRadius:999, background:on?PRIMARY:'#fff', color:on?'#fff':'#5f6c8f', border:'1px solid '+(on?PRIMARY:'#dbe2f1'), fontFamily:FONT_T, fontWeight:700, fontSize:12, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>{label}</button>;
+          })}
+        </div>
+      )}
 
-/* Bỏ min-height:100svh cứng. Trước đây 100svh + padding 116/140 làm hero cao
-   hơn màn hình trên máy rộng-thấp → nav che mất dòng eyebrow. */
-/* Ảnh nền hero (heroBg). Lớp phủ navy đè lên để chữ trắng vẫn đọc được. */
-.hero-bg{position:absolute;inset:0;z-index:0;pointer-events:none}
-.hero-bg img{width:100%;height:100%;object-fit:cover;display:block}
-.hero-bg-dim{position:absolute;inset:0;background:var(--navy)}
-.hero{position:relative;background:var(--navy);color:#fff;overflow:hidden;
-  display:grid;grid-template-columns:minmax(0,1fr) clamp(360px,46%,560px);align-items:center;gap:0;max-width:1180px;margin:0 auto;
-  padding:calc(var(--nav-h) + clamp(24px,4vh,52px)) 5vw clamp(46px,5.4vw,80px)}
-.hero::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 90% at 74% 46%,rgba(255,255,255,.18),transparent 62%)}
-.hero>*{position:relative;z-index:2}
-.rv{opacity:0;transform:translateY(22px);animation:rise .85s cubic-bezier(.22,.68,.24,1) forwards}
-@keyframes rise{to{opacity:1;transform:translateY(0)}}
-.d1{animation-delay:.05s}.d2{animation-delay:.18s}.d3{animation-delay:.3s}.d4{animation-delay:.42s}.d5{animation-delay:.54s}
-/* Eyebrow dạng viên thuốc — gọn hơn gạch ngang, giống nhãn trên chai. */
-.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:800;letter-spacing:.1em;
-  text-transform:uppercase;color:rgba(255,255,255,.8);margin-bottom:clamp(12px,2vh,20px);
-  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);padding:6px 14px;border-radius:999px}
-.eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:#fff;flex-shrink:0}
-h1{font-size:clamp(40px,min(6.6vw,9.4vh),94px);line-height:.97;margin-bottom:clamp(10px,1.7vh,16px);color:#fff}
-h1 .l2{display:block}
-.support{font-family:var(--f-display);font-weight:700;font-size:clamp(16px,1.5vw,21px);color:rgba(255,255,255,.66);margin-bottom:clamp(16px,3vh,32px)}
-.bens{list-style:none;display:flex;flex-direction:column;gap:clamp(7px,1.2vh,11px);margin:0 0 clamp(18px,3vh,32px)}
-.bens li{display:flex;gap:11px;align-items:flex-start;font-size:15.5px;font-weight:600;color:rgba(255,255,255,.86);line-height:1.45;max-width:40ch}
-.bens li::before{content:"";flex-shrink:0;width:19px;height:19px;border-radius:50%;margin-top:1px;background:#fff;
-  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 6L9 17l-5-5' stroke='black' stroke-width='3.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/13px no-repeat;
-  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 6L9 17l-5-5' stroke='black' stroke-width='3.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/13px no-repeat}
+      {/* Content */}
+      <div className="hh-admin-content" style={{ maxWidth:900, margin:'0 auto', padding:'28px 20px', boxSizing:'border-box' }}>
+        {tab==='orders'     && <TabOrders S={S} />}
+        {tab==='inventory'  && <TabInventory S={S} />}
+        {tab==='products'   && <TabProducts />}
+        {tab==='combos'     && <TabCombos />}
 
-.btn:disabled{opacity:.45;cursor:not-allowed}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:16px 30px;border-radius:999px;
-  font-weight:800;font-size:15.5px;text-decoration:none;border:2px solid transparent;cursor:pointer;transition:.22s cubic-bezier(.2,.7,.3,1)}
-.cta-row{display:flex;gap:13px;flex-wrap:wrap}
-.btn-primary{background:#fff;color:var(--navy);box-shadow:0 8px 26px rgba(0,0,0,.25)}
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 14px 34px rgba(0,0,0,.32)}
-.btn-ghost{border-color:rgba(255,255,255,.34);color:#fff}
-.btn-ghost:hover{border-color:#fff;background:rgba(255,255,255,.09);transform:translateY(-2px)}
-.microcopy{font-size:13.5px;color:rgba(255,255,255,.55);margin-top:16px;font-weight:600;line-height:1.7}
+        {tab==='home'  && <TabHome />}
 
-/* Cột hình hero: chai KHÔNG nằm trong khung. Chai chính chạm đáy,
-   lõi refill nhỏ hơn nép sau bên phải, mascot ngồi góc dưới-phải.
-   Cả cụm lùi trái để không tạo khoảng trống giữa chữ và ảnh. */
-.shot{position:relative;height:clamp(380px,min(56vw,72vh),580px);
-  margin-left:clamp(-30px,-1.5vw,0px);margin-right:clamp(-30px,-2vw,0px)}
-.glow{position:absolute;left:8%;bottom:7%;width:clamp(260px,30vw,370px);aspect-ratio:1;border-radius:50%;
-  background:radial-gradient(circle,rgba(255,255,255,.16),transparent 66%);
-  filter:blur(20px);opacity:0;animation:gin 2.2s ease-out .5s forwards;z-index:1}
-@keyframes gin{to{opacity:1}}
+        {tab==='brand' && <TabBrand />}
 
-.hero-main{position:absolute;left:-4%;bottom:0;z-index:3;
-  width:58%;height:100%;
-  display:grid;place-items:end center;align-content:end;
-  opacity:0;transform:translateY(44px) scale(.95);
-  animation:pin 1.7s cubic-bezier(.16,.7,.22,1) .55s forwards;transition:transform .35s}
-@keyframes pin{to{opacity:1;transform:translateY(0) scale(1)}}
-.hero-main:hover{transform:translateY(-10px)}
-/* Ảnh trần: không khung, không nền. Chỉ đổ bóng cho nổi khỏi nền navy. */
-.hero-main img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
-  filter:drop-shadow(0 26px 46px rgba(0,0,0,.42))}
-
-/* Refill ĐỨNG CẠNH chai chính, CÙNG khung cùng chân — chai nào ngắn hơn
-   thì tự trông thấp hơn, không ép bằng CSS. */
-.hero-refill{position:absolute;left:46%;bottom:0;z-index:2;
-  width:58%;height:100%;
-  display:grid;place-items:end center;align-content:end;
-  opacity:0;transform:translateY(36px);animation:pin 1.6s cubic-bezier(.16,.7,.22,1) 1.0s forwards}
-.hero-refill img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
-  filter:drop-shadow(0 18px 32px rgba(0,0,0,.36))}
-
-
-/* Thanh tin cậy bản navy đậm — nối liền hero (wave cũng đổ #101c38). */
-.trustbar-w{background:var(--navy-deep);padding:0 5vw}
-.trustbar{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
-.trustbar span{display:flex;align-items:center;justify-content:center;gap:9px;
-  padding:18px 10px;font-size:13.5px;font-weight:800;color:rgba(255,255,255,.86);text-align:center;
-  border-left:1px solid rgba(255,255,255,.14)}
-.trustbar span:first-child{border-left:0}
-.tb-ic{width:20px;height:20px;flex-shrink:0;background:#fff;opacity:.8;
-  -webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
-  -webkit-mask-position:center;mask-position:center}
-.tb-truck{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='7' cy='17' r='2'/%3E%3Ccircle cx='17' cy='17' r='2'/%3E%3Cpath d='M5 17H3V6a1 1 0 0 1 1-1h9v12m-4 0h6m4 0h2v-6h-8m0-5h5l3 5'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='7' cy='17' r='2'/%3E%3Ccircle cx='17' cy='17' r='2'/%3E%3Cpath d='M5 17H3V6a1 1 0 0 1 1-1h9v12m-4 0h6m4 0h2v-6h-8m0-5h5l3 5'/%3E%3C/svg%3E")}
-.tb-shield-check{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11.46 20.85a2 2 0 0 0 1.08 0C16.5 19.6 19 15.7 19 12V6.3a1 1 0 0 0-.7-.95l-6-1.9a1 1 0 0 0-.6 0l-6 1.9a1 1 0 0 0-.7.95V12c0 3.7 2.5 7.6 6.46 8.85'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11.46 20.85a2 2 0 0 0 1.08 0C16.5 19.6 19 15.7 19 12V6.3a1 1 0 0 0-.7-.95l-6-1.9a1 1 0 0 0-.6 0l-6 1.9a1 1 0 0 0-.7.95V12c0 3.7 2.5 7.6 6.46 8.85'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E")}
-.tb-refresh{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4'/%3E%3Cpath d='M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4'/%3E%3Cpath d='M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4'/%3E%3C/svg%3E")}
-.tb-star{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 17.75 5.83 21l1.18-6.88-5-4.87 6.9-1L12 2l3.09 6.26 6.9 1-5 4.87L18.17 21z'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 17.75 5.83 21l1.18-6.88-5-4.87 6.9-1L12 2l3.09 6.26 6.9 1-5 4.87L18.17 21z'/%3E%3C/svg%3E")}
-.tb-check{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")}
-@media(max-width:900px){.trustbar{grid-template-columns:repeat(2,1fr)}
-  .trustbar span{font-size:12.5px;padding:14px 8px}
-  .trustbar span:nth-child(3){border-left:0}
-  .trustbar span:nth-child(-n+2){border-bottom:1px solid rgba(255,255,255,.14)}}
-@media(max-width:400px){.trustbar span{font-size:11.5px;gap:6px}.tb-ic{width:16px;height:16px}}
-.tvc{position:relative;z-index:3;width:clamp(122px,14.5vw,192px);aspect-ratio:9/16;border-radius:18px;overflow:hidden;
-  background:linear-gradient(165deg,#22345d,#141f3d);border:1px solid rgba(255,255,255,.2);box-shadow:0 26px 60px rgba(0,0,0,.42);
-  opacity:0;transform:translateY(40px) scale(.95);animation:pin 1.05s cubic-bezier(.2,.72,.24,1) .62s forwards;transition:transform .35s}
-.tvc:hover{transform:translateY(-9px)}
-.tvc iframe,.tvc video,.tvc img{width:100%;height:100%;border:0;object-fit:cover}
-.play{position:absolute;inset:0;margin:auto;width:52px;height:52px;border-radius:50%;border:none;
-  background:rgba(255,255,255,.94);cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:2}
-.play::after{content:"";position:absolute;inset:0;margin:auto;width:0;height:0;
-  border-left:15px solid var(--navy);border-top:10px solid transparent;border-bottom:10px solid transparent;margin-left:20px}
-.wave{position:absolute;bottom:-1px;left:0;width:100%;line-height:0;z-index:1;pointer-events:none}
-.wave svg{width:100%;height:clamp(44px,5vw,78px);display:block}
-@media(max-width:900px){.hero{grid-template-columns:1fr;padding:calc(var(--nav-h) + 30px) 6vw 52px}
-  .shot{height:clamp(340px,86vw,460px);margin:24px 0 0}
-  .hero-main{left:-3%;width:58%;height:100%}
-  .hero-refill{left:45%;bottom:0;width:58%;height:100%}
-  .glow{left:6%;bottom:7%;width:min(68vw,310px)}}
-
-section{padding:clamp(48px,5.5vw,76px) 5vw}
-.shead{max-width:640px;margin-bottom:clamp(24px,3vw,34px)}
-.kicker{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--navy);opacity:.55;margin-bottom:12px}
-.shead h2{font-size:clamp(26px,3.2vw,40px);line-height:1.1;margin-bottom:10px;color:var(--navy)}
-.shead p{color:rgba(27,36,64,.68);font-size:16px;line-height:1.65}
-
-/* v18: Khu SẢN PHẨM đảo màu — nền XÁM NHẠT, thẻ navy ĐẶC (bỏ kính mờ).
-   Kicker/shead dùng lại màu navy mặc định nên không cần override nữa. */
-#sp{background:#f4f5f7;overflow-x:clip}
-/* v18.1: khu #sp bung theo khung 1180 (cùng cỡ .nav-in) — tiêu đề thẳng
-   hàng với lưới thẻ, hết cảnh tiêu đề dính trái còn thẻ lọt giữa. */
-#sp .shead{max-width:1180px;margin-left:auto;margin-right:auto}
-#sp .shead p{max-width:640px}
-
-/* v18.2: MỖI THẺ MỘT HÀNG, bó 1180 (đúng cái nhìn Tung ưng ở zoom 150%).
-   Cú pháp để THẬT ĐƠN GIẢN — bản trước dùng repeat(auto-fit,minmax(min(...)))
-   bị bộ dịch CSS nhai hỏng, cả luật chết, thẻ bung full màn hình. */
-.grid{display:grid;grid-template-columns:1fr;gap:20px;max-width:1180px;margin:0 auto}
-/* v14: thẻ NẰM NGANG — ảnh dọc bên trái, chữ bên phải. Xếp chồng 1 cột. */
-.card{background:var(--navy);border-radius:18px;overflow:hidden;border:none;
-  transition:.28s cubic-bezier(.2,.7,.3,1);box-shadow:0 6px 18px rgba(24,40,78,.16);
-  display:grid;grid-template-columns:340px minmax(0,1fr);align-items:stretch}
-.card.star{box-shadow:0 8px 24px rgba(24,40,78,.22)}
-.card:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(24,40,78,.26)}
-/* v18.1: BỎ aspect-ratio + max-height của khung. Cặp này làm khung ảnh tự
-   tính rộng hơn cột chứa nó rồi (vì position:relative) ĐÈ LÊN cột chữ.
-   v18.2: khoá trần ẢNH (không phải khung) 360px để mọi ảnh hiện cùng cỡ. */
-.cimg{position:relative;overflow:hidden;transition:background .45s;
-  display:grid;place-items:center;padding:24px;min-height:400px}
-/* Ảnh LUÔN nằm gọn trong khung, không kéo giãn theo chiều cao cột chữ */
-.cimg img{width:auto;height:auto;max-width:100%;max-height:360px;object-fit:contain;
-  transition:transform .3s cubic-bezier(.2,.7,.3,1)}
-.card:hover .cimg img{transform:translateY(-6px) scale(1.03)}
-.badge{position:absolute;top:14px;left:14px;background:#fff;color:var(--navy);font-size:11px;font-weight:800;
-  letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.14);z-index:2}
-.cbody{padding:28px 34px;display:flex;flex-direction:column;gap:10px;justify-content:center;min-width:0}
-.cbody h3{font-size:26px;color:var(--navy);line-height:1.2}
-.cdesc{font-size:14px;color:rgba(27,36,64,.66);line-height:1.6;max-width:600px}
-.optlabel{font-size:12.5px;font-weight:800;color:var(--navy);opacity:.6}
-.variants{display:flex;gap:8px;flex-wrap:wrap}
-.chip{padding:9px 15px;border-radius:999px;border:1.5px solid rgba(24,40,78,.18);font-size:13px;font-weight:700;
-  cursor:pointer;transition:.2s;background:var(--cream);color:var(--navy)}
-.chip:hover{border-color:var(--navy)}
-.chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
-.chip.out,.scent.out{opacity:.45}
-/* Mui dang chon PHINH ra thanh vien thuoc co ten ben trong; cac mui khac
-   van la cham tron. Van 1 hang, khong xuong dong -> khong lam the cao len. */
-.scents{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.scent{display:inline-flex;align-items:center;gap:0;padding:5px;height:34px;border-radius:999px;
-  background:transparent;border:1.5px solid rgba(24,40,78,.16);cursor:pointer;
-  transition:.26s cubic-bezier(.2,.7,.3,1);font-size:13px;font-weight:800;color:var(--navy);white-space:nowrap}
-.scent:hover{border-color:rgba(24,40,78,.4)}
-.scent.on{background:#fff;border-color:var(--navy);gap:8px;padding-right:14px;
-  box-shadow:0 2px 8px rgba(24,40,78,.12)}
-.scent i{width:22px;height:22px;border-radius:50%;flex-shrink:0;display:block}
-.scent .sic{width:22px;height:22px;border-radius:50%;flex-shrink:0;object-fit:cover}
-.scent b{font-weight:800;max-width:0;overflow:hidden;opacity:0;
-  transition:max-width .26s cubic-bezier(.2,.7,.3,1),opacity .2s}
-.scent.on b{max-width:150px;opacity:1}
-.pricerow{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;padding-top:4px}
-.price{font-family:var(--f-display);font-weight:900;font-size:25px;color:var(--navy);letter-spacing:-.02em}
-.was{font-size:15px;color:rgba(27,36,64,.36);text-decoration:line-through}
-.save{font-size:12px;font-weight:800;color:var(--navy);background:rgba(24,40,78,.09);padding:4px 9px;border-radius:6px}
-.stock{font-size:12px;color:#2e7d4f;font-weight:700;display:flex;align-items:center;gap:6px}
-.stock::before{content:"";width:7px;height:7px;border-radius:50%;background:#2e7d4f}
-.stock.out{color:#c25050}
-.stock.out::before{background:#c25050}
-.cfoot{padding-top:12px;border-top:1px solid rgba(24,40,78,.11);
-  display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.cfoot-l{display:flex;flex-direction:column;gap:7px;min-width:0}
-.cbtns{display:flex;gap:9px;flex-shrink:0}
-.cbtns .btn{padding:11px 16px;font-size:13.5px;white-space:nowrap}
-.cbtns .b-buy{padding-left:20px;padding-right:20px}
-@media(max-width:620px){.cfoot{flex-direction:column;align-items:stretch;gap:13px}
-  .cbtns .btn{flex:1;padding-left:14px;padding-right:14px}}
-/* v18.2: media mobile của thẻ nằm Ở CUỐI khối .card override phía dưới —
-   đừng thêm lại ở đây kẻo hai khối đè nhau (điểm 9). */
-.b-buy{background:var(--navy);color:#fff}
-.b-buy:hover:not(:disabled){background:var(--navy-deep);transform:translateY(-2px);box-shadow:0 10px 24px rgba(24,40,78,.28)}
-.b-more{border:2px solid rgba(24,40,78,.18);color:var(--navy);background:var(--cream)}
-.b-more:hover{border-color:var(--navy);background:#fff;transform:translateY(-2px)}
-
-/* ── v18.2: Bên trong thẻ navy ĐẶC — hierarchy 3 tầng, cỡ chữ phóng ~1.35x
-   (đúng cái nhìn Tung ưng ở zoom 150%, giờ là mặc định ở 100%).
-   Tầng navy: nền #18284e > chip #22355f > viền #3d5589. */
-.card .cbody h3{color:#fff}
-.card .cdesc{font-size:14px;color:#9fb0d0}
-.card .optlabel{color:#8fa3c8;opacity:1;font-size:12.5px}
-.card .chip{padding:6px 14px;font-size:12.5px;border:1px solid #3d5589;background:#22355f;color:#c3cde0}
-.card .chip:hover{border-color:#fff}
-.card .chip.on{background:#fff;color:var(--navy);border-color:#fff}
-.card .scent{border-color:#3d5589;color:#fff}
-.card .scent:hover{border-color:#fff;background:rgba(255,255,255,.08)}
-.card .scent.on{background:#22355f;border-color:#fff;box-shadow:none}
-.card .price{color:#fff;font-size:32px}
-.card .was{color:#8fa3c8;font-size:16px}
-.card .save{color:#c3cde0;background:#22355f;font-size:13px}
-.card .stock{color:#8fa3c8;font-size:12px}
-.card .stock::before{background:#7dd3a8}
-.card .stock.out{color:#e5a3a3}
-.card .stock.out::before{background:#e5a3a3}
-.card .cfoot{border-top-color:#33487a;flex-direction:column;align-items:flex-start;gap:12px;padding-top:14px;margin-top:8px}
-.card .cbtns{align-items:center}
-.card .cbtns .b-buy{padding:14px 32px;font-size:15.5px;background:#fff;color:var(--navy);box-shadow:0 3px 10px rgba(0,0,0,.25)}
-.card .cbtns .b-buy:hover:not(:disabled){background:#fff;box-shadow:0 8px 20px rgba(0,0,0,.35)}
-.card .b-more{padding:10px 16px;font-size:13px;border:1px solid #33487a;color:#9fb0d0;background:transparent}
-.card .b-more:hover{border-color:#9fb0d0;color:#fff;background:transparent}
-/* Mobile: ảnh VẪN TRÁI, cột ảnh 40%; nút xếp DỌC (mua trên, chi tiết dưới)
-   để hết tràn mép thẻ; mô tả cắt 2 dòng cho thẻ khỏi cao lêu nghêu.
-   Khối này phải đứng SAU các override cùng tên ở trên (điểm 9). */
-@media(max-width:620px){
-  .card{grid-template-columns:minmax(120px,40%) minmax(0,1fr)}
-  .cimg{min-height:0;padding:12px}
-  .cimg img{max-height:220px}
-  .cbody{padding:16px}
-  .cbody h3{font-size:17px}
-  .card .cdesc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .card .chip{padding:7px 13px;font-size:12px}
-  .card .price{font-size:24px}
-  .card .was{font-size:14px}
-  .card .cbtns{flex-direction:column-reverse;align-items:stretch;align-self:stretch;gap:8px}
-  .card .cbtns .btn{text-align:center}
-  .card .cbtns .b-buy{padding:13px 16px}
-}
-
-/* v18: invite nằm trong #sp — nền khu giờ SÁNG nên đổi chữ trắng → navy */
-.invite{display:flex;align-items:center;gap:16px;padding:2px;grid-column:1/-1}
-.invite .msc{width:62px;height:62px;flex-shrink:0;overflow:visible;background:rgba(24,40,78,.06);border-radius:14px}
-.invite .msc img{width:100%;height:100%;object-fit:contain}
-.invite p{font-family:var(--f-display);font-weight:800;font-size:clamp(16px,1.9vw,23px);color:var(--navy);line-height:1.35}
-.invite .arrow{flex:1;height:1px;background:linear-gradient(90deg,rgba(24,40,78,.3),transparent);min-width:20px}
-@media(max-width:720px){.invite .arrow{display:none}}
-
-/* ── v20: KHU COMBO A/B/C ─────────────────────────────────────
-   Class riêng .cgrp/.ccard/.cc-* — KHÔNG đụng .card/.cimg/.cbody cũ
-   (thẻ cũ vẫn là fallback khi sản phẩm chưa nhập combo).
-   Tiêu đề nhóm CÁCH hàng thẻ 12px (dính), bo góc dưới 8px + navy
-   trùng thẻ → mắt trôi thẳng tiêu đề xuống sản phẩm (Tung yêu cầu). */
-/* ⚠️ min-width:0 BẮT BUỘC: .cgrp là grid item, mặc định min-width:auto
-   → hàng thẻ cuộn ngang bên trong CHỐNG ĐẨY làm .cgrp phình rộng hơn
-   màn hình, CẢ TRANG banh ngang, nền xám #sp bị cắt cụt (lỗi mobile
-   Tung chụp 22/07). ĐỪNG BỎ. */
-.cgrp{grid-column:1/-1;min-width:0}
-/* v20.1: banner riêng của SP — render THẬT phía trên nhóm */
-.pbanner{grid-column:1/-1;min-width:0;position:relative;border-radius:16px;overflow:hidden;
-  box-shadow:0 6px 18px rgba(24,40,78,.14);line-height:0}
-.pbanner img,.pbanner video{width:100%;height:auto;display:block;object-fit:cover;max-height:340px}
-.pbanner-t{position:absolute;left:20px;bottom:16px;background:rgba(24,40,78,.86);color:#fff;
-  font-family:var(--f-display);font-weight:900;font-size:clamp(14px,1.8vw,19px);line-height:1.3;
-  padding:9px 16px;border-radius:12px;max-width:70%}
-.ghead{display:flex;align-items:center;gap:14px;background:linear-gradient(100deg,#18284e,#22345f);
-  border-radius:16px 16px 8px 8px;padding:14px 20px;margin-bottom:12px;box-shadow:0 6px 16px rgba(24,40,78,.18)}
-/* Mascot BẮT BUỘC nằm ổ tròn trắng: pet nâu trên navy = 1.09 tương phản
-   (tàng hình, mục 2.2 V19). Mascot đứng yên → drop-shadow OK. */
-.ghead .pod{width:52px;height:52px;border-radius:50%;background:#fff;flex-shrink:0;
-  display:grid;place-items:center;box-shadow:0 3px 8px rgba(0,0,0,.14);overflow:hidden}
-.ghead .pod img{width:42px;height:42px;object-fit:contain;filter:drop-shadow(0 1px 2px rgba(0,0,0,.15))}
-.ghead .pod .ph{font-size:16px}
-.gk{display:block;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#9fb0d0;margin-bottom:3px}
-.ghead h3{margin:0;font-size:clamp(18px,2.2vw,22px);font-weight:900;color:#fff;line-height:1.12;letter-spacing:-.01em;font-family:var(--f-display)}
-.crow{display:grid;grid-template-columns:repeat(var(--ncards,3),1fr);gap:14px;align-items:stretch}
-/* 3 thẻ CÙNG shape — B KHÔNG nhô, KHÔNG viền màu, KHÔNG đổi nút.
-   Chỉ khác đúng viên nhãn (Tung chốt: "đừng khác shape"). */
-.ccard{position:relative;background:var(--navy);border-radius:14px;overflow:hidden;
-  display:flex;flex-direction:column;box-shadow:0 6px 18px rgba(24,40,78,.16);
-  transition:.28s cubic-bezier(.2,.7,.3,1)}
-.ccard:hover{transform:translateY(-5px);box-shadow:0 16px 36px rgba(24,40,78,.26)}
-/* Nhãn "Best choice" = VIÊN bo góc đè GÓC PHẢI ảnh (top/right 12px).
-   KHÔNG phải thanh full ngang — thanh đẩy ảnh SP tụt xuống (Tung đã bác).
-   Vàng brand #e3ca22, chữ #3a2f00 — tương phản trên navy 9.76.
-   Thẻ ló mép phải màn (mobile) bị cắt nhãn là BÌNH THƯỜNG (thẻ peek). */
-.pill{position:absolute;top:12px;right:12px;z-index:3;background:#e3ca22;color:#3a2f00;
-  font-size:11px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;
-  padding:6px 12px;border-radius:999px;box-shadow:0 3px 10px rgba(0,0,0,.22);font-family:var(--f-display)}
-/* v21.1: Ô ẢNH = NỀN TRƠN + chai. Không hoạ tiết, không bóng đổ,
-   không vòng sáng (Tung bác cả 3). Điểm nhấn duy nhất: nền thẻ WBS
-   chuyển màu theo mùi đang chọn. Chai contain khoá cỡ → đều mọi thẻ. */
-/* .tinted = ô ảnh thẻ lẻ đang nhuộm màu mùi (nền sáng) → viền trong
-   rất nhạt cho tách khỏi thân thẻ navy. */
-.cc-img.tinted{box-shadow:inset 0 0 0 1px rgba(24,40,78,.06)}
-.cc-img{position:relative;background:linear-gradient(158deg,#26396a,#18284e);
-  display:grid;place-items:center;aspect-ratio:1;overflow:hidden;
-  transition:background .55s cubic-bezier(.4,0,.2,1)}
-/* Chai: contain khoá cỡ → CỠ ĐỀU NHAU ở mọi thẻ (cắt sát chai thì mỗi
-   ảnh một cỡ, nhìn lệch). */
-.cc-img img{position:relative;z-index:2;width:auto;height:auto;max-width:72%;max-height:86%;
-  object-fit:contain;transition:transform .34s cubic-bezier(.2,.7,.3,1)}
-.ccard:hover .cc-img img{transform:translateY(-4px) scale(1.03)}
-.cc-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:8px;flex:1}
-.cc-k{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8fa3c8;font-family:var(--f-display)}
-.cc-scentlabel{margin-top:2px}
-.cc-t{font-size:18px;font-weight:900;color:#fff;line-height:1.2;margin:0;font-family:var(--f-display)}
-.cc-list{list-style:none;margin:2px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
-.cc-list li{font-size:12.5px;color:#c3cde0;display:flex;align-items:center;gap:6px;font-family:var(--f-display)}
-.cc-list li::before{content:"✓";color:#7dd3a8;font-weight:900;font-size:11px}
-.scentmini{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
-.scentmini button{width:18px;height:18px;border-radius:50%;border:1.5px solid #3d5589;cursor:pointer;padding:0;transition:.2s}
-.scentmini button:hover{border-color:#fff}
-.scentmini button.on{border-color:#fff;box-shadow:0 0 0 2px #22355f}
-.scentmini button.out{opacity:.4}
-.scentmini b{font-size:11.5px;font-weight:800;color:#c3cde0;margin-left:3px;font-family:var(--f-display)}
-/* v20.2: chip chọn phân loại trong thẻ tự sinh (Chai xịt / Lõi refill) */
-.vchips{display:flex;gap:6px;flex-wrap:wrap}
-.vchips button{padding:6px 13px;border-radius:999px;border:1px solid #3d5589;background:#22355f;
-  color:#c3cde0;font-size:12px;font-weight:800;cursor:pointer;transition:.2s;font-family:var(--f-display)}
-.vchips button:hover{border-color:#fff}
-.vchips button.on{background:#fff;color:var(--navy);border-color:#fff}
-.vchips button.out{opacity:.45}
-.cc-pricerow{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-top:auto;padding-top:6px}
-.cc-price{font-family:var(--f-display);font-weight:900;font-size:24px;color:#fff;letter-spacing:-.02em}
-.cc-was{font-size:13px;color:#8fa3c8;text-decoration:line-through}
-.cc-save{font-size:11px;font-weight:800;color:#c3cde0;background:#22355f;padding:3px 7px;border-radius:6px;font-family:var(--f-display)}
-.cc-stock{font-size:11.5px;color:#8fa3c8;font-weight:700;display:flex;align-items:center;gap:6px}
-.cc-stock::before{content:"";width:6px;height:6px;border-radius:50%;background:#7dd3a8}
-.cc-stock.out{color:#e5a3a3}
-.cc-stock.out::before{background:#e5a3a3}
-.cc-btns{display:flex;flex-direction:column;gap:8px;margin-top:4px}
-.cc-buy{padding:11px 18px;font-size:14px;background:#fff;color:var(--navy);box-shadow:0 3px 10px rgba(0,0,0,.22)}
-.cc-buy:hover:not(:disabled){background:#fff;transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.35)}
-.cc-more{padding:9px 14px;font-size:12px;border:1px solid #33487a;color:#9fb0d0;background:transparent}
-.cc-more:hover{border-color:#9fb0d0;color:#fff;background:transparent}
-/* MOBILE v2: tiêu đề tách RIÊNG thành thanh full ngang bo ĐỀU 4 góc,
-   KHÔNG nối xuống thẻ (Tung: nối trên mobile trông kỳ; PC vẫn nối).
-   Hàng thẻ cuộn ngang độc lập, mỗi thẻ 82%, snap KHOÁ CỨNG 1 option.
-   ⚠️ VÁ KẸT: overscroll-behavior-x:contain BẮT BUỘC — thiếu nó cuộn
-   ngang lan ra trang, cuộn DỌC KẸT giữa 2 nhóm (Tung gặp ở demo v1).
-   ĐỪNG BỎ dòng này. */
-@media(max-width:760px){
-  .ghead{border-radius:14px;padding:13px 16px;gap:12px}
-  .ghead .pod{width:44px;height:44px}
-  .ghead .pod img{width:35px;height:35px}
-  .ghead h3{font-size:17px}
-  .gk{font-size:9.5px;letter-spacing:.08em}
-  .crow{display:flex;grid-template-columns:none;overflow-x:auto;gap:12px;
-    max-width:100%;
-    padding:2px 2px 4px;
-    scroll-snap-type:x mandatory;
-    overscroll-behavior-x:contain;
-    -webkit-overflow-scrolling:touch;scrollbar-width:none}
-  .crow::-webkit-scrollbar{display:none}
-  .crow .ccard{flex:0 0 82%;scroll-snap-align:center;scroll-snap-stop:always}
-  .cc-img{aspect-ratio:1}
-  .cc-t{font-size:16px}
-  .cc-price{font-size:22px}
-}
-
-.tmo{background:var(--cream);padding-top:clamp(40px,4.5vw,58px);padding-bottom:clamp(44px,5vw,66px);overflow:hidden}
-.tmo-head{max-width:1180px;margin:0 auto clamp(18px,2.2vw,26px);display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
-.tmo-head h2{font-size:clamp(22px,2.6vw,32px);line-height:1.14;color:var(--navy)}
-.tmo-head .kicker{margin-bottom:10px}
-.tarrows{display:flex;gap:9px}
-.tarrows button{width:44px;height:44px;border-radius:50%;border:1.5px solid rgba(24,40,78,.2);background:#fff;
-  color:var(--navy);font-size:17px;cursor:pointer;transition:.2s;display:grid;place-items:center}
-.tarrows button:hover{border-color:var(--navy);background:var(--navy);color:#fff}
-.trail{max-width:1180px;margin:0 auto;display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 2px 16px;scrollbar-width:none}
-.trail::-webkit-scrollbar{display:none}
-.tcard{flex:0 0 clamp(180px,18vw,224px);scroll-snap-align:start;border-radius:20px;overflow:hidden;background:#fff;
-  border:1px solid rgba(24,40,78,.1);box-shadow:0 3px 14px rgba(24,40,78,.07);transition:.26s cubic-bezier(.2,.7,.3,1);display:flex;flex-direction:column}
-.tcard:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(24,40,78,.17)}
-.tvid{position:relative;aspect-ratio:3/4;overflow:hidden;background:linear-gradient(165deg,#22345d,#141f3d)}
-/* Thẻ chỉ có chữ (chưa gắn video) — cao vừa phải, không giả làm video */
-.tsay{background:var(--navy);color:#fff;padding:26px 20px 22px;display:flex;align-items:center;min-height:132px}
-.tsay p{font-family:var(--f-display);font-weight:800;font-size:15px;line-height:1.45;letter-spacing:-.01em}
-.tsay::before{content:"\u201C";position:absolute;top:6px;left:16px;font-family:var(--f-display);font-size:52px;
-  font-weight:900;color:rgba(255,255,255,.16);line-height:1;pointer-events:none}
-.tcard.tquote{position:relative}
-.tvid iframe,.tvid video,.tvid img{width:100%;height:100%;border:0;object-fit:cover}
-.tvid .play{width:48px;height:48px}
-.tvid .play::after{border-left:14px solid var(--navy);border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:18px}
-.tmeta{padding:13px 15px 15px;display:flex;flex-direction:column;gap:5px}
-.tmeta .who{font-family:var(--f-display);font-weight:900;font-size:14px;color:var(--navy)}
-.tmeta .pet{font-size:12px;color:rgba(27,36,64,.55);font-weight:600}
-.tmeta .quote{font-size:13px;color:rgba(27,36,64,.72);line-height:1.5;margin-top:3px}
-.tstats{max-width:1180px;margin:clamp(20px,2.5vw,30px) auto 0;display:flex;gap:clamp(20px,4vw,54px);flex-wrap:wrap;
-  padding-top:22px;border-top:1px solid rgba(24,40,78,.12);justify-content:center;text-align:center}
-.tstat{transition:.2s}
-.tstat b{display:block;font-family:var(--f-display);font-weight:900;font-size:clamp(22px,2.6vw,30px);color:var(--navy)}
-.tstat span{font-size:13px;color:rgba(27,36,64,.58);font-weight:600}
-
-/* Bong bong thò lên khi bấm nút mua — bo cuc P3 (style L).
-   Mascot + chu NAM CHUNG mot khoi navy, vien trang om ca hai.
-   Vien lam bang box-shadow chu KHONG dung border: bo goc lech van muot.
-   4 dang v1..v4 = 4 kieu bo goc + 4 goc nghieng, bam lien tiep khong trung. */
-.peekwrap{position:relative}
-.peek{position:absolute;left:50%;bottom:calc(100% + 8px);z-index:5;pointer-events:none;
-  display:flex;align-items:center;gap:9px;
-  background:var(--navy);padding:7px 16px 7px 9px;
-  box-shadow:0 0 0 3px #fff,0 6px 18px rgba(0,0,0,.28);
-  opacity:0;will-change:transform,opacity;
-  animation:peekin 1.9s cubic-bezier(.3,1.5,.5,1) forwards}
-/* Mascot nam trong O TRON TRANG. Bat buoc, khong phai trang tri:
-   4/10 mascot la nau rat toi (#47271d, #251c12) — dat thang len navy
-   thi tuong phan chi 1.09, gan nhu tang hinh. O trang keo len 13+.
-   O trang cung noi lien mach voi vien trang bao ngoai -> mot khoi thong nhat. */
-.peek img{display:block;width:34px;height:34px;flex:0 0 auto;border-radius:50%;
-  background:#fff;object-fit:contain;padding:3px}
-.peek span{font-family:var(--f-display);font-weight:900;font-size:14.5px;
-  letter-spacing:.2px;color:#fff;text-transform:uppercase;white-space:nowrap}
-/* Bo goc LECH: 3 goc tron, 1 goc gan vuong. Goc gan vuong doi cho moi dang. */
-.peek.v1{border-radius:30px 30px 30px 11px;--rot:-3deg}
-.peek.v2{border-radius:30px 30px 11px 30px;--rot:2deg}
-.peek.v3{border-radius:28px 31px 29px 10px;--rot:-1.5deg}
-.peek.v4{border-radius:31px 28px 10px 30px;--rot:2.5deg}
-.peek.small{padding:6px 14px 6px 8px;gap:8px}
-.peek.small img{width:28px;height:28px;padding:2.5px}
-.peek.small span{font-size:13px}
-/* Vao: nay len qua da roi roi ve. Ra: tut xuong o cuoi.
-   var(--rot) giu goc nghieng rieng cua tung dang SUOT ca hieu ung. */
-@keyframes peekin{
-  0%{opacity:0;transform:translateX(-50%) translateY(120%) rotate(0) scale(.86)}
-  14%{opacity:1;transform:translateX(-50%) translateY(-12%) rotate(var(--rot)) scale(1.06)}
-  24%{transform:translateX(-50%) translateY(3%) rotate(var(--rot)) scale(.98)}
-  32%,86%{opacity:1;transform:translateX(-50%) translateY(0) rotate(var(--rot)) scale(1)}
-  100%{opacity:0;transform:translateX(-50%) translateY(26%) rotate(var(--rot)) scale(.94)}}
-
-.buybar{position:fixed;left:0;right:0;bottom:0;z-index:80;overflow:visible;background:rgba(255,255,255,.97);
-  backdrop-filter:blur(14px);border-top:1px solid rgba(24,40,78,.12);box-shadow:0 -6px 26px rgba(24,40,78,.12);
-  padding:11px 5vw;display:flex;align-items:center;gap:13px;transform:translateY(110%);transition:transform .34s cubic-bezier(.2,.7,.3,1)}
-.buybar.show{transform:translateY(0)}
-.bb-img{width:46px;height:58px;border-radius:10px;flex-shrink:0;overflow:hidden;background:linear-gradient(160deg,#2b3f70,#16244a)}
-.bb-img img{width:100%;height:100%;object-fit:contain}
-.bb-img .ph{font-size:8px}
-.bb-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.bb-name{font-family:var(--f-display);font-weight:900;font-size:14px;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bb-price{display:flex;align-items:baseline;gap:7px}
-.bb-price b{font-family:var(--f-display);font-weight:900;font-size:17px;color:var(--navy)}
-.bb-price s{font-size:12.5px;color:rgba(27,36,64,.4)}
-.buybar .btn{padding:13px 22px;font-size:14px;flex-shrink:0}
-.buybar .btn:hover:not(:disabled){transform:translateY(-2px)}
-@media(max-width:520px){.bb-img{display:none}.buybar .btn{padding:13px 18px}}
-
-.about{background:var(--navy);color:#fff;position:relative;overflow:hidden}
-.about::before{content:"";position:absolute;inset:0;background:radial-gradient(60% 80% at 88% 28%,rgba(255,255,255,.12),transparent 65%)}
-.about-in{position:relative;z-index:2;max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;
-  gap:clamp(30px,6vw,80px);align-items:start;text-align:left}
-.about .kicker{color:rgba(255,255,255,.66);opacity:1}
-.about h2{font-size:clamp(28px,3.6vw,46px);line-height:1.12;margin-bottom:20px;color:#fff}
-.about p{color:rgba(255,255,255,.76);font-size:16.5px;line-height:1.75;margin-bottom:16px;max-width:52ch}
-.about-img{aspect-ratio:16/10;border-radius:20px;overflow:hidden;background:rgba(255,255,255,.07);
-  border:1px dashed rgba(255,255,255,.28);margin-bottom:22px}
-.about-img img{width:100%;height:100%;object-fit:cover}
-.about .btn{margin-top:12px}
-.facts{display:grid;gap:18px}
-.fact{border-left:3px solid rgba(255,255,255,.55);padding:4px 0 4px 18px}
-.fact b{display:block;font-family:var(--f-display);font-weight:900;font-size:clamp(22px,2.8vw,31px);margin-bottom:4px;color:#fff}
-.fact span{font-size:14px;color:rgba(255,255,255,.64);line-height:1.5}
-@media(max-width:820px){.about-in{grid-template-columns:1fr}}
-
-/* Chân trang 3 cột: thương hiệu / điều khoản / dấu Bộ Công Thương. */
-footer{background:var(--navy-deep);color:rgba(255,255,255,.55);padding:clamp(40px,5vw,60px) 5vw 96px;font-size:13.5px}
-.foot-in{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:clamp(24px,4vw,60px)}
-.foot-in h4{font-family:var(--f-display);font-weight:900;font-size:14.5px;color:#fff;margin-bottom:14px}
-.f-brand{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.f-brand img{width:34px;height:34px;object-fit:contain}
-.f-brand b{font-family:var(--f-display);font-weight:900;font-size:19px;color:#fff}
-.f-desc{line-height:1.7;max-width:38ch}
-.f-lines{margin-top:12px;display:flex;flex-direction:column;gap:6px;line-height:1.6}
-.f-links{list-style:none;display:flex;flex-direction:column;gap:9px}
-.f-links a{color:rgba(255,255,255,.62);text-decoration:none;transition:.2s}
-.f-links a:hover{color:#fff;padding-left:3px}
-.f-bct{display:inline-block;margin-top:2px}
-.f-bct img{width:150px;height:auto}
-.f-bct-ph{width:150px;aspect-ratio:38/14;border:1px dashed rgba(255,255,255,.3);border-radius:8px;
-  display:grid;place-items:center;font-size:10px;font-weight:800;color:rgba(255,255,255,.45);text-align:center;line-height:1.5}
-.f-bottom{max-width:1180px;margin:26px auto 0;padding-top:18px;border-top:1px solid rgba(255,255,255,.12);
-  text-align:center;font-size:12.5px;color:rgba(255,255,255,.42)}
-@media(max-width:760px){.foot-in{grid-template-columns:1fr}}
-
-@media(prefers-reduced-motion:reduce){
-  *{animation:none!important;transition:none!important}
-  .rv,.hero-main,.hero-refill,.tvc,.glow{opacity:1!important;transform:none!important;animation:none!important}
-  .peek{display:none}
-}
-    `}</style>
-  );
+        {tab==='promo' && (sub.promo||'vouchers')==='vouchers' && <TabVouchers />}
+        {tab==='promo' && sub.promo==='categories'       && <TabCats />}
+      </div>
+    </div>
+  )
 }
