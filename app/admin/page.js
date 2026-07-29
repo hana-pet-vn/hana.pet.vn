@@ -10,6 +10,7 @@ import {
   getCategories, saveCategories, getVouchers, saveVouchers,
   addSubscriber,
 } from '../../lib/supabase'
+import { buildExport, planReconcile, downloadText, DEFAULT_STORE_NAME, skuKey } from '../../lib/bigseller'
 
 const FONT_T = "'Baloo 2','Be Vietnam Pro','Segoe UI',sans-serif"
 const FONT_B = "'Be Vietnam Pro','Segoe UI',sans-serif"
@@ -1189,6 +1190,227 @@ function TabOrders({ S }) {
 }
 
 // ─── TAB INVENTORY (injected) ────────────────────────────────────────────────
+
+/* ─── v22 · BigSeller ────────────────────────────────────────────────────────
+   Thay chỗ 3 ô "Kết nối API" Shopee/TikTok/Lazada cũ — 3 ô đó là code chết:
+   nút không có onClick, chữ "Chưa kết nối" viết cứng, không nối vào đâu cả.
+   ĐỊNH NGHĨA Ở NGOÀI CÙNG, không lồng trong TabInventory. */
+function BigSellerPanel({ S, rows }) {
+  const [orders, setOrders] = S.orders
+  const [products]          = S.products
+  const brand               = S.brand[0]
+
+  const [map, setMap]       = useState({})      // 'pid::vid' → mã SKU BigSeller
+  const [store, setStore]   = useState(DEFAULT_STORE_NAME)
+  const [busy, setBusy]     = useState('')
+  const [rep, setRep]       = useState(null)    // báo cáo xuất
+  const [plan, setPlan]     = useState(null)    // kế hoạch đối soát
+  const [showMap, setShowMap] = useState(false)
+  const fileRef = useRef(null)
+
+  useEffect(() => { (async () => {
+    try {
+      const cfg = await getAllConfigs()
+      if (cfg.bigseller) {
+        setMap(cfg.bigseller.map || {})
+        setStore(cfg.bigseller.store || DEFAULT_STORE_NAME)
+      }
+    } catch (_) {}
+  })() }, [])
+
+  const saveMap = async (nextMap, nextStore) => {
+    const m = nextMap ?? map, st = nextStore ?? store
+    setMap(m); setStore(st)
+    try { await setSupabaseConfig('bigseller', { map: m, store: st }) }
+    catch (e) { alert('Lưu bảng khai lỗi: ' + (e?.message || e)) }
+  }
+
+  const unmapped = rows.filter(r => !map[skuKey(r.prod.id, r.vid || '')])
+
+  /* ── Xuất đơn ─────────────────────────────────────────────────────────── */
+  const doExport = async () => {
+    setBusy('export'); setRep(null); setPlan(null)
+    try {
+      const res = buildExport({ orders, products, skuMap: map, storeName: store })
+      if (!res.rows.length) {
+        setRep({ ...res, empty: true })
+      } else {
+        const d = new Date()
+        const nm = `hanapet-bigseller-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.csv`
+        downloadText(nm, res.csv)
+        const now = new Date().toISOString()
+        for (const o of res.exported) {
+          await updateOrderDB(o.id, { bigsellerExportedAt: now })
+        }
+        const ids = new Set(res.exported.map(o => o.id))
+        setOrders(prev => prev.map(o => ids.has(o.id) ? { ...o, bigsellerExportedAt: now } : o))
+        setRep({ ...res, file: nm })
+      }
+    } catch (e) { alert('Xuất file lỗi: ' + (e?.message || e)) }
+    finally { setBusy('') }
+  }
+
+  /* ── Đối soát: đọc file → xem trước → bấm áp dụng ─────────────────────── */
+  const readFile = async (file) => {
+    if (!file) return
+    setBusy('read'); setRep(null); setPlan(null)
+    try {
+      const text = await file.text()
+      const p = planReconcile({ csvText: text, orders })
+      if (p.error) alert(p.error); else setPlan(p)
+    } catch (e) { alert('Đọc file lỗi: ' + (e?.message || e)) }
+    finally { setBusy(''); if (fileRef.current) fileRef.current.value = '' }
+  }
+
+  const applyPlan = async () => {
+    if (!plan?.updates?.length) return
+    setBusy('apply')
+    let done = 0, failed = []
+    for (const u of plan.updates) {
+      try {
+        if (u.restock) await restockOrder(u.order)
+        const patch = { status: u.to }
+        if (u.bsId) patch.bigsellerOrderId = u.bsId
+        await updateOrderDB(u.order.id, patch)
+        setOrders(prev => prev.map(o => o.id === u.order.id
+          ? { ...o, status: u.to, bigsellerOrderId: u.bsId || o.bigsellerOrderId } : o))
+        done++
+      } catch (e) { failed.push(u.order.code + ': ' + (e?.message || e)) }
+    }
+    setBusy(''); setPlan(null)
+    alert(`Đã cập nhật ${done} đơn.` + (failed.length ? `\n\nLỗi:\n` + failed.join('\n') : ''))
+  }
+
+  const box = { border:'2px solid #dbe2f1', borderRadius:12, padding:16 }
+  const btn = { background:brand.primary, color:'#fff', border:'none', borderRadius:8,
+                padding:'9px 18px', fontFamily:FONT_T, fontSize:13, cursor:'pointer' }
+  const ghost = { ...btn, background:'#f2f5fb', color:'#5f6c8f', border:'1px solid #dbe2f1' }
+
+  return (
+    <div style={{ background:'#fff', border:'2px solid #dbe2f1', borderRadius:16, padding:18, marginBottom:20 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8, marginBottom:6 }}>
+        <div style={{ fontFamily:FONT_T, fontSize:15, color:'#0d142e' }}>
+          🔗 BigSeller
+          <span style={{ background:brand.primary, color:'#fff', borderRadius:6, padding:'1px 8px', fontSize:10, marginLeft:8 }}>{store}</span>
+        </div>
+        <button onClick={() => setShowMap(v => !v)} style={{ ...ghost, padding:'6px 12px', fontSize:12 }}>
+          {showMap ? 'Đóng bảng khai' : `Khai mã SKU${unmapped.length ? ` (thiếu ${unmapped.length})` : ''}`}
+        </button>
+      </div>
+      <div style={{ fontFamily:FONT_B, fontSize:12, color:'#5f6c8f', marginBottom:16, lineHeight:1.6 }}>
+        Kho thật nằm ở BigSeller. Mỗi ngày đẩy đơn mới sang, mỗi tuần kéo trạng thái về.
+        File dùng định dạng CSV — mở bằng Excel rồi Lưu thành .xlsx trước khi tải lên BigSeller.
+      </div>
+
+      {unmapped.length > 0 && (
+        <div style={{ background:'#FEF3C7', border:'2px solid #F59E0B', borderRadius:10, padding:'10px 14px',
+                      fontFamily:FONT_B, fontSize:12, color:'#92400E', marginBottom:14 }}>
+          ⚠️ {unmapped.length} phân loại chưa khai mã BigSeller — đơn chứa chúng sẽ không xuất được.
+        </div>
+      )}
+
+      {showMap && (
+        <div style={{ ...box, marginBottom:14 }}>
+          <div style={{ fontFamily:FONT_T, fontSize:13, marginBottom:4 }}>Khai mã SKU bên BigSeller</div>
+          <div style={{ fontFamily:FONT_B, fontSize:11.5, color:'#5f6c8f', marginBottom:12, lineHeight:1.6 }}>
+            Gõ đúng mã trong <b>Tồn kho → SKU hàng hoá</b> của BigSeller. Sai một ký tự là BS không nhận đơn.
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontFamily:FONT_B, fontSize:11.5, color:'#5f6c8f', marginBottom:4 }}>Tên gian hàng trong BigSeller</div>
+            <input value={store} onChange={e => setStore(e.target.value)} onBlur={() => saveMap(null, store)}
+              style={{ padding:'8px 10px', borderRadius:8, border:'2px solid #dbe2f1', fontFamily:FONT_B, fontSize:13, width:260 }} />
+          </div>
+          {rows.map(r => {
+            const k = skuKey(r.prod.id, r.vid || '')
+            return (
+              <div key={k} style={{ display:'grid', gridTemplateColumns:'1fr 220px', gap:10, alignItems:'center', padding:'6px 0', borderTop:'1px solid #eef2f9' }}>
+                <div style={{ fontFamily:FONT_B, fontSize:12.5, color:'#0d142e' }}>{r.name}</div>
+                <input value={map[k] || ''} placeholder="VD: WBS130-LV"
+                  onChange={e => setMap(m => ({ ...m, [k]: e.target.value.trim() }))}
+                  onBlur={() => saveMap()}
+                  style={{ padding:'7px 10px', borderRadius:8, border:'2px solid ' + (map[k] ? '#dbe2f1' : '#F59E0B'),
+                           fontFamily:'monospace', fontSize:12.5 }} />
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="hh-admin-grid2" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+        <div style={box}>
+          <div style={{ fontFamily:FONT_T, fontSize:14, marginBottom:4 }}>📤 Xuất đơn sang BigSeller</div>
+          <div style={{ fontFamily:FONT_B, fontSize:12, color:'#5f6c8f', lineHeight:1.6, marginBottom:12 }}>
+            Lấy đơn <b>đã xác nhận trở lên</b> và chưa từng đẩy. Combo tách thành món lẻ, giá chia theo tỉ lệ.
+          </div>
+          <button onClick={doExport} disabled={busy !== ''} style={{ ...btn, opacity: busy ? .6 : 1 }}>
+            {busy === 'export' ? '⏳ Đang xuất…' : 'Xuất file CSV'}
+          </button>
+          {rep && (
+            <div style={{ marginTop:14, borderTop:'1px solid #dbe2f1', paddingTop:12, fontFamily:FONT_B, fontSize:12.5, lineHeight:1.85 }}>
+              {rep.empty
+                ? <div style={{ color:'#5f6c8f' }}>Không có đơn nào cần xuất.</div>
+                : <div style={{ color:'#15803d' }}>✓ Đã tải <b>{rep.file}</b> — {rep.exported.length} đơn, {rep.rows.length} dòng</div>}
+              {rep.skipped.length > 0 && (
+                <div style={{ color:'#5f6c8f', marginTop:6 }}>
+                  Bỏ qua {rep.skipped.length} đơn:
+                  {rep.skipped.slice(0, 6).map(x => <div key={x.code} style={{ marginLeft:12 }}>· {x.code} — {x.why}</div>)}
+                  {rep.skipped.length > 6 && <div style={{ marginLeft:12 }}>· …và {rep.skipped.length - 6} đơn nữa</div>}
+                </div>
+              )}
+              {rep.warnings.length > 0 && (
+                <div style={{ color:'#b45309', marginTop:6 }}>
+                  {rep.warnings.slice(0, 5).map((w, i) => <div key={i}>⚠️ {w}</div>)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div style={box}>
+          <div style={{ fontFamily:FONT_T, fontSize:14, marginBottom:4 }}>📥 Đối soát đơn từ BigSeller</div>
+          <div style={{ fontFamily:FONT_B, fontSize:12, color:'#5f6c8f', lineHeight:1.6, marginBottom:12 }}>
+            Tải danh sách đơn kênh <b>{store}</b> từ BigSeller, lưu thành CSV rồi thả vào đây.
+          </div>
+          <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={e => readFile(e.target.files?.[0])}
+            style={{ fontFamily:FONT_B, fontSize:12 }} />
+          {plan && (
+            <div style={{ marginTop:14, borderTop:'1px solid #dbe2f1', paddingTop:12, fontFamily:FONT_B, fontSize:12.5, lineHeight:1.85 }}>
+              <div>Đọc <b>{plan.totalInFile}</b> đơn trong file</div>
+              <div style={{ color:'#5f6c8f' }}>· {plan.unchanged.length} không đổi</div>
+              <div style={{ color:'#15803d' }}>· {plan.updates.filter(u => !u.restock).length} đổi trạng thái</div>
+              <div style={{ color:'#15803d' }}>· {plan.updates.filter(u => u.restock).length} chuyển sang Đã huỷ — <b>sẽ hoàn kho</b></div>
+              {plan.updates.filter(u => u.restock).slice(0, 5).map(u => (
+                <div key={u.order.id} style={{ marginLeft:12, color:'#5f6c8f', fontFamily:'monospace', fontSize:11.5 }}>{u.order.code}</div>
+              ))}
+              {plan.missing.length > 0 && (
+                <div style={{ color:'#d64545', marginTop:6 }}>
+                  ⚠️ {plan.missing.length} đơn đã đẩy nhưng KHÔNG có trong file
+                  <div style={{ marginLeft:12, fontFamily:'monospace', fontSize:11.5 }}>
+                    {plan.missing.slice(0, 6).map(o => o.code).join(' · ')}
+                  </div>
+                  <div style={{ marginLeft:12, color:'#5f6c8f' }}>→ nhiều khả năng chưa nhập được sang BigSeller, kho bên đó chưa trừ</div>
+                </div>
+              )}
+              {plan.unknownStatuses.length > 0 && (
+                <div style={{ color:'#b45309', marginTop:6 }}>
+                  ⚠️ Trạng thái chưa biết: {plan.unknownStatuses.map(u => `"${u.status}" (${u.count})`).join(', ')}
+                  <div style={{ marginLeft:12, color:'#5f6c8f' }}>→ báo Claude bổ sung vào bảng ánh xạ</div>
+                </div>
+              )}
+              <div style={{ display:'flex', gap:8, marginTop:12 }}>
+                <button onClick={applyPlan} disabled={busy !== '' || !plan.updates.length} style={{ ...btn, opacity: (busy || !plan.updates.length) ? .6 : 1 }}>
+                  {busy === 'apply' ? '⏳ Đang áp dụng…' : `Áp dụng ${plan.updates.length} thay đổi`}
+                </button>
+                <button onClick={() => setPlan(null)} style={ghost}>Huỷ</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function TabInventory({ S }) {
   const [products, setProducts] = S.products;
   const brand = S.brand[0];
@@ -1254,23 +1476,17 @@ function TabInventory({ S }) {
         <div style={{fontFamily:FONT_T,fontSize:13,color:"#92400E",marginBottom:8}}>⚠️ Cảnh báo sắp hết hàng</div>
         <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>{low.map(r=><div key={r.key} style={{background:"#fff",borderRadius:10,padding:"8px 14px",border:"1px solid #F59E0B"}}><div style={{fontFamily:FONT_T,fontSize:13,color:"#0d142e"}}>{r.name}</div><div style={{fontFamily:"monospace",fontSize:12,color:"#EF4444",fontWeight:700}}>Còn {r.stock} / tối thiểu {minOf(r)}</div></div>)}</div>
       </div>}
-      {/* API Platform connections */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
-        {[["Shopee","#ee4d2d"],["TikTok Shop","#010101"],["Lazada","#0f146d"]].map(([name,color])=>(
-          <div key={name} style={{padding:14,background:"#fff",borderRadius:12,border:"2px solid #dbe2f1"}}>
-            <div style={{fontFamily:FONT_T,fontSize:13,color:"#0d142e",marginBottom:4}}>{name}</div>
-            <div style={{fontFamily:FONT_B,fontSize:11,color:"#5f6c8f",marginBottom:8}}>Chưa kết nối</div>
-            <button style={{width:"100%",background:color+"18",color,border:"1px solid "+color+"44",borderRadius:8,padding:"5px 0",fontFamily:FONT_T,fontSize:11,cursor:"pointer"}}>Kết nối API</button>
-          </div>
-        ))}
-      </div>
+      {/* v22 dọn: BỎ 3 ô "Kết nối API" Shopee/TikTok/Lazada — nút không có
+          onClick, chữ "Chưa kết nối" viết cứng, không nối vào đâu cả. Muốn
+          dùng lại thì phải viết phần kết nối THẬT trước, đừng chỉ thêm nút. */}
+      <BigSellerPanel S={S} rows={rows} />
       {selected.length>0 && (
         <div style={{background:"#fff",border:`2px solid ${brand.primary}`,borderRadius:14,padding:14,marginBottom:16,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <div style={{fontFamily:FONT_T,fontSize:13,color:"#0d142e"}}>✅ {selected.length} sản phẩm đã chọn</div>
           <select value={bulk?.mode||""} onChange={e=>setBulk(b=>({mode:e.target.value,amount:b?.amount||0}))} style={{padding:"7px 10px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:FONT_B,fontSize:12}}>
-            <option value="" disabled>Chọn hành động...</option>
-            <option value="set">Đặt tồn kho = </option>
-            <option value="add">Cộng/Trừ tồn kho (+/-)</option>
+            <option value="" disabled>Chọn việc cần làm…</option>
+            <option value="add">📥 Nhập thêm hàng — CỘNG vào tồn hiện có</option>
+            <option value="set">⚖️ Cân kho — ĐẶT LẠI bằng số đếm thực tế</option>
           </select>
           {bulk?.mode && <input type="number" value={bulk.amount} onChange={e=>setBulk(b=>({...b,amount:Number(e.target.value)}))} placeholder={bulk.mode==='set'?'VD: 50':'VD: 20 hoặc -5'} style={{width:110,padding:"7px 10px",borderRadius:8,border:"2px solid #dbe2f1",fontFamily:"monospace",fontSize:13}} />}
           <button disabled={!bulk?.mode||bulkSaving} onClick={applyBulk} style={{background:brand.primary,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontFamily:FONT_T,fontSize:12,cursor:bulkSaving?"not-allowed":"pointer",opacity:bulkSaving?0.7:1}}>{bulkSaving?"⏳ Đang lưu...":"Áp dụng"}</button>
@@ -1280,7 +1496,9 @@ function TabInventory({ S }) {
       )}
       <div style={{border:"2px solid #dbe2f1",borderRadius:16,overflow:"hidden"}}>
         <div style={{display:"grid",gridTemplateColumns:"32px 2fr 1fr 1fr 1fr 80px",background:"#f2f5fb",padding:"10px 16px",gap:8,alignItems:"center"}}>
-          <input type="checkbox" checked={selected.length>0 && selected.length===products.length} onChange={e=>setSelected(e.target.checked?products.map(p=>p.id):[])} />
+          {/* v22 vá: khoá mỗi dòng là p.id+'::'+v.id. Bản cũ so với products.length
+              và ghi products.map(p=>p.id) → SP có phân loại KHÔNG BAO GIỜ được chọn. */}
+          <input type="checkbox" checked={rows.length>0 && selected.length===rows.length} onChange={e=>setSelected(e.target.checked?rows.map(r=>r.key):[])} />
           {["Sản Phẩm","SKU","Tồn Kho","Tồn tối thiểu",""].map(h=><div key={h} style={{fontFamily:FONT_T,fontSize:11,color:"#5f6c8f",letterSpacing:1}}>{h}</div>)}
         </div>
         {rows.map(r=>{
