@@ -1,0 +1,213 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hanapet · Demo PC — Tồn kho + BigSeller</title>
+<style>
+  :root{ --navy:#18284e; --line:#dbe2f1; --bg:#f2f5fb; --mut:#5f6c8f; --ink:#0d142e; }
+  *{box-sizing:border-box}
+  body{margin:0;padding:28px;background:#eef2f9;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink)}
+  .wrap{max-width:1080px;margin:0 auto}
+  .note{background:#fff;border:2px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:22px;font-size:13px;color:var(--mut);line-height:1.7}
+  .note b{color:var(--ink)}
+  h2{font-size:16px;margin:0 0 16px}
+  .card{background:#fff;border:2px solid var(--line);border-radius:16px;padding:18px;margin-bottom:20px}
+  .lbl{font-size:11px;letter-spacing:1px;color:var(--mut);text-transform:uppercase}
+  .btn{background:var(--navy);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer}
+  .btn.ghost{background:var(--bg);color:var(--mut);border:1px solid var(--line)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  input,select{padding:8px 10px;border-radius:8px;border:2px solid var(--line);font-size:13px;font-family:inherit}
+  .grid{display:grid;grid-template-columns:32px 2fr 1fr 1fr 1fr 90px;gap:8px;align-items:center}
+  .head{background:var(--bg);padding:10px 16px}
+  .row{padding:12px 16px;border-top:1px solid var(--line)}
+  .row.sel{background:#f4f7ff}
+  .row.low{background:#fffbeb}
+  .mono{font-family:ui-monospace,monospace;font-size:13px}
+  .tbl{border:2px solid var(--line);border-radius:16px;overflow:hidden}
+  .warn{background:#FEF3C7;border:2px solid #F59E0B;border-radius:12px;padding:12px 16px;font-size:12px;color:#92400E;margin-bottom:16px}
+  .bsgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .bsbox{border:2px solid var(--line);border-radius:12px;padding:16px}
+  .bsbox h3{margin:0 0 4px;font-size:14px}
+  .bsbox p{margin:0 0 12px;font-size:12px;color:var(--mut);line-height:1.6}
+  .out{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;font-size:12.5px;line-height:1.85;display:none}
+  .out.show{display:block}
+  .ok{color:#15803d}.bad{color:#d64545}.amb{color:#b45309}
+  .tag{display:inline-block;background:var(--navy);color:#fff;border-radius:6px;padding:1px 7px;font-size:10px;margin-left:6px;vertical-align:middle}
+  .badge{font-size:10px;border:1px solid var(--line);border-radius:20px;padding:2px 9px;color:var(--mut)}
+</style>
+<div class="wrap">
+
+<div class="note">
+  <b>DEMO — PC.</b> Đây là tab <b>📊 Tồn kho</b> sau khi sửa. Ba thay đổi:<br>
+  ① Ba ô <b>Shopee / TikTok / Lazada "Kết nối API"</b> (nút không làm gì) bị gỡ, thay bằng khối BigSeller thật.<br>
+  ② Khối sửa nhiều dòng đổi nhãn cho hết mơ hồ giữa <b>nhập thêm</b> và <b>cân kho</b>.<br>
+  ③ Vá lỗi ô "chọn tất cả" không chọn được sản phẩm có phân loại.<br>
+  <b>Bấm thật được:</b> tick dòng → đổi hành động · bấm hai nút BigSeller để xem bản báo cáo.
+</div>
+
+<h2>📊 Quản Lý Tồn Kho</h2>
+
+<!-- ══ KHỐI BIGSELLER — thay chỗ 3 ô kết nối API chết ══ -->
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+    <div style="font-size:15px">🔗 BigSeller <span class="tag">kênh Hanapet Web</span></div>
+    <span class="badge">Lần đối soát gần nhất: 22/07/2026</span>
+  </div>
+  <p style="font-size:12px;color:var(--mut);margin:0 0 16px;line-height:1.6">
+    Kho thật nằm ở BigSeller. Mỗi ngày đẩy đơn mới sang, mỗi tuần kéo trạng thái về.
+  </p>
+
+  <div style="border:2px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:13px;font-weight:600">Khai mã SKU bên BigSeller</div>
+      <button class="btn ghost" style="padding:5px 12px;font-size:11px" onclick="toggleMap()">Đóng/Mở</button>
+    </div>
+    <div style="font-size:11.5px;color:var(--mut);line-height:1.6;margin:4px 0 10px">
+      Phân loại trên web <b>không có sẵn mã SKU</b> nên phải khai ở đây. Gõ đúng mã trong
+      <b>Tồn kho → SKU hàng hoá</b> của BigSeller — sai một ký tự là BS không nhận đơn.
+      Khai một lần, tự lưu khi rời ô.
+    </div>
+    <div id="maprows"></div>
+  </div>
+
+  <div class="bsgrid">
+    <div class="bsbox">
+      <h3>📤 Xuất đơn sang BigSeller</h3>
+      <p>Lấy các đơn <b>đã xác nhận trở lên</b> chưa từng đẩy. Combo tách thành món lẻ, giá chia theo tỉ lệ.</p>
+      <button class="btn" onclick="doExport()">Xuất file Excel</button>
+      <div class="out" id="outExp"></div>
+    </div>
+
+    <div class="bsbox">
+      <h3>📥 Đối soát đơn từ BigSeller</h3>
+      <p>Thả file đơn kênh Hanapet Web. Web cập nhật trạng thái, đơn nào bị huỷ thì <b>tự hoàn kho</b>.</p>
+      <button class="btn" onclick="doImport()">Chọn file…</button>
+      <div class="out" id="outImp"></div>
+    </div>
+  </div>
+</div>
+
+<div class="warn">⚠️ <b>2 mặt hàng sắp hết</b> — WBS Kẹo bông (0) · WBS Phấn thơm (7)</div>
+
+<!-- ══ THANH SỬA NHIỀU DÒNG ══ -->
+<div class="card" id="bulk" style="display:none;border-color:var(--navy)">
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div style="font-size:13px">✅ <b id="nsel">0</b> mặt hàng đã chọn</div>
+    <select id="mode" onchange="onMode()">
+      <option value="">Chọn việc cần làm…</option>
+      <option value="add">📥 Nhập thêm hàng — CỘNG vào tồn hiện có</option>
+      <option value="set">⚖️ Cân kho — ĐẶT LẠI bằng số đếm thực tế</option>
+    </select>
+    <input type="number" id="amt" value="0" style="width:120px" oninput="preview()">
+    <button class="btn" id="apply" disabled onclick="applyBulk()">Áp dụng</button>
+    <button class="btn ghost" onclick="clearSel()">Bỏ chọn</button>
+    <div id="pv" style="width:100%;font-size:12px;color:var(--mut);line-height:1.8"></div>
+  </div>
+</div>
+
+<!-- ══ BẢNG ══ -->
+<div class="tbl">
+  <div class="grid head">
+    <input type="checkbox" id="all" onchange="selAll(this.checked)">
+    <div class="lbl">Sản phẩm</div><div class="lbl">SKU</div>
+    <div class="lbl">Tồn kho</div><div class="lbl">Tối thiểu</div><div class="lbl"></div>
+  </div>
+  <div id="rows"></div>
+</div>
+
+</div>
+<script>
+const ROWS = [
+  {k:'p1::v1', name:'Misty Fresh — Chai xịt 250ml', sku:'MFSPRAY',   stock:120, min:10},
+  {k:'p1::v2', name:'Misty Fresh — Lõi refill',     sku:'MFREFILL',  stock:64,  min:10},
+  {k:'p2::v1', name:'WBS — Lavender',               sku:'WBS130-LV', stock:31,  min:10},
+  {k:'p2::v2', name:'WBS — Sữa chua đào',           sku:'WBS130-PY', stock:28,  min:10},
+  {k:'p2::v3', name:'WBS — Kẹo bông',               sku:'WBS130-CC', stock:0,   min:10},
+  {k:'p2::v4', name:'WBS — Mộc qua',                sku:'WBS130-Q',  stock:19,  min:10},
+  {k:'p2::v5', name:'WBS — Phấn thơm',              sku:'WBS130-BP', stock:7,   min:10},
+];
+let sel = new Set();
+
+const BSMAP = {'p1::v1':'MFSPRAY','p1::v2':'MFREFILL','p2::v1':'WBS130-LV',
+  'p2::v2':'WBS130-PY','p2::v3':'','p2::v4':'WBS130-Q','p2::v5':'WBS130-BP'};
+let mapOpen = true;
+function toggleMap(){ mapOpen=!mapOpen; drawMap(); }
+function drawMap(){
+  const el=document.getElementById('maprows');
+  if(!mapOpen){ el.innerHTML=''; return; }
+  el.innerHTML = ROWS.map(r=>`
+    <div style="display:grid;grid-template-columns:1fr 220px;gap:10px;align-items:center;padding:6px 0;border-top:1px solid #eef2f9">
+      <div style="font-size:12.5px">${r.name}</div>
+      <input class="mono" value="${BSMAP[r.k]||''}" placeholder="VD: WBS130-LV"
+        oninput="BSMAP['${r.k}']=this.value.trim();this.style.borderColor=this.value?'var(--line)':'#F59E0B'"
+        style="border-color:${BSMAP[r.k]?'var(--line)':'#F59E0B'}">
+    </div>`).join('');
+}
+function draw(){
+  document.getElementById('rows').innerHTML = ROWS.map(r=>`
+    <div class="grid row ${sel.has(r.k)?'sel':''} ${r.stock<=r.min?'low':''}">
+      <input type="checkbox" ${sel.has(r.k)?'checked':''} onchange="tog('${r.k}')">
+      <div style="font-size:13px">${r.name}</div>
+      <div class="mono" style="color:var(--mut)">${r.sku}</div>
+      <div class="mono" style="font-weight:700;color:${r.stock<=r.min?'#d64545':'var(--ink)'}">${r.stock}</div>
+      <div class="mono" style="color:var(--mut)">${r.min}</div>
+      <div><button class="btn ghost" style="padding:5px 10px;font-size:11px">Sửa</button></div>
+    </div>`).join('');
+  document.getElementById('bulk').style.display = sel.size?'block':'none';
+  document.getElementById('nsel').textContent = sel.size;
+  /* v22: khoá dòng là p.id::v.id — bản cũ so với products.length nên luôn sai */
+  document.getElementById('all').checked = sel.size===ROWS.length;
+  preview();
+}
+function tog(k){ sel.has(k)?sel.delete(k):sel.add(k); draw(); }
+function selAll(on){ sel = on ? new Set(ROWS.map(r=>r.k)) : new Set(); draw(); }
+function clearSel(){ sel=new Set(); document.getElementById('mode').value=''; draw(); }
+function onMode(){ preview(); }
+
+function preview(){
+  const m = document.getElementById('mode').value;
+  const a = Number(document.getElementById('amt').value)||0;
+  document.getElementById('apply').disabled = !m || !sel.size;
+  const pv = document.getElementById('pv');
+  if(!m || !sel.size){ pv.innerHTML=''; return; }
+  pv.innerHTML = [...sel].map(k=>{
+    const r = ROWS.find(x=>x.k===k);
+    const nw = m==='set' ? Math.max(0,a) : Math.max(0, r.stock+a);
+    return `<div>${r.name}: <span class="mono">${r.stock} → <b>${nw}</b></span></div>`;
+  }).join('');
+}
+function applyBulk(){
+  const m = document.getElementById('mode').value;
+  const a = Number(document.getElementById('amt').value)||0;
+  sel.forEach(k=>{ const r=ROWS.find(x=>x.k===k);
+    r.stock = m==='set' ? Math.max(0,a) : Math.max(0,r.stock+a); });
+  clearSel();
+}
+
+function doExport(){
+  const el = document.getElementById('outExp'); el.classList.add('show');
+  el.innerHTML = `
+   <div><b>Đã tạo</b> <span class="mono">hanapet-bigseller-20260729.xlsx</span> — 3 đơn, 5 dòng</div>
+   <div style="margin-top:8px;background:var(--bg);border-radius:8px;padding:10px 12px" class="mono" style="font-size:11.5px">
+     HP-K3F9A2 · MFSPRAY ×1 · 241.358<br>
+     HP-K3F9A2 · MFREFILL ×1 · 157.642 <span style="color:var(--mut)">← combo 399.000 chia theo giá lẻ</span><br>
+     HP-K3G7B1 · WBS130-LV ×2 · 205.000<br>
+     HP-K3H2C5 · MFSPRAY ×3 · 245.000 <span style="color:var(--mut)">← combo 1 chai + mua lẻ 2, đã gộp</span><br>
+     HP-K3H2C5 · MFREFILL ×1 · 160.000
+   </div>
+   <div style="margin-top:8px" class="amb">⚠️ 1 đơn bỏ qua: HP-K3J8D2 chưa xác nhận</div>`;
+}
+function doImport(){
+  const el = document.getElementById('outImp'); el.classList.add('show');
+  el.innerHTML = `
+   <div><b>Đọc 47 đơn</b> từ kênh Hanapet Web</div>
+   <div class="ok">✓ 31 không đổi</div>
+   <div class="ok">✓ 9 cập nhật trạng thái → Đã giao</div>
+   <div class="ok">✓ 4 chuyển sang Đã huỷ — <b>đã hoàn kho</b></div>
+   <div style="margin-left:14px;color:var(--mut)" class="mono">
+     HP-K3F9A2 → +1 chai xịt, +1 lõi<br>HP-K3G7B1 → +2 WBS Lavender</div>
+   <div class="bad" style="margin-top:8px">⚠️ 3 đơn CÓ TRÊN WEB, KHÔNG CÓ TRONG FILE</div>
+   <div style="margin-left:14px" class="mono">HP-K9Z1Q4 · HP-K9Z2M8 · HP-KA01F3</div>
+   <div style="margin-left:14px;color:var(--mut)">→ chưa đẩy sang BigSeller, kho bên đó chưa trừ</div>
+   <div class="amb" style="margin-top:8px">⚠️ 1 trạng thái chưa biết: "Chờ lấy hàng" (2 đơn) — báo Claude bổ sung</div>`;
+}
+draw(); drawMap();
+</script>

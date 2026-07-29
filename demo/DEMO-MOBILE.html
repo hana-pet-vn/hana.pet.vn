@@ -1,0 +1,158 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hanapet · Demo Mobile — Tồn kho + BigSeller</title>
+<style>
+  :root{ --navy:#18284e; --line:#dbe2f1; --bg:#f2f5fb; --mut:#5f6c8f; --ink:#0d142e; }
+  *{box-sizing:border-box}
+  body{margin:0;padding:20px;background:#e6ebf5;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink)}
+  .note{max-width:393px;margin:0 auto 16px;background:#fff;border:2px solid var(--line);border-radius:12px;padding:12px 14px;font-size:12px;color:var(--mut);line-height:1.7}
+  .note b{color:var(--ink)}
+  .phone{width:393px;margin:0 auto;background:#fff;border:10px solid var(--navy);border-radius:32px;overflow:hidden}
+  .scr{height:760px;overflow-y:auto;padding:16px;background:#f7f9fd}
+  h2{font-size:15px;margin:0 0 14px}
+  .card{background:#fff;border:2px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+  .btn{background:var(--navy);color:#fff;border:none;border-radius:8px;padding:11px 14px;font-size:13px;cursor:pointer;width:100%}
+  .btn.ghost{background:var(--bg);color:var(--mut);border:1px solid var(--line)}
+  .btn:disabled{opacity:.5}
+  input,select{padding:10px;border-radius:8px;border:2px solid var(--line);font-size:13px;width:100%;font-family:inherit}
+  .mono{font-family:ui-monospace,monospace}
+  .warn{background:#FEF3C7;border:2px solid #F59E0B;border-radius:12px;padding:10px 12px;font-size:12px;color:#92400E;margin-bottom:14px;line-height:1.6}
+  .item{border:2px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;background:#fff;display:flex;gap:10px;align-items:flex-start}
+  .item.sel{border-color:var(--navy);background:#f4f7ff}
+  .item.low{background:#fffbeb}
+  .out{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;font-size:12px;line-height:1.8;display:none}
+  .out.show{display:block}
+  .ok{color:#15803d}.bad{color:#d64545}.amb{color:#b45309}
+  .tag{display:inline-block;background:var(--navy);color:#fff;border-radius:6px;padding:1px 7px;font-size:10px}
+  .stk{font-weight:700;font-size:15px}
+</style>
+
+<div class="note">
+  <b>DEMO — Mobile (393px).</b> Cùng nội dung bản PC. Khác ở chỗ: bảng 6 cột đổi thành <b>thẻ xếp dọc</b>
+  (bảng ngang trên điện thoại là banh), hai ô BigSeller xếp chồng, thanh chọn nhiều dòng
+  <b>dính đáy màn</b> để tay với tới. Bấm thật được.
+</div>
+
+<div class="phone"><div class="scr">
+
+<h2>📊 Quản Lý Tồn Kho</h2>
+
+<div class="card">
+  <div style="font-size:14px;margin-bottom:4px">🔗 BigSeller <span class="tag">Hanapet Web</span></div>
+  <div style="font-size:11.5px;color:var(--mut);line-height:1.6;margin-bottom:12px">
+    Đối soát gần nhất: 22/07/2026
+  </div>
+
+  <div style="font-size:13px;font-weight:600;margin-bottom:4px">📤 Xuất đơn sang BigSeller</div>
+  <div style="font-size:11.5px;color:var(--mut);line-height:1.6;margin-bottom:8px">
+    Đơn đã xác nhận, chưa từng đẩy. Combo tách thành món lẻ.</div>
+  <button class="btn" onclick="doExport()">Xuất file Excel</button>
+  <div class="out" id="outExp"></div>
+
+  <div style="height:1px;background:var(--line);margin:14px 0"></div>
+
+  <div style="font-size:13px;font-weight:600;margin-bottom:4px">📥 Đối soát đơn từ BigSeller</div>
+  <div style="font-size:11.5px;color:var(--mut);line-height:1.6;margin-bottom:8px">
+    Thả file đơn. Đơn bị huỷ sẽ tự hoàn kho.</div>
+  <button class="btn" onclick="doImport()">Chọn file…</button>
+  <div class="out" id="outImp"></div>
+</div>
+
+<div class="warn">⚠️ <b>2 mặt hàng sắp hết</b><br>WBS Kẹo bông (0) · WBS Phấn thơm (7)</div>
+
+<div style="margin-bottom:10px">
+  <label style="font-size:12px;color:var(--mut)">
+    <input type="checkbox" id="all" onchange="selAll(this.checked)" style="width:auto"> Chọn tất cả
+  </label>
+</div>
+
+<div id="rows"></div>
+<div style="height:150px"></div>
+
+<div id="bulk" style="display:none;position:sticky;bottom:0;background:#fff;border:2px solid var(--navy);border-radius:14px;padding:12px;margin-top:-140px">
+  <div style="font-size:12.5px;margin-bottom:8px">✅ <b id="nsel">0</b> mặt hàng đã chọn</div>
+  <select id="mode" onchange="preview()" style="margin-bottom:8px">
+    <option value="">Chọn việc cần làm…</option>
+    <option value="add">📥 Nhập thêm hàng — CỘNG vào tồn</option>
+    <option value="set">⚖️ Cân kho — ĐẶT LẠI bằng số đếm thật</option>
+  </select>
+  <input type="number" id="amt" value="0" oninput="preview()" style="margin-bottom:8px">
+  <div id="pv" style="font-size:11.5px;color:var(--mut);line-height:1.7;margin-bottom:8px"></div>
+  <div style="display:flex;gap:8px">
+    <button class="btn" id="apply" disabled onclick="applyBulk()">Áp dụng</button>
+    <button class="btn ghost" onclick="clearSel()" style="width:90px">Bỏ</button>
+  </div>
+</div>
+
+</div></div>
+
+<script>
+const ROWS = [
+  {k:'p1::v1', name:'Misty Fresh — Chai xịt 250ml', sku:'MFSPRAY',   stock:120, min:10},
+  {k:'p1::v2', name:'Misty Fresh — Lõi refill',     sku:'MFREFILL',  stock:64,  min:10},
+  {k:'p2::v1', name:'WBS — Lavender',               sku:'WBS130-LV', stock:31,  min:10},
+  {k:'p2::v2', name:'WBS — Sữa chua đào',           sku:'WBS130-PY', stock:28,  min:10},
+  {k:'p2::v3', name:'WBS — Kẹo bông',               sku:'WBS130-CC', stock:0,   min:10},
+  {k:'p2::v4', name:'WBS — Mộc qua',                sku:'WBS130-Q',  stock:19,  min:10},
+  {k:'p2::v5', name:'WBS — Phấn thơm',              sku:'WBS130-BP', stock:7,   min:10},
+];
+let sel = new Set();
+
+function draw(){
+  document.getElementById('rows').innerHTML = ROWS.map(r=>`
+    <div class="item ${sel.has(r.k)?'sel':''} ${r.stock<=r.min?'low':''}">
+      <input type="checkbox" ${sel.has(r.k)?'checked':''} onchange="tog('${r.k}')" style="width:auto;margin-top:3px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;line-height:1.4">${r.name}</div>
+        <div class="mono" style="font-size:11px;color:var(--mut);margin-top:2px">${r.sku}</div>
+        <div style="margin-top:6px;display:flex;align-items:baseline;gap:8px">
+          <span class="mono stk" style="color:${r.stock<=r.min?'#d64545':'var(--ink)'}">${r.stock}</span>
+          <span style="font-size:11px;color:var(--mut)">tối thiểu ${r.min}</span>
+        </div>
+      </div>
+    </div>`).join('');
+  document.getElementById('bulk').style.display = sel.size?'block':'none';
+  document.getElementById('nsel').textContent = sel.size;
+  document.getElementById('all').checked = sel.size===ROWS.length;
+  preview();
+}
+function tog(k){ sel.has(k)?sel.delete(k):sel.add(k); draw(); }
+function selAll(on){ sel = on ? new Set(ROWS.map(r=>r.k)) : new Set(); draw(); }
+function clearSel(){ sel=new Set(); document.getElementById('mode').value=''; draw(); }
+function preview(){
+  const m=document.getElementById('mode').value, a=Number(document.getElementById('amt').value)||0;
+  document.getElementById('apply').disabled = !m || !sel.size;
+  const pv=document.getElementById('pv');
+  if(!m||!sel.size){pv.innerHTML='';return;}
+  pv.innerHTML=[...sel].slice(0,4).map(k=>{const r=ROWS.find(x=>x.k===k);
+    const nw=m==='set'?Math.max(0,a):Math.max(0,r.stock+a);
+    return `<div>${r.name.split('—')[1]||r.name}: <span class="mono">${r.stock}→<b>${nw}</b></span></div>`;
+  }).join('') + (sel.size>4?`<div>…và ${sel.size-4} mục nữa</div>`:'');
+}
+function applyBulk(){
+  const m=document.getElementById('mode').value, a=Number(document.getElementById('amt').value)||0;
+  sel.forEach(k=>{const r=ROWS.find(x=>x.k===k);
+    r.stock = m==='set'?Math.max(0,a):Math.max(0,r.stock+a);});
+  clearSel();
+}
+function doExport(){
+  const el=document.getElementById('outExp'); el.classList.add('show');
+  el.innerHTML=`<div><b>Đã tạo file</b> — 3 đơn, 5 dòng</div>
+  <div class="mono" style="font-size:11px;background:var(--bg);border-radius:8px;padding:9px;margin-top:6px;line-height:1.7">
+  HP-K3F9A2 · MFSPRAY ×1<br>HP-K3F9A2 · MFREFILL ×1<br>HP-K3G7B1 · WBS130-LV ×2<br>
+  HP-K3H2C5 · MFSPRAY ×3<br>HP-K3H2C5 · MFREFILL ×1</div>
+  <div class="amb" style="margin-top:6px">⚠️ 1 đơn bỏ qua: chưa xác nhận</div>`;
+}
+function doImport(){
+  const el=document.getElementById('outImp'); el.classList.add('show');
+  el.innerHTML=`<div><b>Đọc 47 đơn</b></div>
+  <div class="ok">✓ 31 không đổi</div>
+  <div class="ok">✓ 9 → Đã giao</div>
+  <div class="ok">✓ 4 → Đã huỷ, đã hoàn kho</div>
+  <div class="bad" style="margin-top:6px">⚠️ 3 đơn có trên web, không có trong file</div>
+  <div class="mono" style="font-size:11px;margin-left:10px">HP-K9Z1Q4 · HP-K9Z2M8 · HP-KA01F3</div>
+  <div class="amb" style="margin-top:6px">⚠️ 1 trạng thái chưa biết: "Chờ lấy hàng"</div>`;
+}
+draw();
+</script>

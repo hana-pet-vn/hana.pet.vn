@@ -1,0 +1,195 @@
+══════════════════════════════════════════════════════════════════════════
+  HANDOFF — HANAPET V22
+  29/07/2026 · Trừ kho nguyên tử · Chặn đơn 0đ · Cầu nối BigSeller
+══════════════════════════════════════════════════════════════════════════
+
+
+──────────────────────────────────────────────────────────────────────────
+1. ĐÃ LÀM
+──────────────────────────────────────────────────────────────────────────
+
+KHO — sửa 5 lỗi, trong đó 1 lỗi đang chạy trên production
+
+  #1 ĐƠN MUA 2 MÙI CHỈ TRỪ 1 MÙI  ← lỗi nặng nhất
+     route.js nạp products một lần vào productMap ở bước 2, rồi vòng lặp
+     trừ kho mỗi vòng đều đọc p.variants từ BẢN NẠP ĐẦU, tính lại cả mảng
+     rồi ghi đè. Hai dòng cùng productId → lần ghi sau xoá lần ghi trước.
+
+       Mua WBS Lavender ×1 + WBS Mộc qua ×1
+       vòng 1 ghi [LV 2243, Q 1486]
+       vòng 2 tính lại từ bản gốc, ghi [LV 2244, Q 1485]
+       → Lavender KHÔNG bị trừ
+
+     Đây là ca dùng chính của WBS. Và nó lệch MỘT CHIỀU: restockOrder()
+     gộp theo productId trước rồi mới ghi một lần nên hoàn kho ĐÚNG cả hai
+     dòng → đặt rồi huỷ làm kho tự phình.
+
+  #2 Trừ kho lỗi mà đơn vẫn báo thành công (chỉ console.error, đơn đã
+     insert từ bước trước)
+  #3 Không chặn đơn 0đ — phân loại quên điền giá thì bán không công
+  #4 Kiểm kho từng dòng riêng lẻ → combo + món lẻ cùng ăn một kho thì lọt
+  #5 Đọc-rồi-ghi-đè, chưa nguyên tử → hai khách bấm cùng giây bán quá kho
+
+  CÁCH SỬA: JS gộp mọi thứ cần trừ theo khoá productId|variantId|comboId
+  rồi gọi MỘT hàm SQL hp_place_order() làm kiểm + trừ + ghi đơn trong một
+  giao dịch. JS không còn lệnh ghi nào vào bảng products.
+
+  Kèm theo: mã đơn đổi HH- (HayHo) → HP- · voucher .single() → .limit(1)
+  (bản cũ lỗi nếu có 2 mã trùng) · chặn số lượng âm/không nguyên · cắt
+  note 500 ký tự · email đọc cả RESEND_FROM lẫn EMAIL_FROM · lỗi tiếng Việt
+
+BIGSELLER — cầu nối hai chiều, không dùng API
+
+  lib/bigseller.js (mới) — thuần logic, không đụng React/Supabase
+    · buildExport()    đơn web → CSV theo mẫu manual order 39 cột
+    · planReconcile()  file đơn BS → kế hoạch cập nhật trạng thái
+    · toCSV/parseCSV   không thêm gói phụ thuộc nào
+
+  app/admin/page.js — khối 🔗 BigSeller trong tab Tồn kho
+    · Bảng khai mã SKU (variants không có sẵn trường sku nên phải khai tay)
+    · Xuất đơn → tải CSV + đóng dấu bigseller_exported_at
+    · Đối soát → xem trước rồi mới áp dụng, đơn huỷ tự hoàn kho
+
+DỌN
+
+  · GỠ 3 ô "Kết nối API" Shopee/TikTok/Lazada trong tab Tồn kho — nút
+    không có onClick, chữ "Chưa kết nối" viết cứng. Code chết đúng nghĩa.
+  · VÁ ô "chọn tất cả" trong Tồn kho: bản cũ ghi products.map(p=>p.id)
+    trong khi khoá dòng là p.id+'::'+v.id → SP có phân loại KHÔNG BAO GIỜ
+    được chọn.
+  · Đổi nhãn hai việc kho cho hết mơ hồ:
+      📥 Nhập thêm hàng — CỘNG vào tồn hiện có
+      ⚖️ Cân kho — ĐẶT LẠI bằng số đếm thực tế
+    (hai việc này đã có sẵn, chỉ nhãn cũ không phân biệt được)
+
+
+──────────────────────────────────────────────────────────────────────────
+2. QUYẾT ĐỊNH ĐÃ CHỐT — ĐỪNG BÀN LẠI
+──────────────────────────────────────────────────────────────────────────
+
+NỐI BIGSELLER BẰNG FILE, KHÔNG DÙNG API
+  BS chỉ nhận kết nối từ sàn + Shopify/WooCommerce/SHOPLINE. Không có API
+  công khai cho web tự viết. Đã cân nhắc và BÁC phương án giả làm
+  WooCommerce (bảo trì bản giả lập phần mềm người khác, gãy im lặng).
+
+BUNG COMBO THÀNH SKU LẺ, KHÔNG GỬI MÃ COMBO CỦA BS
+  BS có sẵn SKU combo với BOM, nhưng dữ liệu đang rối: CB003/CB0019/CB018
+  trùng ruột hoàn toàn; 3 combo lẫn 130ml với 320ml. Buộc web vào đó là
+  tự tạo chỗ lệch.
+  HỆ QUẢ đã biết: doanh thu combo trên sàn quy về mã combo, đơn web quy về
+  món lẻ. Tổng vẫn đúng. Xem báo cáo vài tuần, khó chịu thì đổi — một dòng.
+
+GIÁ: CHIA TỈ LỆ VÀO ĐƠN GIÁ, Ô "GIẢM GIÁ" LUÔN 0
+  Ô Giảm giá của BS nằm ở cấp ĐƠN, không phải cấp dòng. Không rõ BS có tự
+  chia nó xuống từng SKU khi làm báo cáo hay không. Chia tỉ lệ thì doanh
+  thu từng SKU đúng trong mọi trường hợp.
+  Số lẻ (241.358) chỉ nằm trong file gửi BS — khách và admin không thấy.
+
+WEB SINH MÃ ĐƠN, KHÔNG PHẢI BS
+  Khách phải thấy mã ngay lúc đặt; BS mãi cuối ngày mới biết đơn tồn tại.
+  Và mẫu nhập đơn BẮT BUỘC điền ô ID đơn hàng.
+  BS đối xử với web như một kênh bán: đơn TikTok trong BS vẫn mang mã 18
+  chữ số của TikTok, không có mã OD nào.
+
+WEB KHÔNG TẠO VẬN ĐƠN NỮA
+  BS lo GHN/GHTK. Bỏ app/api/shipping/create + webhook GHTK.
+  GIỮ phần tính phí ship và 4 endpoint địa chỉ — khách vẫn phải thấy phí
+  ship lúc thanh toán.
+  → Việc "còn thiếu webhook GHN" XOÁ khỏi danh sách còn treo.
+
+KHO BẮC LÀ KHO DUY NHẤT CHO WEB
+  Nhánh SKU "(N)" (kho Nam) bỏ qua. Bảng khai để dạng một-nhiều sẵn nên
+  sau mở kho Nam chỉ sửa dữ liệu, không sửa code.
+
+CHỈ XUẤT ĐƠN ĐÃ XÁC NHẬN TRỞ LÊN
+  Bỏ qua "Chờ xử lý". Đơn hỏng sớm chết trên web, không phải đối soát.
+  Đổi ở EXPORTABLE_STATUSES trong lib/bigseller.js.
+
+
+──────────────────────────────────────────────────────────────────────────
+3. ANTI-PATTERN MỚI  (tiếp số cũ)
+──────────────────────────────────────────────────────────────────────────
+
+#9  ĐỌC DỮ LIỆU MỘT LẦN RỒI GHI ĐÈ NHIỀU LẦN TRONG VÒNG LẶP
+    Lần ghi sau xoá lần ghi trước. Đã xảy ra với variants[].
+    LUẬT: gộp hết vào một trạng thái rồi ghi một lần, hoặc để CSDL tự tính.
+
+#10 TRỪ KHO LỖI MÀ CHỈ console.error
+    Đơn đã ghi trước đó nên khách vẫn thấy thành công.
+    LUẬT: việc đụng kho và việc ghi đơn phải cùng sống cùng chết.
+
+#11 ĐỐI XỨNG ĐẶT / HUỶ
+    restockOrder() gộp đúng còn đường đặt gộp sai → đặt rồi huỷ làm kho
+    phình. LUẬT: sửa một chiều phải soi chiều kia.
+
+#12 THÊM Ô NHẬP MÀ DỮ LIỆU KHÔNG CÓ CHỖ CHỨA
+    variants[] không có trường sku, nên "khai mã BigSeller" phải cất vào
+    site_config chứ không nhét bừa vào variants.
+    LUẬT: trước khi thêm ô, kiểm xem dữ liệu có chỗ chứa hợp lệ chưa.
+
+
+──────────────────────────────────────────────────────────────────────────
+4. CÒN TREO
+──────────────────────────────────────────────────────────────────────────
+
+CHƯA BIẾT — cần thử, không chặn deploy
+  [ ] BS có giữ mã HP-XXXXXX không (code đã chạy đúng cả hai cách)
+  [ ] Hai dòng ví dụ 5–6 trong mẫu nhập đơn có thành đơn thật không
+  [ ] Tên Tỉnh/Huyện/Xã của GHN có khớp bảng địa chỉ của BS không
+      → đây là chỗ dễ hỏng nhất khi nhập file
+
+CODE
+  [ ] Cân nặng cứng 150g/món (route.js) → phí GHN sai. BS khai chai xịt
+      400g. Sửa cùng đợt phí ship.
+  [ ] Chặn spam IP dùng Map in-memory — trên Vercel mỗi tiến trình một bản,
+      gần như vô dụng. Cần Upstash/Redis.
+  [ ] Voucher chưa có max_uses, chưa khoá một lần, chưa có hạn dùng
+  [ ] Nút gọi /api/shipping/create trong admin (~dòng 1057) sẽ 404 sau khi
+      xoá endpoint — chưa gỡ vì đụng giao diện
+  [ ] Xuất/nhập đang dùng CSV, phải qua Excel Save As. Thêm SheetJS thì
+      bỏ được bước đó.
+  [ ] Chưa có: VietQR, hoá đơn PDF, nút "Đã nhận tiền" (bê từ HayHo)
+  [ ] Vá tên biến email trên Vercel (code đã đọc cả hai tên nên không gấp)
+
+BÊN BIGSELLER — thao tác tay, không dính code
+  [ ] Ba combo trùng ruột CB003 / CB0019 / CB018 → chọn một mã làm chuẩn
+  [ ] CB015, CB017 trỏ vào MRDOG đã ngừng bán → đặt ngừng bán
+  [ ] 49 đơn vị hàng cat/dog tồn kho (MFCAT 22, MRCAT 17, MFDOG 9, MRDOG 1)
+      → quyết bán xả / tặng kèm / ghi giảm
+  [ ] Cân nhắc dùng tính năng NHIỀU KHO thật thay vì mã hoá "(N)" vào tên
+      SKU. Hiện 19/19 combo đều trỏ nhánh không (N) → kho Nam không bán
+      được combo nào. CB005 báo hết hàng trong khi kho Nam đủ 21 bộ.
+      Trước khi chuyển phải kiểm listing trên sàn đang trỏ SKU nào.
+
+CHƯA TRẢ LỜI
+  [ ] Misty Gallon còn bán trên web không? (MFGALLON tồn 232, HCL1L 109)
+      Còn thì thêm một dòng vào bảng khai mã SKU.
+
+
+──────────────────────────────────────────────────────────────────────────
+5. SỐ LIỆU BIGSELLER NGÀY 29/07/2026
+──────────────────────────────────────────────────────────────────────────
+
+  Kho Bắc (nhánh chính, kho duy nhất cho web)
+    MFSPRAY     10.254        WBS130-LV    2.244
+    MFREFILL     2.729        WBS130-PY    4.265
+    WBS130-Q     1.486        WBS130-CC        0   ← web sẽ báo hết ngay
+    WBS130-BP       24                             ← sắp hết
+
+  ⚠️ MFSPRAY 10.254 chai — hỏi 2 lần chưa được xác nhận là số thật.
+     Không hiện lên web nên không gấp, nhưng sai thì mọi báo cáo sai theo.
+
+  Tỉ lệ huỷ tham chiếu: TikTok 20/107 đơn ≈ 19%.
+  Nếu web tương tự thì cứ 5 đơn có 1 đơn phải đối soát.
+
+
+──────────────────────────────────────────────────────────────────────────
+6. LUẬT LÀM VIỆC — GIỮ NGUYÊN
+──────────────────────────────────────────────────────────────────────────
+
+  · Demo PC + mobile TRƯỚC khi xuất file, với mọi thay đổi có giao diện
+  · Một việc một chat, cuối chat ra handoff đánh số
+  · Sửa tại chỗ, không viết lại file
+  · Tên file xuất TRÙNG tên file đích
+  · SQL để thẳng trong chat
+  · Trước khi thêm ô nhập: grep xem storefront có đọc key đó không
