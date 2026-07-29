@@ -281,7 +281,8 @@ export async function POST(request) {
 
     // ── 10. Dựng bản ghi đơn ─────────────────────────────────────────────────
     const orderId   = crypto.randomUUID()
-    const orderCode = 'HH-' + Date.now().toString(36).toUpperCase().slice(-6)
+    // v22: tiền tố HP- (Hanapet). Bản cũ dùng HH- là mã của dự án khác.
+    const orderCode = 'HP-' + Date.now().toString(36).toUpperCase().slice(-6)
 
     const orderRecord = {
       id:            orderId,
