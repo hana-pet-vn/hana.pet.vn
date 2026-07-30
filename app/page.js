@@ -46,7 +46,7 @@ function bridgeLegacy(cfg) {
   put('heroSupport',     brand.heroSub);
   put('heroBtn1',        brand.heroBtn1);
   put('heroImage',       brand.heroImg1);
-  put('heroRefillImage', brand.heroImg2);
+  /* v23: bỏ ảnh refill + kéo thả — hero 1 ảnh. brand.heroImg2 không còn đọc. */
   put('heroVideo',       brand.heroVideo);
   put('labelCart',       brand.labelAddCart);
   put('labelDetail',     brand.labelDetail);
@@ -104,10 +104,10 @@ const DEFAULTS = {
   heroBg: '',
   // Độ đậm lớp phủ navy trên ảnh nền (0-1). Cao hơn = chữ dễ đọc hơn.
   heroBgDim: 0.72,
-  // Ảnh lõi refill nép sau chai chính trong hero. Bỏ trống = ẩn.
-  heroRefillImage: '',
-  // Bố cục kéo-thả từ admin: {main:{l,w}, refill:{l,w}} theo %.
-  heroLayout: null,
+  /* v23: bỏ ảnh refill + kéo thả — hero 1 ảnh.
+     heroRefillImage và heroLayout đã gỡ khỏi đây. Bản ghi cũ còn trong CSDL
+     nhưng không nơi nào đọc. Muốn dựng lại kéo-thả thì phải viết phần hiển thị
+     TRƯỚC, đừng chỉ thêm ô trong admin. */
   // Thanh tin cậy dưới hero. icon dùng tên Tabler (ti-truck...), bỏ trống = ẩn cả thanh.
   heroTrust: [
     { icon: 'truck',         t: 'Giao Hà Nội 24h' },
@@ -752,16 +752,11 @@ export default function Home() {
 
           {/* Anh hero RIENG, khong muon anh san pham nua. De trong thi hien
               o net dut nhac upload trong admin. */}
-          {/* Bố cục kéo-thả từ admin (heroLayout) đè lên vị trí mặc định. */}
-          <div className="hero-main"
-               style={S.heroLayout?.main ? { left: S.heroLayout.main.l + '%', width: S.heroLayout.main.w + '%' } : undefined}>
+          {/* v23: bỏ ảnh refill + kéo thả — hero 1 ảnh ghép sẵn cả bộ.
+              Vị trí do CSS .hero-main quyết, không còn toạ độ từ admin. */}
+          <div className="hero-main">
             <Img src={S.heroImage} alt={S.heroSkuName}
                  text="ẢNH HERO|tải lên trong admin" dark />
-          </div>
-
-          <div className="hero-refill"
-               style={S.heroLayout?.refill ? { left: S.heroLayout.refill.l + '%', width: S.heroLayout.refill.w + '%' } : undefined}>
-            <Img src={S.heroRefillImage} text="ẢNH REFILL|tải lên trong admin" dark />
           </div>
 
           {S.heroShowVideo && (
@@ -1076,25 +1071,18 @@ h1 .l2{display:block}
   filter:blur(20px);opacity:0;animation:gin 2.2s ease-out .5s forwards;z-index:1}
 @keyframes gin{to{opacity:1}}
 
-.hero-main{position:absolute;left:-4%;bottom:0;z-index:3;
-  width:58%;height:100%;
+/* v23: hero 1 ảnh. Ảnh trải hết bề ngang cột, cao 56% để chai ra màn hình
+   đúng 278px trên PC — bằng bản 2 ảnh cũ, không to hơn. */
+.hero-main{position:absolute;left:0;bottom:0;z-index:3;
+  width:100%;height:56%;
   display:grid;place-items:end center;align-content:end;
   opacity:0;transform:translateY(44px) scale(.95);
   animation:pin 1.7s cubic-bezier(.16,.7,.22,1) .55s forwards;transition:transform .35s}
 @keyframes pin{to{opacity:1;transform:translateY(0) scale(1)}}
 .hero-main:hover{transform:translateY(-10px)}
-/* Ảnh trần: không khung, không nền. Chỉ đổ bóng cho nổi khỏi nền navy. */
-.hero-main img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
-  filter:drop-shadow(0 26px 46px rgba(0,0,0,.42))}
-
-/* Refill ĐỨNG CẠNH chai chính, CÙNG khung cùng chân — chai nào ngắn hơn
-   thì tự trông thấp hơn, không ép bằng CSS. */
-.hero-refill{position:absolute;left:46%;bottom:0;z-index:2;
-  width:58%;height:100%;
-  display:grid;place-items:end center;align-content:end;
-  opacity:0;transform:translateY(36px);animation:pin 1.6s cubic-bezier(.16,.7,.22,1) 1.0s forwards}
-.hero-refill img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;
-  filter:drop-shadow(0 18px 32px rgba(0,0,0,.36))}
+/* Ảnh trần: không khung, không nền. KHÔNG đổ bóng bằng CSS — ảnh ghép đã có
+   sẵn bóng tiếp đất; thêm drop-shadow nữa là chồng hai lớp bóng. */
+.hero-main img{width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain}
 
 
 /* Thanh tin cậy bản navy đậm — nối liền hero (wave cũng đổ #101c38). */
@@ -1130,8 +1118,9 @@ h1 .l2{display:block}
 .wave svg{width:100%;height:clamp(44px,5vw,78px);display:block}
 @media(max-width:900px){.hero{grid-template-columns:1fr;padding:calc(var(--nav-h) + 30px) 6vw 52px}
   .shot{height:clamp(340px,86vw,460px);margin:24px 0 0}
-  .hero-main{left:-3%;width:58%;height:100%}
-  .hero-refill{left:45%;bottom:0;width:58%;height:100%}
+  /* v23: .shot mobile gần vuông (346x340) nên cần % cao hơn PC để chai
+     ra đúng 182px — bằng bản cũ. */
+  .hero-main{left:0;width:100%;height:62%}
   .glow{left:6%;bottom:7%;width:min(68vw,310px)}}
 
 section{padding:clamp(48px,5.5vw,76px) 5vw}
@@ -1504,7 +1493,7 @@ footer{background:var(--navy-deep);color:rgba(255,255,255,.55);padding:clamp(40p
 
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
-  .rv,.hero-main,.hero-refill,.tvc,.glow{opacity:1!important;transform:none!important;animation:none!important}
+  .rv,.hero-main,.tvc,.glow{opacity:1!important;transform:none!important;animation:none!important}
   .peek{display:none}
 }
     `}</style>

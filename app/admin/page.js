@@ -1707,109 +1707,11 @@ function HRows({ value, onChange, label, cols, blank, hint, folder='home', idKey
   );
 }
 
-/* Kéo-thả bố cục hero. Đơn giản: kéo để đổi chỗ, kéo mép phải để đổi
-   độ rộng. Số đo lưu theo % nên co giãn đúng trên mọi màn hình.
-   Thả ra gần mốc thì TỰ HÍT vào (căn giữa / chạm đáy / bằng chai kia). */
-const HERO_DEFAULT = { main: { l: -4, w: 58 }, refill: { l: 46, w: 58 } };
-const SNAP = 1.6; /* % — trong khoảng này thì hít vào mốc */
-
-function HeroLayout({ value, onChange, imgMain, imgRefill }) {
-  const box = useRef(null);
-  const [drag, setDrag] = useState(null);
-  const L = { main: { ...HERO_DEFAULT.main, ...(value?.main || {}) },
-              refill: { ...HERO_DEFAULT.refill, ...(value?.refill || {}) } };
-
-  const pct = (px) => (px / (box.current?.offsetWidth || 1)) * 100;
-
-  /* các mốc để hít vào */
-  const snapTo = (v, marks) => {
-    for (const m of marks) if (Math.abs(v - m) < SNAP) return m;
-    return Math.round(v * 10) / 10;
-  };
-
-  const start = (which, mode) => (e) => {
-    e.preventDefault();
-    const p = e.touches ? e.touches[0] : e;
-    setDrag({ which, mode, x: p.clientX, l: L[which].l, w: L[which].w });
-  };
-
-  useEffect(() => {
-    if (!drag) return;
-    const move = (e) => {
-      const p = e.touches ? e.touches[0] : e;
-      const d = pct(p.clientX - drag.x);
-      const other = drag.which === 'main' ? L.refill : L.main;
-      const next = { ...L };
-      if (drag.mode === 'move') {
-        const raw = drag.l + d;
-        next[drag.which] = { ...L[drag.which],
-          l: snapTo(raw, [0, other.l, 50 - L[drag.which].w / 2, 100 - L[drag.which].w]) };
-      } else {
-        const raw = Math.max(15, Math.min(100, drag.w + d));
-        next[drag.which] = { ...L[drag.which], l: L[drag.which].l, w: snapTo(raw, [other.w, 50, 58]) };
-      }
-      onChange(next);
-    };
-    const up = () => setDrag(null);
-    window.addEventListener('mousemove', move);
-    window.addEventListener('touchmove', move, { passive: false });
-    window.addEventListener('mouseup', up);
-    window.addEventListener('touchend', up);
-    return () => {
-      window.removeEventListener('mousemove', move);
-      window.removeEventListener('touchmove', move);
-      window.removeEventListener('mouseup', up);
-      window.removeEventListener('touchend', up);
-    };
-  }, [drag, L.main.l, L.main.w, L.refill.l, L.refill.w]);
-
-  const Piece = ({ k, img, label, z }) => (
-    <div onMouseDown={start(k, 'move')} onTouchStart={start(k, 'move')}
-         style={{ position:'absolute', bottom:0, left:L[k].l+'%', width:L[k].w+'%', height:'100%',
-                  zIndex:z, cursor:'grab', display:'grid', placeItems:'end center',
-                  alignContent:'end', touchAction:'none',
-                  outline: drag?.which===k ? '2px solid #fff' : '2px dashed rgba(255,255,255,.35)',
-                  outlineOffset:-2, borderRadius:10 }}>
-      {img
-        ? <img src={img} alt="" draggable={false}
-               style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain', pointerEvents:'none' }} />
-        : <div style={{ width:'70%', height:'78%', background:'rgba(255,255,255,.12)', borderRadius:8,
-                        display:'grid', placeItems:'center', fontFamily:FONT_T, fontSize:11,
-                        color:'rgba(255,255,255,.6)', textAlign:'center', padding:6 }}>{label}</div>}
-      <span style={{ position:'absolute', top:6, left:6, background:'rgba(0,0,0,.55)', color:'#fff',
-                     fontFamily:FONT_T, fontSize:10, fontWeight:700, padding:'3px 7px', borderRadius:5,
-                     pointerEvents:'none' }}>{label}</span>
-      <span onMouseDown={start(k, 'size')} onTouchStart={start(k, 'size')}
-            title="Kéo để đổi độ rộng"
-            style={{ position:'absolute', right:-7, top:'50%', marginTop:-16, width:14, height:32,
-                     borderRadius:7, background:'#fff', border:'2px solid #18284e',
-                     cursor:'ew-resize', touchAction:'none' }} />
-    </div>
-  );
-
-  return (
-    <div>
-      <div ref={box} style={{ position:'relative', width:'100%', aspectRatio:'16/9', background:'#18284e',
-                              borderRadius:12, overflow:'hidden', userSelect:'none', marginBottom:10 }}>
-        {/* vạch giữa để căn */}
-        <div style={{ position:'absolute', left:'50%', top:0, bottom:0, width:1,
-                      background:'rgba(255,255,255,.18)', pointerEvents:'none' }} />
-        <Piece k="main"   img={imgMain}   label="Chai chính" z={3} />
-        <Piece k="refill" img={imgRefill} label="Lõi refill" z={2} />
-      </div>
-      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-        <button onClick={()=>onChange(null)}
-                style={{ fontFamily:FONT_T, fontSize:12, padding:'7px 14px', borderRadius:8,
-                         border:'2px solid #dbe2f1', background:'#fff', color:'#5f6c8f', cursor:'pointer' }}>
-          Về mặc định
-        </button>
-        <span style={{ fontFamily:FONT_B, fontSize:11, color:'#8a93ad' }}>
-          Kéo ảnh để đổi chỗ · kéo nút trắng bên phải để đổi độ rộng · thả gần mốc sẽ tự hít vào
-        </span>
-      </div>
-    </div>
-  );
-}
+/* v23: bỏ ảnh refill + kéo thả — hero 1 ảnh.
+   ĐÃ XOÁ: HERO_DEFAULT, SNAP, component HeroLayout (~100 dòng).
+   Storefront không còn đọc heroLayout/heroRefillImage ở đâu cả.
+   Muốn dựng lại kéo-thả thì phải viết phần hiển thị trong app/page.js
+   TRƯỚC, đừng chỉ thêm ô vào admin — đó là cách code chết sinh ra. */
 
 function HBox({ title, children }) {
   return (
@@ -1863,17 +1765,11 @@ function HBox({ title, children }) {
           <Field label="Dòng chữ nhỏ dưới nút" value={h.heroMicro||''} onChange={v=>set('heroMicro',v)} span="full" />
           <Field label="Tên sản phẩm trong hero (mô tả ảnh)" value={h.heroSkuName||''} onChange={v=>set('heroSkuName',v)} span="full" />
 
-          <HBox title="🧴 Ảnh hero (ảnh RIÊNG, không dùng ảnh sản phẩm)">
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12 }}>
-              <ImgUp current={h.heroImage||''} onUpload={v=>set('heroImage',v)} label="Chai chính (trái)"
-                     aspect="130%" folder="home" entityId="hero-main" hint="PNG nền trong suốt" />
-              <ImgUp current={h.heroRefillImage||''} onUpload={v=>set('heroRefillImage',v)} label="Lõi refill (phải)"
-                     aspect="130%" folder="home" entityId="hero-refill" hint="PNG nền trong suốt" />
-            </div>          </HBox>
-
-          <HBox title="✋ Bố cục hero — kéo thả">
-            <HeroLayout value={h.heroLayout} onChange={v=>set('heroLayout',v)}
-                        imgMain={h.heroImage||''} imgRefill={h.heroRefillImage||''} />
+          {/* v23: bỏ ảnh refill + kéo thả — hero 1 ảnh. */}
+          <HBox title="🧴 Ảnh sản phẩm ở đầu trang (ảnh RIÊNG, không dùng ảnh sản phẩm)">
+            <ImgUp current={h.heroImage||''} onUpload={v=>set('heroImage',v)} label="Ảnh sản phẩm"
+                   aspect="130%" folder="home" entityId="hero-main"
+                   hint="Một ảnh ghép sẵn cả bộ. PNG nền trong suốt, cắt sát, chân chai chạm mép dưới. Không khoá tỉ lệ." />
           </HBox>
 
           <HBox title="🖼 Ảnh nền hero">
