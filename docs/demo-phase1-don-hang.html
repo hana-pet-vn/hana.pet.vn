@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DEMO Phase 1 — Đơn hàng · Hanapet Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#1b295b; --navy-deep:#0d142e; --navy-soft:#eef1fa;
+  --ink:#1c2440; --muted:#5f6c8f; --line:#dbe2f1;
+  --bg:#f4f6fb; --card:#fff;
+  --ok:#16a34a; --ok-bg:#f0fdf4; --warn:#d97706; --warn-bg:#fffbeb;
+  --bad:#dc2626; --bad-bg:#fef2f2; --info:#2563eb; --info-bg:#eff6ff;
+  --ship:#0891b2; --ship-bg:#ecfeff; --pack:#7c3aed; --pack-bg:#f5f3ff;
+  --ft:'Baloo 2','Be Vietnam Pro',sans-serif; --fb:'Be Vietnam Pro',sans-serif;
+  --r:12px; --shadow:0 1px 3px rgba(13,20,46,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--fb);background:var(--bg);color:var(--ink);font-size:13px}
+button{font-family:inherit;cursor:pointer} input,select,textarea{font-family:inherit}
+.demo-band{background:#ffd166;color:#5b4400;text-align:center;font-size:12px;font-weight:600;padding:6px}
+.wrap{max-width:1080px;margin:0 auto;padding:18px 16px 80px}
+.crumb{font-family:var(--ft);font-weight:800;font-size:19px;color:var(--navy-deep)}
+.sub{font-size:12px;color:var(--muted);margin:2px 0 14px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.guide{background:var(--navy-soft);border:1px dashed var(--line);border-radius:var(--r);padding:11px 14px;margin-bottom:14px}
+.guide-h{display:flex;align-items:center;gap:8px;font-family:var(--ft);font-weight:700;font-size:13px;color:var(--navy-deep)}
+.gsteps{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.gstep{display:flex;align-items:flex-start;gap:7px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 11px;font-size:11.5px;line-height:1.45;max-width:230px}
+.gstep.act{cursor:pointer}.gstep.act:hover{border-color:var(--navy);box-shadow:0 3px 10px rgba(27,41,91,.1)}
+.gstep .n{width:18px;height:18px;border-radius:50%;background:var(--navy);color:#fff;font-family:var(--ft);font-weight:800;font-size:10px;display:grid;place-items:center;flex-shrink:0;margin-top:1px}
+.gstep .n.auto{background:var(--ok)}
+.gstep b{color:var(--navy-deep)} .gstep .go{font-size:10px;color:var(--info);font-family:var(--ft);font-weight:700}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;padding:0 8px}
+.stab{padding:11px 13px;font-size:12.5px;background:none;border:none;border-bottom:2.5px solid transparent;color:var(--muted);white-space:nowrap;display:flex;gap:6px;align-items:center}
+.stab:hover{color:var(--navy)} .stab.on{color:var(--navy);border-bottom-color:var(--navy);font-weight:700}
+.cnt{font-size:10.5px;padding:1px 7px;border-radius:20px;font-weight:700;background:var(--navy-soft);color:var(--muted)}
+.cnt.hot{background:var(--bad);color:#fff}
+.toolbar{display:flex;gap:10px;padding:12px 14px;flex-wrap:wrap;align-items:center}
+.inp{padding:8px 12px;font-size:12.5px;border-radius:9px;border:1.5px solid var(--line);outline:none}
+.inp:focus{border-color:var(--navy)}
+.btn{padding:8px 14px;border-radius:9px;font-size:12.5px;font-weight:600;border:none}
+.btn-navy{background:var(--navy);color:#fff}.btn-navy:hover{background:#233573}
+.btn-line{background:#fff;color:var(--navy);border:1.5px solid var(--line)}.btn-line:hover{border-color:var(--navy)}
+.btn-ok{background:var(--ok);color:#fff}
+.btn-bad{background:var(--bad);color:#fff}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;padding:9px 12px;font-size:11px;color:var(--muted);font-weight:700;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid #edf0f8;vertical-align:middle}
+tr.row:hover{background:#fafbfe;cursor:pointer}
+.oid{font-family:var(--ft);font-weight:700;color:var(--navy-deep)}
+.small{font-size:11px;color:var(--muted)}
+.badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap}
+.bs-ok{color:var(--ok);font-size:10.5px;font-weight:600}
+.bs-no{color:var(--warn);font-size:10.5px;font-weight:600}
+.src{font-size:10px;font-weight:700;border-radius:6px;padding:2px 6px;background:var(--navy-soft);color:var(--muted)}
+.bulk{position:sticky;bottom:12px;background:var(--navy-deep);color:#fff;border-radius:var(--r);padding:11px 16px;display:flex;align-items:center;gap:12px;margin-top:14px;box-shadow:0 -4px 20px rgba(13,20,46,.25)}
+.bulk b{font-family:var(--ft)}
+.modal-bg{position:fixed;inset:0;background:rgba(13,20,46,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal{background:#fff;border-radius:16px;padding:20px 22px;width:100%;max-width:560px;max-height:88vh;overflow-y:auto}
+.modal h3{font-family:var(--ft);font-size:16px;color:var(--navy-deep);margin-bottom:8px}
+.modal .body{font-size:12.5px;line-height:1.6;margin-bottom:16px}
+.modal .foot{display:flex;gap:10px;justify-content:flex-end}
+.blk{border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden}
+.blk-h{padding:9px 12px;font-size:12px;font-weight:700;display:flex;gap:8px;align-items:center}
+.blk-b{padding:8px 12px;font-size:11.5px;line-height:1.7;border-top:1px solid #edf0f8}
+.toast-area{position:fixed;right:16px;bottom:16px;z-index:200;display:flex;flex-direction:column;gap:8px;max-width:340px}
+.toast{border-radius:12px;padding:10px 14px;font-size:12.5px;box-shadow:var(--shadow);border:1.5px solid;line-height:1.5}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(480px,100%);background:#fff;z-index:90;box-shadow:-8px 0 40px rgba(13,20,46,.2);overflow-y:auto;padding:20px}
+.pipe{display:flex;align-items:flex-start;overflow-x:auto;padding:6px 2px 14px}
+.pstep{display:flex;align-items:center;flex-shrink:0}
+.pball{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;background:#d7ddec;margin:0 auto 5px}
+.pstep.done .pball{background:var(--ok)}.pstep.now .pball{background:var(--navy)}
+.plab{font-family:var(--ft);font-size:10px;font-weight:700;color:var(--muted);max-width:70px;text-align:center;line-height:1.25}
+.pstep.done .plab{color:var(--ok)}.pstep.now .plab{color:var(--navy)}
+.pcon{width:28px;height:2.5px;background:#d7ddec;margin:13px 3px 0;flex-shrink:0}.pcon.done{background:var(--ok)}
+.kv{font-size:12.5px;line-height:2}.kv .k{color:var(--muted);display:inline-block;min-width:92px}.kv b{color:var(--navy-deep)}
+.note-box{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12.5px;min-height:60px;resize:vertical;outline:none}
+.note-box:focus{border-color:var(--navy)}
+.field{margin-bottom:12px}.field label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px;font-weight:600}
+.field .inp{width:100%}
+.warn-strip{background:var(--warn-bg);border:1px solid #f5d99a;color:#8a5a00;border-radius:9px;padding:8px 12px;font-size:11.5px;margin-bottom:10px;line-height:1.55}
+</style>
+</head>
+<body>
+<div class="demo-band">🧪 DEMO Phase 1 — dữ liệu GIẢ, bấm thoải mái không hỏng gì. Duyệt xong mới code thật.</div>
+<div class="wrap">
+  <div class="crumb">📋 Đơn hàng</div>
+  <div class="sub">Đơn từ web + FB/Zalo · in ấn &amp; vận đơn nằm bên BigSeller</div>
+
+  <style>
+    .qt{border-radius:12px;overflow:hidden;border:1px solid #efeae7;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:14px}
+    .qt-head{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;user-select:none;background:linear-gradient(90deg,#f2805f,#f7a488);color:#fff}
+    .qt-head h2{font-size:14px;font-weight:700;margin:0;flex:1;font-family:var(--ft)}
+    .qt-chev{transition:transform .25s;font-size:12px}
+    .qt.collapsed .qt-chev{transform:rotate(-90deg)}
+    .qt-sw{position:relative;width:36px;height:20px;border-radius:20px;background:rgba(255,255,255,.35);flex:0 0 auto;transition:.2s}
+    .qt-sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+    .qt-sw.on{background:rgba(255,255,255,.9)}.qt-sw.on::after{transform:translateX(16px);background:#f2805f}
+    .qt-body{overflow:hidden;transition:max-height .3s,opacity .2s;max-height:1400px;opacity:1}
+    .qt.collapsed .qt-body,.qt.off .qt-body{max-height:0;opacity:0}
+    .qt-in{padding:4px 14px 12px}
+    .qt-sched{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 2px;font-size:11.5px}
+    .qt-sched span{background:#fdf5f2;border:1px solid #f3d8cd;border-radius:7px;padding:5px 10px}
+    .qt-sched b{color:#cf6248}
+    .qt-sec{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;color:#8d8681;text-transform:uppercase;letter-spacing:.6px;margin:12px 0 7px}
+    .qt-sec::before{content:"";width:3px;height:12px;background:#f2805f;border-radius:2px}
+    .qt-step{display:flex;gap:10px;padding:9px 10px;border:1px solid #efeae7;border-radius:9px;margin-bottom:7px;background:#fff;transition:.15s}
+    .qt-step:hover{border-color:#ffd0c4;background:#fffaf8}
+    .qt-step.done{background:#f4fbfa;border-color:#cdeef0}
+    .qt-step.done .qt-t{color:#8d8681;text-decoration:line-through}
+    .qt-num{flex:0 0 22px;height:22px;border-radius:50%;background:#f2805f;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11.5px}
+    .qt-step.done .qt-num{background:#57b3a5}
+    .qt-t{font-size:12.5px;font-weight:600;margin:1px 0 3px;line-height:1.35}
+    .qt-t .go{font-size:10px;color:var(--info);font-family:var(--ft);font-weight:700}
+    .qt-d{font-size:11.5px;color:#8d8681;line-height:1.5;margin:0}
+    .qt-path{display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:#fbf8f6;border:1px dashed #f0d4c9;border-radius:8px;padding:7px 9px;margin-top:6px}
+    .qt-plbl{font-size:10.5px;font-weight:700;color:#cf6248;margin-top:6px}
+    .qt-chip{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1.5px solid #f2b7a4;border-radius:7px;padding:4px 9px 4px 5px;font-size:11.5px;font-weight:700;color:#cf6248;white-space:nowrap;box-shadow:0 2px 0 #fbe6de}
+    .qt-chip i{width:15px;height:15px;border-radius:50%;background:#f2805f;color:#fff;font-size:9.5px;font-weight:800;display:flex;align-items:center;justify-content:center;font-style:normal}
+    .qt-arw{color:#f2805f;font-weight:800;font-size:13px}
+    .qt-note{font-size:11px;color:#cf6248;background:#fdf5f2;border:1px solid #f3d8cd;border-radius:7px;padding:5px 9px;margin-top:6px;line-height:1.5;font-weight:600}
+    .qt-tick{flex:0 0 auto;align-self:flex-start;margin-top:2px;width:20px;height:20px;border-radius:6px;border:2px solid #d9d9d9;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;background:#fff;transition:.15s}
+    .qt-step.done .qt-tick{background:#57b3a5;border-color:#57b3a5}
+    .qt-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;padding-top:9px;border-top:1px dashed #efeae7;font-size:11.5px;color:#8d8681}
+    .qt-foot b{color:#f2805f}
+    .qt-reset{background:none;border:1px solid #efeae7;border-radius:6px;padding:4px 10px;font-size:11px;color:#8d8681;font-weight:600}
+    .qt-reset:hover{border-color:#f2805f;color:#f2805f}
+  </style>
+
+  <div class="qt" id="qtPanel">
+    <div class="qt-head" onclick="qtCollapse()">
+      <span>📋</span><h2>Quy trình xử lý đơn</h2>
+      <span style="font-size:11px;opacity:.9;display:none" id="qtOff">Đã ẩn — việc mỗi ngày, bật lại khi cần xem</span>
+      <span class="qt-sw on" id="qtSw" onclick="event.stopPropagation();qtToggle()"></span>
+      <span class="qt-chev" id="qtChev">▼</span>
+    </div>
+    <div class="qt-body">
+      <div class="qt-in">
+        <div class="qt-sched">
+          <span>🕦 Ca sáng: <b>11:30</b></span>
+          <span>🕟 Ca chiều: <b>16:30</b></span>
+          <span>🔁 Đối soát: <b>cuối ca chiều mỗi ngày</b></span>
+        </div>
+
+        <div class="qt-sec">A · Đẩy đơn lên BigSeller (2 ca/ngày)</div>
+        <div class="qt-step" data-key="a1">
+          <div class="qt-num">1</div>
+          <div style="flex:1;min-width:0;cursor:pointer" onclick="setTab('Confirmed')">
+            <div class="qt-t">Xuất đơn từ web <span class="go">→ tới ngay</span></div>
+            <p class="qt-d">File đã đúng định dạng BigSeller — <b>không cần tải mẫu</b>.</p>
+          </div>
+          <div class="qt-tick" onclick="qtStep(this)">✓</div>
+        </div>
+        <div class="qt-step" data-key="a2">
+          <div class="qt-num">2</div>
+          <div style="flex:1;min-width:0">
+            <div class="qt-t">Up file lên BigSeller</div>
+            <div class="qt-plbl">👆 Trên BigSeller, bấm lần lượt:</div>
+            <div class="qt-path">
+              <span class="qt-chip"><i>1</i>Xử lý đơn hàng</span><span class="qt-arw">→</span>
+              <span class="qt-chip"><i>2</i>Nhập đơn hàng thủ công</span><span class="qt-arw">→</span>
+              <span class="qt-chip"><i>3</i>Up file lên</span>
+            </div>
+          </div>
+          <div class="qt-tick" onclick="qtStep(this)">✓</div>
+        </div>
+
+        <div class="qt-sec">B · Tải file đối soát từ BigSeller</div>
+        <div class="qt-step" data-key="b1">
+          <div class="qt-num">3</div>
+          <div style="flex:1;min-width:0">
+            <div class="qt-t">Xuất lịch sử đơn 7 ngày gần nhất</div>
+            <div class="qt-plbl">👆 Trên BigSeller, bấm lần lượt:</div>
+            <div class="qt-path">
+              <span class="qt-chip"><i>1</i>Xử lý đơn hàng</span><span class="qt-arw">→</span>
+              <span class="qt-chip"><i>2</i>Lịch sử đơn 90 ngày</span><span class="qt-arw">→</span>
+              <span class="qt-chip"><i>3</i>Khung 7 ngày gần nhất</span><span class="qt-arw">→</span>
+              <span class="qt-chip"><i>4</i>Xuất đơn</span>
+            </div>
+            <div class="qt-note">⚠️ Nhớ xuất <b>TẤT CẢ các trang</b> — đừng chỉ xuất trang 1.</div>
+          </div>
+          <div class="qt-tick" onclick="qtStep(this)">✓</div>
+        </div>
+
+        <div class="qt-sec">C · Up đối soát lên web</div>
+        <div class="qt-step" data-key="c1">
+          <div class="qt-num">4</div>
+          <div style="flex:1;min-width:0;cursor:pointer" onclick="openReconcile()">
+            <div class="qt-t">Up file BigSeller lên web <span class="go">→ mở đối soát</span></div>
+            <p class="qt-d">Web <b>tự đối soát</b>, xem trước rồi mới áp. Báo lệch đơn → chụp màn hình gửi quản lý.</p>
+          </div>
+          <div class="qt-tick" onclick="qtStep(this)">✓</div>
+        </div>
+
+        <div class="qt-foot">
+          <span id="qtProg"><b>0</b>/4 bước xong hôm nay</span>
+          <button class="qt-reset" onclick="qtReset()">↺ Đặt lại checklist</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="tabs" id="tabs"></div>
+    <div class="toolbar">
+      <input class="inp" id="q" placeholder="Tìm mã đơn / tên khách / SĐT…" style="flex:1;min-width:200px" oninput="render()">
+      <select class="inp" id="range" onchange="render()">
+        <option value="30">30 ngày</option><option value="7">7 ngày</option><option value="1">Hôm nay</option>
+      </select>
+      <select class="inp" id="src" onchange="render()">
+        <option value="">Mọi nguồn</option><option value="web">Web</option><option value="fb">Facebook</option><option value="zalo">Zalo</option>
+      </select>
+      <button class="btn btn-navy" onclick="openManual()">+ Tạo đơn (FB/Zalo)</button>
+    </div>
+    <div id="list"></div>
+  </div>
+
+  <div id="bulkbar"></div>
+</div>
+
+<div class="toast-area" id="toasts"></div>
+<div id="overlay"></div>
+
+<script>
+const ST = {
+  Pending:{l:'Chờ xác nhận',c:'var(--warn)',b:'var(--warn-bg)'},
+  Confirmed:{l:'Đã xác nhận',c:'var(--info)',b:'var(--info-bg)'},
+  Packing:{l:'Đang đóng gói',c:'var(--pack)',b:'var(--pack-bg)'},
+  Shipped:{l:'Đang giao',c:'var(--ship)',b:'var(--ship-bg)'},
+  Delivered:{l:'Đã giao',c:'var(--ok)',b:'var(--ok-bg)'},
+  Returning:{l:'Hoàn hàng — chờ kiểm',c:'var(--bad)',b:'var(--bad-bg)'},
+  Cancelled:{l:'Đã huỷ',c:'var(--bad)',b:'var(--bad-bg)'},
+};
+const PIPE=['Pending','Confirmed','Packing','Shipped','Delivered'];
+let orders=[
+ {id:'HP-1042',name:'Ngọc Anh',phone:'0912384756',addr:'12 Kim Mã, Ba Đình, HN',items:'Misty Fresh ×1, WBS Lavender ×2',total:355000,st:'Pending',src:'web',time:'09:41 hôm nay',bs:null,note:''},
+ {id:'HP-1041',name:'Trần Văn Hùng',phone:'0987654321',addr:'88 Lê Lợi, Q1, TP.HCM',items:'Combo Sạch Thơm ×1',total:289000,st:'Pending',src:'fb',time:'08:15 hôm nay',bs:null,note:'Khách hẹn gọi lại sau 12h'},
+ {id:'HP-1040',name:'Lê Thảo',phone:'0901222333',addr:'5 Trần Phú, Đà Nẵng',items:'WBS Cotton Candy ×1',total:129000,st:'Pending',src:'zalo',time:'21:02 hôm qua',bs:null,note:''},
+ {id:'HP-1039',name:'Phạm Minh',phone:'0933444555',addr:'Ngõ 41 Thái Hà, HN',items:'Misty Refill ×2',total:198000,st:'Confirmed',src:'web',time:'hôm qua',bs:null,note:''},
+ {id:'HP-1038',name:'Đỗ Quỳnh',phone:'0977888999',addr:'Vinhomes OC, Gia Lâm',items:'Combo Sen Đá ×1, WBS Quince ×1',total:418000,st:'Confirmed',src:'web',time:'hôm qua',bs:'31/07 08:30',note:''},
+ {id:'HP-1037',name:'Vũ Hải',phone:'0944555666',addr:'Cầu Giấy, HN',items:'Misty Fresh ×2',total:258000,st:'Packing',src:'web',time:'29/07',bs:'30/07 08:12',note:''},
+ {id:'HP-1036',name:'Bùi Lan',phone:'0966777888',addr:'TP. Thủ Đức',items:'WBS Peach Yogurt ×3',total:387000,st:'Shipped',src:'fb',time:'28/07',bs:'29/07 08:40',note:''},
+ {id:'HP-1035',name:'Hoàng Nam',phone:'0911223344',addr:'Hải Phòng',items:'Combo Sạch Thơm ×2',total:578000,st:'Delivered',src:'web',time:'25/07',bs:'26/07 08:05',note:''},
+ {id:'HP-1033',name:'Mai Chi',phone:'0955667788',addr:'Long Biên, HN',items:'WBS Baby Powder ×1',total:129000,st:'Cancelled',src:'zalo',time:'24/07',bs:'25/07 08:22',note:'Huỷ: khách bom, gọi 3 lần không nghe'},
+];
+let tab='Pending', sel=new Set();
+
+const $=id=>document.getElementById(id);
+const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'');
+const money=n=>n.toLocaleString('vi-VN')+'₫';
+
+function toast(msg,type='ok'){
+  const c={ok:['var(--ok-bg)','var(--ok)'],err:['var(--bad-bg)','var(--bad)'],warn:['var(--warn-bg)','var(--warn)'],info:['var(--info-bg)','var(--info)']}[type];
+  const el=document.createElement('div');el.className='toast';
+  el.style.background=c[0];el.style.borderColor=c[1];el.style.color=c[1];el.textContent=msg;
+  $('toasts').appendChild(el);setTimeout(()=>el.remove(),3800);
+}
+function modal(html){$('overlay').innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`}
+function closeModal(){$('overlay').innerHTML=''}
+
+function setTab(t){tab=t;sel.clear();render()}
+function qtCollapse(){const p=$('qtPanel');if(p.classList.contains('off'))return;p.classList.toggle('collapsed')}
+function qtToggle(){const p=$('qtPanel'),sw=$('qtSw');const off=!p.classList.contains('off');p.classList.toggle('off',off);sw.classList.toggle('on',!off);$('qtOff').style.display=off?'inline':'none'}
+function qtStep(el){el.closest('.qt-step').classList.toggle('done');qtProg()}
+function qtProg(){const n=document.querySelectorAll('.qt-step.done').length;$('qtProg').innerHTML=`<b>${n}</b>/4 bước xong hôm nay`+(n===4?' 🎉':'')}
+function qtReset(){document.querySelectorAll('.qt-step').forEach(s=>s.classList.remove('done'));qtProg();toast('Đã đặt lại checklist quy trình','info')}
+
+function counts(){const c={All:orders.length};for(const k in ST)c[k]=orders.filter(o=>o.st===k).length;return c}
+
+function filtered(){
+  const q=norm($('q').value),src=$('src').value;
+  return orders.filter(o=>{
+    if(tab!=='All'&&o.st!==tab)return false;
+    if(src&&o.src!==src)return false;
+    if(q&&!(norm(o.id).includes(q)||norm(o.name).includes(q)||norm(o.phone).includes(q)))return false;
+    return true;
+  });
+}
+
+function render(){
+  const c=counts();
+  $('tabs').innerHTML=[['All','Tất cả'],...Object.entries(ST).map(([k,v])=>[k,v.l])].map(([k,l])=>
+    `<button class="stab ${tab===k?'on':''}" onclick="setTab('${k}')">${l}
+     <span class="cnt ${k==='Pending'&&c[k]>0?'hot':''}">${c[k]??0}</span></button>`).join('');
+  const rows=filtered();
+  $('list').innerHTML=rows.length?`<table><thead><tr>
+    <th style="width:30px"></th><th>Đơn</th><th>Món hàng</th><th>Tổng</th><th>Trạng thái</th><th style="width:200px">Thao tác</th>
+  </tr></thead><tbody>${rows.map(o=>`
+    <tr class="row" onclick="openDetail('${o.id}')">
+      <td onclick="event.stopPropagation()">${o.st==='Pending'?`<input type="checkbox" ${sel.has(o.id)?'checked':''} onchange="tick('${o.id}',this.checked)">`:''}</td>
+      <td><span class="oid">${o.id}</span> <span class="src">${o.src.toUpperCase()}</span><br>
+          <span class="small">${o.name} · ${o.time}</span></td>
+      <td>${o.items}<br>${o.st==='Confirmed'?(o.bs?`<span class="bs-ok">✓ Đã xuất BS ${o.bs}</span>`:`<span class="bs-no">⚠ Chưa xuất BS</span>`):''}</td>
+      <td><b>${money(o.total)}</b></td>
+      <td><span class="badge" style="color:${ST[o.st].c};background:${ST[o.st].b}">${ST[o.st].l}</span></td>
+      <td onclick="event.stopPropagation()">${actions(o)}</td>
+    </tr>`).join('')}</tbody></table>`
+  :`<div style="padding:36px;text-align:center;color:var(--muted)">Không có đơn nào khớp</div>`;
+  $('bulkbar').innerHTML=sel.size?`<div class="bulk"><b>${sel.size} đơn được chọn</b>
+    <button class="btn btn-ok" onclick="bulkConfirm()">✓ Xác nhận ${sel.size} đơn</button>
+    <button class="btn btn-line" style="margin-left:auto" onclick="sel.clear();render()">Bỏ chọn</button></div>`:'';
+}
+function actions(o){
+  if(o.st==='Pending')return`<button class="btn btn-ok" onclick="confirmOne('${o.id}')">✓ Xác nhận</button>
+    <button class="btn btn-line" onclick="cancelOrder('${o.id}')">Huỷ</button>`;
+  if(o.st==='Confirmed')return`<button class="btn btn-navy" onclick="exportBS(['${o.id}'])">📤 Xuất BS</button>
+    <button class="btn btn-line" onclick="cancelOrder('${o.id}')">Huỷ</button>`;
+  return`<button class="btn btn-line" onclick="openDetail('${o.id}')">Chi tiết</button>`;
+}
+function tick(id,on){on?sel.add(id):sel.delete(id);render()}
+
+function confirmOne(id){
+  const o=orders.find(x=>x.id===id);o.st='Confirmed';render();
+  toast(`✓ ${id} — đã xác nhận, sẵn sàng xuất BigSeller`);
+}
+function bulkConfirm(){
+  const n=sel.size;sel.forEach(id=>{orders.find(x=>x.id===id).st='Confirmed'});sel.clear();render();
+  toast(`✓ Đã xác nhận ${n} đơn`);
+}
+
+function exportBS(ids){
+  const list=orders.filter(o=>ids.includes(o.id));
+  const dup=list.filter(o=>o.bs);
+  modal(`<h3>📤 Xuất BigSeller — ${list.length} đơn</h3>
+  <div class="body">
+    ${dup.length?`<div class="warn-strip">⚠ <b>${dup.length} đơn đã xuất trước đó</b> (${dup.map(o=>o.id).join(', ')}). Nhập lại bên BS sẽ tạo <b>đơn đôi</b> — kiểm bên BS trước khi nhập.</div>`:''}
+    <div class="warn-strip" style="background:var(--info-bg);border-color:#bcd7f7;color:#1d4e94">ℹ Combo Sạch Thơm sẽ tự <b>bung thành từng món lẻ</b>, giá chia đúng tỉ lệ, khớp tổng từng đồng.</div>
+    File CSV đúng 39 cột theo template BigSeller. Sau khi tải, các đơn được đánh dấu "✓ Đã xuất BS".
+  </div>
+  <div class="foot"><button class="btn btn-line" onclick="closeModal()">Thôi</button>
+  <button class="btn btn-navy" onclick="doExport(${JSON.stringify(ids).replace(/"/g,"&quot;")})">Tải file CSV</button></div>`);
+}
+function doExport(ids){
+  const now='31/07 '+new Date().toTimeString().slice(0,5);
+  ids.forEach(id=>{orders.find(o=>o.id===id).bs=now});
+  closeModal();render();toast(`📤 Đã tải file — ${ids.length} đơn đánh dấu Đã xuất BS`);
+}
+
+function openReconcile(){
+  modal(`<h3>🔄 Đối soát BigSeller — mỗi chiều một lần</h3>
+  <div class="body">
+    Kéo file <b>"Order-SKU-all"</b> xuất từ BS vào đây (chọn khoảng <b>7 ngày gần nhất</b> khi xuất — file cả kỳ 13.000+ dòng, chậm vô ích).<br><br>
+    <button class="btn btn-line" style="width:100%;padding:20px;border-style:dashed" onclick="previewReconcile()">📎 (Demo) Giả lập chọn file BS chiều nay</button>
+  </div>
+  <div class="foot"><button class="btn btn-line" onclick="closeModal()">Đóng</button></div>`);
+}
+function previewReconcile(){
+  modal(`<h3>🔎 Xem trước — gật đầu mới áp dụng</h3>
+  <div class="body">
+    <div class="blk"><div class="blk-h" style="color:var(--ok)">✅ Sẽ cập nhật (3)</div><div class="blk-b">
+      HP-1037 · Đang đóng gói → <b>Đang giao</b> (BS đã in vận đơn GHTK123456)<br>
+      HP-1036 · Đang giao → <b>Đã giao</b><br>
+      HP-1038 · Đã xác nhận → <b>Đang đóng gói</b>
+    </div></div>
+    <div class="blk"><div class="blk-h" style="color:var(--bad)">↩️ Hoàn hàng — chờ kiểm (1)</div><div class="blk-b">
+      HP-1035 · BS báo "Trả hàng &amp; Hoàn tiền" → chuyển <b>Hoàn hàng — chờ kiểm</b>.<br>
+      <b>KHÔNG tự hoàn kho</b> — nhận hàng kiểm xong mới bấm hoàn kho tay.
+    </div></div>
+    <div class="blk"><div class="blk-h" style="color:var(--warn)">⚠ Trạng thái lạ (1)</div><div class="blk-b">
+      "Đang đổi kho" — chưa có trong bảng map. Không đoán, giữ nguyên, báo để bổ sung.
+    </div></div>
+    <div class="blk"><div class="blk-h" style="color:var(--info)">🔎 Đã xuất BS nhưng KHÔNG có trong file (1)</div><div class="blk-b">
+      HP-1038 (xuất 31/07 08:30) — khả năng <b>quên nhập bên BS</b>. Kiểm lại bên BS nhé.
+    </div></div>
+    <div class="blk"><div class="blk-h" style="color:var(--muted)">Không đổi (12) — thu gọn</div></div>
+  </div>
+  <div class="foot"><button class="btn btn-line" onclick="closeModal()">Thôi</button>
+  <button class="btn btn-navy" onclick="applyReconcile()">Áp dụng 4 thay đổi</button></div>`);
+}
+function applyReconcile(){
+  orders.find(o=>o.id==='HP-1037').st='Shipped';
+  orders.find(o=>o.id==='HP-1036').st='Delivered';
+  orders.find(o=>o.id==='HP-1038').st='Packing';
+  orders.find(o=>o.id==='HP-1035').st='Returning';
+  closeModal();render();
+  toast('🔄 Đối soát xong: cập nhật 4 · không đổi 12 · cần kiểm 2','info');
+}
+
+function cancelOrder(id){
+  const o=orders.find(x=>x.id===id);
+  modal(`<h3 style="color:var(--bad)">Huỷ đơn ${id}?</h3>
+  <div class="body">
+    Kho sẽ được <b>cộng trả từng món</b> (đúng mùi, đúng combo). <b>Không hoàn tác được.</b>
+    ${o.bs?`<div class="warn-strip" style="margin-top:10px">⚠ Đơn này <b>đã xuất BigSeller</b> — nhớ huỷ cả bên BS, nếu không BS vẫn in đơn này!</div>`:''}
+    <div class="field" style="margin-top:12px"><label>Lý do huỷ (ghi tự do)</label>
+    <input class="inp" id="creason" placeholder="VD: khách bom, hết hàng, sai thông tin…"></div>
+  </div>
+  <div class="foot"><button class="btn btn-line" onclick="closeModal()">Thôi, quay lại</button>
+  <button class="btn btn-bad" onclick="doCancel('${id}')">Huỷ đơn</button></div>`);
+}
+function doCancel(id){
+  const o=orders.find(x=>x.id===id);
+  const r=$('creason').value.trim();
+  o.st='Cancelled';o.note=(r?'Huỷ: '+r:'Huỷ (không ghi lý do)');
+  closeModal();render();
+  toast(`✓ ${id} đã huỷ — kho đã cộng trả từng món`);
+  if(o.bs)toast(`⚠ ${id} đã xuất BS — nhớ huỷ cả bên BigSeller!`,'warn');
+}
+
+function openDetail(id){
+  const o=orders.find(x=>x.id===id);
+  const idx=PIPE.indexOf(o.st);
+  $('overlay').innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()">
+  <div class="drawer" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <span class="oid" style="font-size:17px">${o.id}</span><span class="src">${o.src.toUpperCase()}</span>
+      <span class="badge" style="color:${ST[o.st].c};background:${ST[o.st].b}">${ST[o.st].l}</span>
+      <button class="btn btn-line" style="margin-left:auto" onclick="closeModal()">✕</button>
+    </div>
+    ${['Cancelled','Returning'].includes(o.st)?'':`<div class="pipe">${PIPE.map((p,i)=>`
+      <div class="pstep ${i<idx?'done':i===idx?'now':''}"><div><div class="pball">${i<idx?'✓':i+1}</div><div class="plab">${ST[p].l}</div></div></div>
+      ${i<PIPE.length-1?`<div class="pcon ${i<idx?'done':''}"></div>`:''}`).join('')}</div>`}
+    <div class="kv">
+      <div><span class="k">Khách</span><b>${o.name}</b></div>
+      <div><span class="k">SĐT</span><b>${o.phone}</b> <button class="btn btn-line" style="padding:2px 8px;font-size:10.5px" onclick="toast('📋 Đã copy SĐT')">copy</button></div>
+      <div><span class="k">Địa chỉ</span>${o.addr} <button class="btn btn-line" style="padding:2px 8px;font-size:10.5px" onclick="toast('📋 Đã copy địa chỉ')">copy</button></div>
+      <div><span class="k">Món hàng</span>${o.items}</div>
+      <div><span class="k">Tổng (COD)</span><b>${money(o.total)}</b></div>
+      <div><span class="k">Xuất BS</span>${o.bs?'✓ '+o.bs:'— chưa xuất'}</div>
+    </div>
+    <div style="margin:14px 0 6px;font-weight:700;font-size:12px;color:var(--navy-deep)">📝 Ghi chú nội bộ (khách không thấy)</div>
+    <textarea class="note-box" id="nb">${o.note}</textarea>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-navy" onclick="orders.find(x=>x.id==='${o.id}').note=$('nb').value;toast('✓ Đã lưu ghi chú')">Lưu ghi chú</button>
+      <button class="btn btn-line" style="margin-left:auto" onclick="toast('Khách muốn ĐỔI đơn → huỷ đơn này rồi tạo đơn mới (đã chốt: không sửa đơn trực tiếp)','info')">… thao tác khác</button>
+    </div>
+  </div></div>`;
+}
+
+function openManual(){
+  modal(`<h3>+ Tạo đơn tay (khách chốt qua FB/Zalo)</h3>
+  <div class="body">
+    <div class="field"><label>Nguồn</label><select class="inp" id="msrc"><option value="fb">Facebook</option><option value="zalo">Zalo</option></select></div>
+    <div class="field"><label>Tên khách *</label><input class="inp" id="mname" placeholder="Nguyễn Văn A"></div>
+    <div class="field"><label>SĐT *</label><input class="inp" id="mphone" placeholder="09xx xxx xxx"></div>
+    <div class="field"><label>Địa chỉ</label><input class="inp" id="maddr" placeholder="Số nhà, phường, quận, tỉnh"></div>
+    <div class="field"><label>Món hàng</label><select class="inp" id="mitem">
+      <option>Misty Fresh ×1 — 129.000₫</option><option>WBS Lavender ×1 — 129.000₫</option>
+      <option>Combo Sạch Thơm ×1 — 289.000₫ (tồn: 8)</option></select></div>
+    <div class="warn-strip" style="background:var(--info-bg);border-color:#bcd7f7;color:#1d4e94">
+      ℹ Sau này (Phase 5): bấm nút này sẽ hiện hội thoại Messenger → chọn khách → AI tự điền form → mình chỉ soát rồi bấm tạo.</div>
+  </div>
+  <div class="foot"><button class="btn btn-line" onclick="closeModal()">Thôi</button>
+  <button class="btn btn-navy" onclick="doManual()">Tạo đơn</button></div>`);
+}
+function doManual(){
+  const name=$('mname').value.trim(),phone=$('mphone').value.trim();
+  if(!name||!phone){toast('Thiếu tên hoặc SĐT khách','err');return}
+  const id='HP-'+(1043+Math.floor(Math.random()*9));
+  orders.unshift({id,name,phone,addr:$('maddr').value,items:$('mitem').value.split(' — ')[0],
+    total:parseInt($('mitem').value.match(/([\d.]+)₫/)[1].replace(/\./g,'')),
+    st:'Pending',src:$('msrc').value,time:'vừa xong',bs:null,note:'Đơn tạo tay từ '+$('msrc').value.toUpperCase()});
+  tab='Pending';closeModal();render();
+  toast(`✓ ${id} đã tạo — nằm ở Chờ xác nhận, kho đã trừ`);
+}
+
+render();
+qtProg();
+</script>
+</body>
+</html>

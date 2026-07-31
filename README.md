@@ -16,7 +16,8 @@ Web bán hàng + admin của shop Hana Pet. Next.js + Supabase.
 Rework admin theo hồ sơ trong `docs/` — đọc `docs/HANDOFF.md` TRƯỚC.
 Admin mới dựng ở `/admin2`, chạy song song admin cũ, cutover khi xong.
 
-- ✅ Phase 0: SQL phân quyền (`supabase/`) + bộ khung `/admin2` — chờ chạy & nghiệm thu
+- ✅ Phase 0: HOÀN THÀNH & nghiệm thu 31/07 — xem `docs/TIEN-DO.md`
+- ✅ Phase 1: demo đã chốt (`docs/demo-phase1-don-hang.html`) — đang code thật
 - ⏳ Phase 1–4: theo spec trong `docs/`
 
 ## Chạy local
