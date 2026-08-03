@@ -39,11 +39,18 @@ export const T = {
 }
 
 // Map trạng thái đơn → nhãn tiếng Việt + màu (dùng ở StatusBadge, tab đơn hàng)
+// Key = giá trị THẬT trong cột orders.status (đủ 7 trạng thái + 1 mới của F5).
+// 'Shipped' là key cũ không còn dùng — giữ lại phòng dữ liệu lịch sử.
 export const ORDER_STATUS = {
-  Pending:   { label: 'Chờ xác nhận', color: T.warn, bg: T.warnBg },
-  Confirmed: { label: 'Đã xác nhận',  color: T.info, bg: T.infoBg },
-  Packing:   { label: 'Đang đóng gói', color: T.pack, bg: T.packBg },
-  Shipped:   { label: 'Đang giao',    color: T.ship, bg: T.shipBg },
-  Delivered: { label: 'Đã giao',      color: T.ok,   bg: T.okBg },
-  Cancelled: { label: 'Đã huỷ',       color: T.bad,  bg: T.badBg },
+  Pending:         { label: 'Chờ xác nhận',       color: T.warn, bg: T.warnBg },
+  Confirmed:       { label: 'Đã xác nhận',        color: T.info, bg: T.infoBg },
+  Packing:         { label: 'Đang đóng gói',      color: T.pack, bg: T.packBg },
+  'Handed to GHN': { label: 'Đã giao ĐVVC',       color: T.ship, bg: T.shipBg },
+  'In Transit':    { label: 'Đang vận chuyển',    color: T.ship, bg: T.shipBg },
+  Shipped:         { label: 'Đang giao',          color: T.ship, bg: T.shipBg },
+  Delivered:       { label: 'Đã giao',            color: T.ok,   bg: T.okBg },
+  Cancelled:       { label: 'Đã huỷ',             color: T.bad,  bg: T.badBg },
+  /* F5 — file BS báo "Trả hàng & Hoàn tiền": hàng chưa chắc về tay,
+     KHÔNG tự hoàn kho, nhân viên kiểm xong xử lý tay. */
+  'Return Check':  { label: 'Hoàn hàng — chờ kiểm', color: T.warn, bg: T.warnBg },
 }

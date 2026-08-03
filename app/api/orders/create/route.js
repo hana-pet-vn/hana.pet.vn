@@ -44,17 +44,39 @@ function getServiceClient() {
   )
 }
 
+/* v23 Phase 1 F9: nguồn đơn admin được phép khai (tạo tay từ FB/Zalo…).
+   Khách vãng lai KHÔNG BAO GIỜ đặt được source — phải có token owner/staff. */
+const ADMIN_SOURCES = ['facebook', 'zalo', 'phone', 'manual']
+
 export async function POST(request) {
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-  if (isRateLimited(ip)) {
-    return json({ error: 'Bạn thao tác hơi nhanh. Đợi vài phút rồi thử lại giúp shop nhé.' }, 429)
+  const supabase = getServiceClient()
+
+  // ── v23 F9: nhận diện request từ admin (nếu có Bearer token hợp lệ) ──────
+  // Nhân viên tạo đơn hộ khách qua form /admin2 — cần: (1) ghi đúng source,
+  // (2) không dính chặn spam theo IP (giờ cao điểm >6 đơn/10phút là thật).
+  let adminRole = ''
+  const authHeader = request.headers.get('authorization') || ''
+  if (authHeader.startsWith('Bearer ')) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser(authHeader.slice(7))
+      const role = user?.app_metadata?.role
+      if (['owner', 'staff'].includes(role)) adminRole = role
+    } catch {}
   }
 
-  const supabase = getServiceClient()
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  if (!adminRole && isRateLimited(ip)) {
+    return json({ error: 'Bạn thao tác hơi nhanh. Đợi vài phút rồi thử lại giúp shop nhé.' }, 429)
+  }
 
   try {
     const body = await request.json()
     const { items, customer, voucherCode, shippingProvider = 'GHN' } = body
+
+    // source chỉ được khai khi là admin; mọi trường hợp khác giữ 'website'
+    const orderSource = (adminRole && ADMIN_SOURCES.includes(String(body.source)))
+      ? String(body.source)
+      : 'website'
 
     // ── 1. Kiểm đầu vào ──────────────────────────────────────────────────────
     if (!items?.length)          return json({ error: 'Giỏ hàng đang trống' }, 400)
@@ -309,7 +331,7 @@ export async function POST(request) {
       shipping_fee:  shippingFee,
       tracking_code: '',
       est_delivery:  '',
-      source:        'website',
+      source:        orderSource,   // v23 F9: 'website' hoặc nguồn admin khai
       note:          String(body.note || '').slice(0, 500),
     }
 

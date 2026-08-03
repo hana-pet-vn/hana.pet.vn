@@ -12,6 +12,7 @@ import { supabase } from '../../lib/supabase'
 import { T } from './_lib/tokens'
 import { can } from './_lib/roles'
 import { ToastProvider } from './_components/Toast'
+import OrderBell from './_components/OrderBell'
 
 const AdminContext = createContext(null)
 export const useAdmin = () => useContext(AdminContext)
@@ -82,6 +83,7 @@ export default function Admin2Layout({ children }) {
               Hanapet <span style={{ fontWeight: 600, fontSize: 11, opacity: .65, letterSpacing: .4 }}>SELLER CENTER</span>
             </div>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <OrderBell />
               <span style={{ fontSize: 12, opacity: .8 }}>
                 {ctx.user.email} · {ctx.role === 'owner' ? 'Chủ shop' : 'Nhân viên'}
               </span>

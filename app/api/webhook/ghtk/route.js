@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import { WEB_STATUS_ORDER } from '../../../../lib/bigseller'
 
 function getServiceClient() {
   return createClient(
@@ -81,22 +82,63 @@ export async function POST(request) {
       return Response.json({ success: false, error: 'Missing label_id' }, { status: 400 })
     }
 
-    const internalStatus = STATUS_MAP[String(status_id)] || status_text || 'In Transit'
+    /* Phase 1 F8 — hai chỗ vá, giữ nguyên phần verify chữ ký ở trên:
+       1. Trạng thái lạ → KHÔNG đoán, không ghi status_text thô vào DB nữa.
+       2. Luật CHỈ-ĐẨY-TỚI như đối soát F5: webhook đến muộn/lặp không được
+          kéo đơn đi lùi. Ngoại lệ duy nhất: 'Cancelled' luôn thắng. */
+    const internalStatus = STATUS_MAP[String(status_id)]
+    if (!internalStatus) {
+      console.warn(`GHTK webhook: status_id lạ "${status_id}" (${status_text}) — bỏ qua, không đoán`)
+      return Response.json({ success: true, skipped: 'unknown status' })
+    }
 
     const supabase = getServiceClient()
+
+    // Tìm đơn trước để so trạng thái hiện tại (thay vì update mù)
+    const { data: found, error: findErr } = await supabase
+      .from('orders')
+      .select('id, status')
+      .eq('tracking_code', label_id)
+      .limit(1)
+
+    if (findErr) {
+      console.error('GHTK webhook DB find error:', findErr)
+      return Response.json({ success: false }, { status: 500 })
+    }
+    if (!found?.length) {
+      // Không có đơn nào mang mã vận đơn này (đơn kênh khác) — nhận rồi bỏ qua
+      return Response.json({ success: true, skipped: 'no matching order' })
+    }
+
+    const cur = found[0].status || 'Pending'
+    const allowed = (() => {
+      if (internalStatus === cur) return false
+      if (internalStatus === 'Cancelled') return cur !== 'Cancelled'   // Huỷ luôn thắng
+      if (cur === 'Cancelled' || cur === 'Return Check') return false  // không kéo đơn đã chốt sổ
+      const a = WEB_STATUS_ORDER.indexOf(cur)
+      const c = WEB_STATUS_ORDER.indexOf(internalStatus)
+      if (a >= 0 && c >= 0 && c <= a) return false                     // chỉ đẩy tới
+      return true
+    })()
+
+    if (!allowed) {
+      return Response.json({ success: true, skipped: `no-backward (${cur} → ${internalStatus})` })
+    }
+
     const { error } = await supabase
       .from('orders')
       .update({
         status:     internalStatus,
         updated_at: new Date().toISOString(),
       })
-      .eq('tracking_code', label_id)
+      .eq('id', found[0].id)
 
     if (error) {
       console.error('GHTK webhook DB update error:', error)
       return Response.json({ success: false }, { status: 500 })
     }
 
+    // Đơn đổi trạng thái → Supabase realtime tự bắn về trang Đơn hàng (F1)
     return Response.json({ success: true })
 
   } catch (err) {
