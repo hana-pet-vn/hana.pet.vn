@@ -11,7 +11,7 @@
 // - Gửi email xác nhận qua Resend (tuỳ chọn)
 // ─────────────────────────────────────────────────────────────────────────────
 import { createClient } from '@supabase/supabase-js'
-import { calcShippingFee } from '../../../../lib/shipping'
+import { computeShipFee, DEFAULT_FEE_CONFIG } from '../../../../lib/vn-address'
 
 // ── Chặn spam — tối đa 6 lần đặt đơn / IP / 10 phút ──
 // LƯU Ý: bộ nhớ này nằm trong từng tiến trình. Trên Vercel mỗi tiến trình một
@@ -284,18 +284,23 @@ export async function POST(request) {
 
     const discountAmount = Math.round(subtotal * discountPct / 100)
 
-    // ── 8. Tính phí ship từ GHN (server tự gọi, đây mới là số thật) ──────────
-    let shippingFee = 30000  // dự phòng khi GHN lỗi
+    // ── 8. Phí ship KHÔNG GHN (cắt 05/08/2026 — vận đơn thật bên BigSeller).
+    //        Đồng giá hoặc theo vùng (nội tỉnh/cùng miền/cận miền/xuyên miền),
+    //        cấu hình site_config 'shipping_flat_fee', chỉnh ở /admin2/settings.
+    //        Cùng một hàm computeShipFee với /api/shipping/fee → số khách
+    //        thấy lúc đặt và số ghi vào đơn không bao giờ lệch.
+    let shippingFee = DEFAULT_FEE_CONFIG.fee
     try {
-      const feeResult = await calcShippingFee({
-        toDistrictId: customer.districtId,
-        toWardCode:   customer.wardCode,
-        weight:       items.reduce((s, i) => s + (Number(i.qty) * 150), 0), // 150g/món
-        insuranceValue: subtotal,
-      })
-      shippingFee = feeResult.fee
+      const { data: sc } = await supabase
+        .from('site_config').select('value').eq('key', 'shipping_flat_fee').maybeSingle()
+      const cfg = (sc?.value && typeof sc.value === 'object') ? sc.value : null
+      shippingFee = computeShipFee(cfg, {
+        provinceId: customer.provinceId,
+        districtId: customer.districtId,
+        subtotal,
+      }).fee
     } catch (_) {
-      console.error('Tính phí ship lỗi, dùng phí dự phòng')
+      console.error('Đọc phí ship lỗi, dùng phí dự phòng')
     }
 
     // ── 9. Tổng cuối cùng ────────────────────────────────────────────────────

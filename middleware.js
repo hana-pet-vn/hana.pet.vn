@@ -1,33 +1,33 @@
-// middleware.js — Phase 0 + CUTOVER 05/08/2026
+// middleware.js — Phase 0 + CUTOVER HOÀN CHỈNH 05/08/2026
 // ─────────────────────────────────────────────────────────────────────
-// Giữ NGUYÊN cách verify token cũ (đã đúng). /admin2:
+// Admin MỚI giờ nằm thẳng ở /admin (đổi tên từ /admin2 theo yêu cầu
+// chủ shop). Giữ NGUYÊN cách verify token cũ (đã đúng):
 //   1. Không có vai owner/staff → đá về login kèm ?err=norole
 //   2. Staff vào đường link cần công tắc mà công tắc TẮT → đá về Tổng quan
-// CUTOVER: /admin (và link con cũ) chuyển thẳng sang /admin2 tương ứng.
-// Bản cũ dời về /admin-cu — chỉ dùng tạm cho Kho/Marketing/Trang trí
-// tới khi Phase 2–4 chuyển xong, hành vi auth giữ như /admin ngày trước.
+// /admin2 (link thời chạy song song) → tự chuyển về /admin tương ứng.
+// /admin-cu = bản cũ, cầu tạm cho Kho/Marketing/Trang trí tới Phase 2–4,
+// hành vi auth giữ như /admin ngày trước (chỉ cần token, không cần vai).
 // ─────────────────────────────────────────────────────────────────────
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 // Đường link → công tắc (trùng với GATED_ROUTES trong _lib/roles.js)
 const GATED = {
-  '/admin2/marketing': 'manage_vouchers',
-  '/admin2/store':     'edit_store',
+  '/admin/marketing': 'manage_vouchers',
+  '/admin/store':     'edit_store',
 }
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl
   if (!pathname.startsWith('/admin')) return NextResponse.next()
 
-  // ── CUTOVER: mọi đường /admin cũ → /admin2 tương ứng ──
-  if (!pathname.startsWith('/admin2') && !pathname.startsWith('/admin-cu')) {
-    const MAP = { '/admin': '/admin2', '/admin/orders': '/admin2/orders', '/admin/login': '/admin2/login' }
-    return NextResponse.redirect(new URL(MAP[pathname] || '/admin2', request.url))
+  // Link /admin2 cũ (ai lỡ lưu) → về /admin tương ứng
+  if (pathname.startsWith('/admin2')) {
+    return NextResponse.redirect(new URL(pathname.replace(/^\/admin2/, '/admin'), request.url))
   }
 
-  const isAdmin2   = pathname.startsWith('/admin2')
-  const loginPath  = isAdmin2 ? '/admin2/login' : '/admin-cu/login'
+  const isOld      = pathname.startsWith('/admin-cu')
+  const loginPath  = isOld ? '/admin-cu/login' : '/admin/login'
   const isLoginPage = pathname === loginPath
   const accessToken = request.cookies.get('sb-access-token')?.value
 
@@ -54,15 +54,15 @@ export async function middleware(request) {
       return res
     }
     if (user && isLoginPage) {
-      return NextResponse.redirect(new URL(isAdmin2 ? '/admin2' : '/admin-cu', request.url))
+      return NextResponse.redirect(new URL(isOld ? '/admin-cu' : '/admin', request.url))
     }
 
-    // ── Phần MỚI: chỉ áp cho /admin2 ──
-    if (user && isAdmin2 && !isLoginPage) {
+    // ── Phân vai + công tắc: chỉ áp cho admin MỚI ──
+    if (user && !isOld && !isLoginPage) {
       const role = user.app_metadata?.role ?? ''
 
       if (!['owner', 'staff'].includes(role)) {
-        const loginUrl = new URL('/admin2/login', request.url)
+        const loginUrl = new URL('/admin/login', request.url)
         loginUrl.searchParams.set('err', 'norole')
         const res = NextResponse.redirect(loginUrl)
         res.cookies.set('sb-access-token', '', { maxAge: 0, path: '/' })
@@ -85,7 +85,7 @@ export async function middleware(request) {
             .eq('key', gate[1])
             .maybeSingle()
           if (!data?.allowed) {
-            return NextResponse.redirect(new URL('/admin2', request.url))
+            return NextResponse.redirect(new URL('/admin', request.url))
           }
         }
       }
@@ -95,4 +95,4 @@ export async function middleware(request) {
   return NextResponse.next()
 }
 
-export const config = { matcher: ['/admin', '/admin/:path*', '/admin2/:path*', '/admin-cu/:path*'] }
+export const config = { matcher: ['/admin', '/admin/:path*', '/admin2', '/admin2/:path*', '/admin-cu/:path*'] }
