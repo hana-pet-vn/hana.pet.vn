@@ -1,15 +1,12 @@
 // app/api/shipping/wards/route.js
-// Returns wards for a given district ID from GHN master data
-import { getGHNWards } from '../../../../lib/shipping'
+// Phường/xã theo quận/huyện — danh bạ TĨNH (đã cắt GHN 05/08/2026).
+import { getWards } from '../../../../lib/vn-address'
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
   const districtId = searchParams.get('district_id')
   if (!districtId) return Response.json({ error: 'district_id required' }, { status: 400 })
-  try {
-    const data = await getGHNWards(Number(districtId))
-    return Response.json(data)
-  } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 })
-  }
+  return Response.json(getWards(districtId), {
+    headers: { 'Cache-Control': 'public, max-age=86400' },
+  })
 }

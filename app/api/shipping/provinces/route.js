@@ -1,22 +1,10 @@
 // app/api/shipping/provinces/route.js
-// Returns all provinces from GHN master data — cache-friendly (data rarely changes)
-import { getGHNProvinces } from '../../../../lib/shipping'
-
-let cachedProvinces = null
-let cacheTime = 0
-const CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
+// Danh sách tỉnh/thành từ danh bạ TĨNH trong repo (lib/vn-address) —
+// đã cắt GHN 05/08/2026, không cần GHN_TOKEN, không gọi mạng.
+import { getProvinces } from '../../../../lib/vn-address'
 
 export async function GET() {
-  try {
-    const now = Date.now()
-    if (!cachedProvinces || now - cacheTime > CACHE_TTL) {
-      cachedProvinces = await getGHNProvinces()
-      cacheTime = now
-    }
-    return Response.json(cachedProvinces, {
-      headers: { 'Cache-Control': 'public, max-age=86400' }
-    })
-  } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 })
-  }
+  return Response.json(getProvinces(), {
+    headers: { 'Cache-Control': 'public, max-age=86400' },
+  })
 }

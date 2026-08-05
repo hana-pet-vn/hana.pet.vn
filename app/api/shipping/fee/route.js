@@ -1,64 +1,49 @@
 // app/api/shipping/fee/route.js
-import { calcShippingFee } from '../../../../lib/shipping'
+// ─────────────────────────────────────────────────────────────────────
+// PHÍ SHIP KHÔNG CẦN GHN (cắt 05/08/2026) — vận đơn thật và cước thật
+// nằm bên BigSeller; web chỉ áng phí thu của khách lúc đặt hàng.
+// 2 chế độ (chỉnh ở /admin2/settings, lưu site_config 'shipping_flat_fee'):
+//   · Đồng giá toàn quốc
+//   · Theo vùng: nội tỉnh / cùng miền / cận miền / xuyên miền
+// Cách tính nằm ở lib/vn-address computeShipFee — DÙNG CHUNG với
+// /api/orders/create nên số hiện cho khách và số ghi vào đơn luôn khớp.
+// Trả về đúng dạng cũ { success, fee, note } — trang thanh toán không đổi.
+// ─────────────────────────────────────────────────────────────────────
+import { createClient } from '@supabase/supabase-js'
+import { computeShipFee, DEFAULT_FEE_CONFIG } from '../../../../lib/vn-address'
 
-const ipLog = new Map()
-const RATE_LIMIT = 10
-const WINDOW_MS  = 60_000
+// Đỡ tay cho DB: nhớ config 60 giây (mỗi lần khách đổi địa chỉ là 1 call)
+let cached = null
+let cachedAt = 0
 
-function isRateLimited(ip) {
-  const now  = Date.now()
-  const hits = (ipLog.get(ip) || []).filter(t => now - t < WINDOW_MS)
-  hits.push(now)
-  ipLog.set(ip, hits)
-  return hits.length > RATE_LIMIT
+async function getFeeConfig() {
+  const now = Date.now()
+  if (cached && now - cachedAt < 60_000) return cached
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+    )
+    const { data } = await supabase
+      .from('site_config').select('value').eq('key', 'shipping_flat_fee').maybeSingle()
+    cached = (data?.value && typeof data.value === 'object') ? data.value : DEFAULT_FEE_CONFIG
+    cachedAt = now
+    return cached
+  } catch {
+    return DEFAULT_FEE_CONFIG
+  }
 }
 
-setInterval(() => {
-  const now = Date.now()
-  for (const [ip, hits] of ipLog.entries()) {
-    const fresh = hits.filter(t => now - t < WINDOW_MS)
-    if (fresh.length === 0) ipLog.delete(ip)
-    else ipLog.set(ip, fresh)
-  }
-}, 300_000)
-
 export async function POST(request) {
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-  if (isRateLimited(ip)) {
-    return Response.json(
-      { success: false, error: 'Too many requests. Please wait a moment.' },
-      { status: 429, headers: { 'Retry-After': '60' } }
-    )
-  }
-
+  let districtId = null, provinceId = null, subtotal = 0
   try {
     const body = await request.json()
+    districtId = body.toDistrictId || body.districtId || null
+    provinceId = body.provinceId || null
+    subtotal   = Number(body.value || body.insuranceValue) || 0
+  } catch {}
 
-    const params = {
-      toDistrictId:   body.toDistrictId   || body.districtId,
-      toWardCode:     body.toWardCode      || body.wardCode,
-      province:       body.province,
-      district:       body.district,
-      weight:         body.weight          || 200,
-      insuranceValue: body.value           || body.insuranceValue || 0,
-    }
-
-    const result = await calcShippingFee(params)
-    return Response.json({ success: true, ...result })
-
-  } catch (err) {
-    // Log the REAL error — visible in Vercel function logs
-    console.error('[shipping/fee] GHN API error:', err.message, {
-      GHN_FROM_DISTRICT_ID: process.env.GHN_FROM_DISTRICT_ID || process.env.GHN_SHIPPING_DISTRICT_ID,
-      GHN_TOKEN_SET:        !!process.env.GHN_TOKEN,
-      GHN_SHOP_ID:          process.env.GHN_SHOP_ID,
-    })
-    return Response.json({
-      success:       false,
-      fee:           30000,
-      estimatedDays: 3,
-      provider:      'GHN',
-      note:          `Estimated fee (GHN error: ${err.message})`,
-    })
-  }
+  const cfg = await getFeeConfig()
+  const { fee, note } = computeShipFee(cfg, { provinceId, districtId, subtotal })
+  return Response.json({ success: true, fee, note })
 }

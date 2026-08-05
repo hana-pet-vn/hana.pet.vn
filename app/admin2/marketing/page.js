@@ -1,14 +1,7 @@
 'use client'
-// app/admin2/marketing/page.js — placeholder, làm ở Phase 3
-import { T } from '../_lib/tokens'
+// app/admin2/marketing/page.js — UI mới lên ở Phase 3; tạm bắc cầu bản cũ
+import OldAdminBridge from '../_components/OldAdminBridge'
 
 export default function Page() {
-  return (
-    <div>
-      <h1 style={{ fontFamily: T.fontTitle, fontSize: 19, color: T.navyDeep, marginBottom: 4 }}>
-        Kênh Marketing
-      </h1>
-      <p style={{ color: T.muted }}>Trang này sẽ được xây ở Phase 3.</p>
-    </div>
-  )
+  return <OldAdminBridge title="Kênh Marketing" phase="Phase 3" note="Voucher + danh mục tạm quản ở bản cũ." />
 }

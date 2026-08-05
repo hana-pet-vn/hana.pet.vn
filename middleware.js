@@ -1,9 +1,11 @@
-// middleware.js — BẢN MỚI cho Phase 0 (thay file middleware.js ở gốc dự án)
+// middleware.js — Phase 0 + CUTOVER 05/08/2026
 // ─────────────────────────────────────────────────────────────────────
-// Giữ NGUYÊN cách verify token cũ (đã đúng). Nối thêm cho /admin2:
+// Giữ NGUYÊN cách verify token cũ (đã đúng). /admin2:
 //   1. Không có vai owner/staff → đá về login kèm ?err=norole
 //   2. Staff vào đường link cần công tắc mà công tắc TẮT → đá về Tổng quan
-// /admin CŨ giữ nguyên hành vi cũ 100% — chạy song song tới khi cutover.
+// CUTOVER: /admin (và link con cũ) chuyển thẳng sang /admin2 tương ứng.
+// Bản cũ dời về /admin-cu — chỉ dùng tạm cho Kho/Marketing/Trang trí
+// tới khi Phase 2–4 chuyển xong, hành vi auth giữ như /admin ngày trước.
 // ─────────────────────────────────────────────────────────────────────
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
@@ -18,8 +20,14 @@ export async function middleware(request) {
   const { pathname } = request.nextUrl
   if (!pathname.startsWith('/admin')) return NextResponse.next()
 
+  // ── CUTOVER: mọi đường /admin cũ → /admin2 tương ứng ──
+  if (!pathname.startsWith('/admin2') && !pathname.startsWith('/admin-cu')) {
+    const MAP = { '/admin': '/admin2', '/admin/orders': '/admin2/orders', '/admin/login': '/admin2/login' }
+    return NextResponse.redirect(new URL(MAP[pathname] || '/admin2', request.url))
+  }
+
   const isAdmin2   = pathname.startsWith('/admin2')
-  const loginPath  = isAdmin2 ? '/admin2/login' : '/admin/login'
+  const loginPath  = isAdmin2 ? '/admin2/login' : '/admin-cu/login'
   const isLoginPage = pathname === loginPath
   const accessToken = request.cookies.get('sb-access-token')?.value
 
@@ -46,7 +54,7 @@ export async function middleware(request) {
       return res
     }
     if (user && isLoginPage) {
-      return NextResponse.redirect(new URL(isAdmin2 ? '/admin2' : '/admin', request.url))
+      return NextResponse.redirect(new URL(isAdmin2 ? '/admin2' : '/admin-cu', request.url))
     }
 
     // ── Phần MỚI: chỉ áp cho /admin2 ──
@@ -87,4 +95,4 @@ export async function middleware(request) {
   return NextResponse.next()
 }
 
-export const config = { matcher: ['/admin/:path*', '/admin2/:path*'] }
+export const config = { matcher: ['/admin', '/admin/:path*', '/admin2/:path*', '/admin-cu/:path*'] }
