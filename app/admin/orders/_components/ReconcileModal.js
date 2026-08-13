@@ -35,7 +35,18 @@ export default function ReconcileModal({ orders, onApplied, onClose }) {
     if (!file) return
     setBusy('read'); setPlan(null); setResult(null); setCountInput('')
     try {
-      const text = await file.text()
+      /* Phase 2: nhận cả .xlsx BigSeller xuất ra — khỏi bắt nhân viên
+         "Save as CSV" nữa. SheetJS nạp động: chỉ tải khi thật sự gặp
+         file Excel, không phình bundle trang đơn hàng. */
+      let text
+      if (/\.xlsx?$/i.test(file.name)) {
+        const XLSX = await import('xlsx')
+        const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' })
+        const ws = wb.Sheets[wb.SheetNames[0]] // file lịch sử đơn BS: 1 sheet dữ liệu
+        text = XLSX.utils.sheet_to_csv(ws)
+      } else {
+        text = await file.text()
+      }
       const p = planReconcile({ csvText: text, orders })
       if (p.error) toast.err(p.error)
       else setPlan(p)
@@ -104,12 +115,12 @@ export default function ReconcileModal({ orders, onApplied, onClose }) {
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 14, lineHeight: 1.6 }}>
           Nhịp MỖI CHIỀU một lần — đường cập nhật trạng thái CHÍNH. Bên BS:
           Xử lý đơn hàng → Lịch sử đơn → chọn <b>7 ngày gần nhất</b> → Xuất đơn
-          (nhớ xuất <b>TẤT CẢ các trang</b>) → mở bằng Excel → Lưu thành <b>.CSV</b> → thả vào đây.
+          (nhớ xuất <b>TẤT CẢ các trang</b>) → thả THẲNG file đó vào đây (.xlsx hay .csv đều được, khỏi lưu lại).
         </div>
 
         {!result && (
           <input
-            ref={fileRef} type="file" accept=".csv,text/csv"
+            ref={fileRef} type="file" accept=".csv,.xlsx,.xls,text/csv"
             onChange={e => readFile(e.target.files?.[0])}
             style={{ fontSize: 12, marginBottom: 10, fontFamily: T.fontBody }}
           />

@@ -44,21 +44,22 @@ export const GUIDES = {
       },
     ],
   },
+  /* Chốt 13/08 (veto chủ shop): KHÔNG đồng bộ tồn từ file BS.
+     Kho web = nhân viên TỰ ĐẶT SỐ và tự căn — như đang làm với sàn. */
   inventory: {
     title: '📖 Quy trình kho — dán tường',
     steps: [
       {
-        n: '1', head: 'Sửa số tồn → sửa Ở BIGSELLER',
-        desc: <>BS là <b>sổ cái duy nhất</b> (Shopee/TikTok trừ ở đó). Số trên web chỉ là bản sao.</>,
-      },
-      {
-        n: '2', head: '2–3 ngày/lần: Đồng bộ kho',
-        desc: <>Xuất file tồn từ BS → <b>🔁 Đồng bộ kho</b> → xem lệch → Áp dụng.</>,
-        action: 'goto-sync', lbl: 'Mở đồng bộ ›',
+        n: '1', head: 'Số tồn web: TỰ ĐẶT, đặt DÈ',
+        desc: <>Bấm vào số là sửa ngay. Món bán chạy bên Shopee/TikTok → để số web <b>thấp hơn kho thật</b>, hết thì chỉnh về 0. Y như cách vẫn căn kho trên sàn.</>,
       },
       {
         n: '✦', auto: true, head: 'Web tự treo "Hết hàng"',
-        desc: <>Khi tồn ≤ <b>ngưỡng ngừng bán</b>. Thấy web báo hết mà kho còn → chạy Đồng bộ, ĐỪNG tự cộng số.</>,
+        desc: <>Khi tồn ≤ <b>ngưỡng ngừng bán</b>. Món chạy mạnh trên sàn thì đặt ngưỡng 2–3 cho web đóng sớm, khỏi canh sát.</>,
+      },
+      {
+        n: '2', head: 'Huỷ đơn web = kho web tự cộng trả',
+        desc: <>Không phải cộng tay. Đơn <b>Hoàn hàng — chờ kiểm</b> thì kiểm xong mới bấm hoàn kho ở Chi tiết đơn.</>,
       },
       {
         n: '3', head: 'Ô SKU BigSeller trống = báo động',
