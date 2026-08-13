@@ -14,7 +14,8 @@
 ## 16 quyết định KHOÁ (không mở lại nếu không có lệnh chủ shop)
 1. Không đổi schema Supabase; cờ mới nằm trong JSON sẵn có hoặc site_config.
 2. `lib/bigseller.js` không viết lại — chỉ vá map khi có bằng chứng file thật.
-3. Xuất BigSeller: CSV 39 cột đúng template "Nhập đơn thủ công", chống xuất trùng.
+3. Xuất BigSeller: file EXCEL .xlsx 39 cột đúng template "Nhập đơn thủ công"
+   (13/08: BS không nhận CSV — đã chuyển từ CSV sang xlsx), chống xuất trùng.
 4. Cập nhật trạng thái đơn: file đối soát MỖI CHIỀU là đường chính (webhook chỉ phụ).
 5. 5 công tắc phân quyền; khoá THẬT ở RLS/trigger; `edit_price` BẬT sẵn.
 6. Sửa đơn = huỷ (lý do tự do) + tạo lại. Huỷ = hoàn kho TRƯỚC, đổi trạng thái SAU.

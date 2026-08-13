@@ -12,7 +12,7 @@ import { T, ORDER_STATUS } from '../../_lib/tokens'
 import { useToast } from '../../_components/Toast'
 import { getAllConfigs, updateOrderDB } from '../../../../lib/supabase'
 import {
-  buildExport, downloadText, EXPORTABLE_STATUSES, DEFAULT_STORE_NAME,
+  buildExport, EXPORTABLE_STATUSES, DEFAULT_STORE_NAME, BS_COLUMNS,
 } from '../../../../lib/bigseller'
 
 const box = { border: `1px solid ${T.line}`, borderRadius: 10, padding: '10px 12px', marginBottom: 8, fontSize: 12.5 }
@@ -60,8 +60,16 @@ export default function ExportModal({ orders, products, onDone, onClose }) {
     setPhase('applying')
     const d = new Date()
     const p = n => String(n).padStart(2, '0')
-    const fname = `hanapet-bigseller-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.csv`
-    downloadText(fname, plan.csv)
+    const fname = `hanapet-bigseller-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.xlsx`
+    /* 13/08: BS "Nhập đơn thủ công" chỉ nhận EXCEL — xuất .xlsx thay CSV
+       (SheetJS nạp động, cùng lib với màn đối soát). SĐT/mã giữ dạng CHỮ
+       để không mất số 0 đầu. */
+    const XLSX = await import('xlsx')
+    const aoa = [BS_COLUMNS, ...plan.rows.map(r => BS_COLUMNS.map(c => String(r[c] ?? '')))]
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
+    XLSX.writeFile(wb, fname)
 
     // Ghi dấu đã xuất cho TỪNG đơn trong file — lỗi đơn nào báo đơn đó
     const now = new Date().toISOString()
@@ -95,10 +103,10 @@ export default function ExportModal({ orders, products, onDone, onClose }) {
         overflowY: 'auto', padding: 20, fontFamily: T.fontBody,
       }}>
         <h3 style={{ fontFamily: T.fontTitle, color: T.navyDeep, fontSize: 16, marginBottom: 4 }}>
-          📤 Xuất BigSeller (CSV)
+          📤 Xuất BigSeller (Excel)
         </h3>
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 14 }}>
-          File đúng định dạng nhập thủ công của BS (39 cột) — combo tự bung theo BOM, giá tự chia.
+          File Excel đúng định dạng nhập thủ công của BS (39 cột) — combo tự bung theo BOM, giá tự chia.
           Bên BS: Xử lý đơn hàng → Nhập đơn hàng thủ công → Up file lên.
         </div>
 
@@ -155,7 +163,7 @@ export default function ExportModal({ orders, products, onDone, onClose }) {
                 {plan.warnings.length > 10 && <div style={{ marginLeft: 10 }}>· …và {plan.warnings.length - 10} cảnh báo nữa</div>}
                 {plan.warnings.some(w => w.includes('Chưa khai mã BigSeller')) && (
                   <div style={{ marginTop: 6, fontSize: 11.5 }}>
-                    💡 Khai mã SKU BigSeller hiện vẫn ở admin cũ (tab Kho → BigSeller) — sẽ chuyển về đây ở Phase 2.
+                    💡 Khai mã SKU BigSeller: tab Sản phẩm & Kho — bấm vào ô SKU viền đỏ là sửa được ngay.
                   </div>
                 )}
               </div>
@@ -169,7 +177,7 @@ export default function ExportModal({ orders, products, onDone, onClose }) {
                   disabled={!plan.exported.length || phase === 'applying'}
                   onClick={doDownload}
                 >
-                  {phase === 'applying' ? '⏳ Đang tải…' : `Tải file CSV (${plan.exported.length} đơn)`}
+                  {phase === 'applying' ? '⏳ Đang tải…' : `Tải file Excel (${plan.exported.length} đơn)`}
                 </button>
               </div>
             )}

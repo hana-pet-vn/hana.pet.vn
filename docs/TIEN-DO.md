@@ -40,6 +40,7 @@ planReconcile (giữ 'Chờ xử lý'). `next build` xanh 28 routes.
 2. Đặt ngưỡng ngừng bán = 2 cho mùi còn 2 → web báo Hết hàng dù số chưa về 0.
 3. Để tồn 9 (ngưỡng nhắc 10) → tự nhảy tab "Sắp hết".
 4. Xoá SKU BS 1 mùi → ô viền đỏ; xuất BS 1 đơn chứa mùi đó → đơn bị loại kèm lý do.
+   Xuất đơn thường → ra file .xlsx, up BigSeller NHẬN được, SĐT không mất số 0 đầu.
 5. Tab Combo: combo *scent* hiện tồn = mùi thấp nhất; xoá BOM → cảnh báo đỏ.
 6. Thêm 1 sản phẩm mới 2 mùi + ảnh (thử ảnh KHÔNG vuông → phải bị từ chối).
 7. "Ngừng bán" sản phẩm test → biến mất khỏi web; mở đơn cũ có nó → tên vẫn đúng;
@@ -47,6 +48,12 @@ planReconcile (giữ 'Chờ xử lý'). `next build` xanh 28 routes.
 8. Kiểm kho hàng loạt: tick 3 mã, cộng +5, xem trước, áp → số đúng cả 3.
 9. Đối soát: thả THẲNG file .xlsx BigSeller (không lưu CSV) → đọc được bình thường.
 10. Tài khoản staff, tắt edit_price: sửa giá bị khoá 🔒, sửa tồn/SKU/ngưỡng vẫn được.
+
+### 🔧 Vá nóng cùng ngày (sau khi Tùng test thật)
+- **Xuất BigSeller đổi CSV → EXCEL .xlsx** — BS "Nhập đơn thủ công" không nhận
+  CSV (phát hiện khi lên đơn thật). SheetJS, mọi ô ép dạng CHỮ nên SĐT không mất
+  số 0 đầu (test tay: 39 cột + SĐT đọc lại đúng). Sửa luôn chú thích khai SKU
+  trong modal xuất: trỏ về tab Sản phẩm & Kho (hết chữ "admin cũ" của Phase 1).
 
 ### 📌 Nợ kỹ thuật còn lại
 - `manual-order` vẫn lặp resolveLine của `/api/orders/create` (gộp lib chung khi
