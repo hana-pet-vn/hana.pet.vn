@@ -61,6 +61,15 @@ planReconcile (giữ 'Chờ xử lý'). `next build` xanh 28 routes.
   dữ liệu từ dòng 7. Test tay: khung khớp mẫu 100% (234/234 ô), 39 tên cột khớp
   tuyệt đối, SĐT giữ số 0, dữ liệu đúng dòng 7. Mọi ô dạng CHỮ.
 
+### 🔧 Vá 3 (18/08, sau lần import thật đầu tiên "0 thành công 4 thất bại")
+- **Khung file xuất CHỈ 4 dòng hướng dẫn** — BS KHÔNG bỏ qua dòng ví dụ mà đọc
+  như đơn thật (bằng chứng: lỗi "mã khách hàng CN99999999" = dữ liệu ví dụ của
+  mẫu). Sinh lại `lib/bigseller-template.js` cắt 2 dòng ví dụ; dữ liệu từ dòng 5.
+- **Cột Tỉnh bỏ tiền tố** — BS bắt tên tỉnh trần ("Bắc Kạn" như ví dụ mẫu);
+  "Thành phố Hà Nội" bị chê định dạng → xuất thành "Hà Nội"/"Huế"/"Hồ Chí Minh".
+  Quận/Phường GIỮ tiền tố (ví dụ mẫu: "Huyện Chợ Đồn", "Xã Bằng Phúc").
+- Test tay: khung 4 dòng, đơn nằm dòng 5, tỉnh trần, hết sạch chữ "Ví dụ" trong file.
+
 ### 📌 Nợ kỹ thuật còn lại
 - `manual-order` vẫn lặp resolveLine của `/api/orders/create` (gộp lib chung khi
   test được checkout).
