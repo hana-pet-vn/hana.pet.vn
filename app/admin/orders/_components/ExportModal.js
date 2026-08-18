@@ -61,14 +61,17 @@ export default function ExportModal({ orders, products, onDone, onClose }) {
     const d = new Date()
     const p = n => String(n).padStart(2, '0')
     const fname = `hanapet-bigseller-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.xlsx`
-    /* 13/08: BS "Nhập đơn thủ công" chỉ nhận EXCEL — xuất .xlsx thay CSV
-       (SheetJS nạp động, cùng lib với màn đối soát). SĐT/mã giữ dạng CHỮ
-       để không mất số 0 đầu. */
+    /* 13/08 (vá 2, theo FILE MẪU THẬT Tùng tải từ BS): file nhập thủ công
+       phải MANG NGUYÊN khối 6 dòng hướng dẫn của mẫu (tiêu đề + bắt buộc +
+       mô tả + ràng buộc + 2 dòng ví dụ) — BS bỏ qua 6 dòng đó rồi mới đọc
+       dữ liệu từ dòng 7. Thiếu khối này BS đọc ra "0 đơn". Tên sheet cũng
+       lấy theo mẫu. Mọi ô ép dạng CHỮ để SĐT không mất số 0 đầu. */
     const XLSX = await import('xlsx')
-    const aoa = [BS_COLUMNS, ...plan.rows.map(r => BS_COLUMNS.map(c => String(r[c] ?? '')))]
+    const { BS_SHEET_NAME, BS_PRE_ROWS } = await import('../../../../lib/bigseller-template')
+    const aoa = [...BS_PRE_ROWS, ...plan.rows.map(r => BS_COLUMNS.map(c => String(r[c] ?? '')))]
     const ws = XLSX.utils.aoa_to_sheet(aoa)
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
+    XLSX.utils.book_append_sheet(wb, ws, BS_SHEET_NAME)
     XLSX.writeFile(wb, fname)
 
     // Ghi dấu đã xuất cho TỪNG đơn trong file — lỗi đơn nào báo đơn đó

@@ -51,9 +51,15 @@ planReconcile (giữ 'Chờ xử lý'). `next build` xanh 28 routes.
 
 ### 🔧 Vá nóng cùng ngày (sau khi Tùng test thật)
 - **Xuất BigSeller đổi CSV → EXCEL .xlsx** — BS "Nhập đơn thủ công" không nhận
-  CSV (phát hiện khi lên đơn thật). SheetJS, mọi ô ép dạng CHỮ nên SĐT không mất
-  số 0 đầu (test tay: 39 cột + SĐT đọc lại đúng). Sửa luôn chú thích khai SKU
-  trong modal xuất: trỏ về tab Sản phẩm & Kho (hết chữ "admin cũ" của Phase 1).
+  CSV (phát hiện khi lên đơn thật). Sửa chú thích khai SKU trỏ về tab Sản phẩm & Kho.
+- **Vá 2 (cũng 13/08): file xuất phải MANG KHUNG FILE MẪU của BS** — up bản .xlsx
+  đầu BS đọc "0 thành công 0 thất bại". Mổ file mẫu thật (Tùng tải từ màn nhập):
+  6 dòng đầu là khối hướng dẫn (tiêu đề + bắt buộc + mô tả + ràng buộc + 2 ví dụ),
+  BS bỏ qua 6 dòng đó rồi mới đọc dữ liệu TỪ DÒNG 7; tên sheet '工作表1'.
+  → Sinh `lib/bigseller-template.js` TỪ FILE MẪU THẬT (khối 6 dòng + tên sheet,
+  đừng sửa tay — BS đổi mẫu thì tải mẫu mới sinh lại), ExportModal ghép khung +
+  dữ liệu từ dòng 7. Test tay: khung khớp mẫu 100% (234/234 ô), 39 tên cột khớp
+  tuyệt đối, SĐT giữ số 0, dữ liệu đúng dòng 7. Mọi ô dạng CHỮ.
 
 ### 📌 Nợ kỹ thuật còn lại
 - `manual-order` vẫn lặp resolveLine của `/api/orders/create` (gộp lib chung khi
